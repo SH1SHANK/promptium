@@ -364,7 +364,39 @@ const onLibraryClick = () => {
   });
 };
 
-/** Routes FAB action clicks to prompt save, export dialog, or library guidance. */
+/** Triggers Gemini Flash Lite to improve the current active prompt in the chat box. */
+const onImprovePromptClick = async (platform) => {
+  const input = await getInputElement(platform);
+  const text = String(input?.value || input?.textContent || '').trim();
+
+  if (!text) {
+    await showNotification('Type a prompt in the chat box first.');
+    return;
+  }
+
+  showNotification('Improving prompt...').catch(console.error);
+
+  try {
+    const response = await window.AIBridge?.improvePrompt(text, [], 'general');
+    if (response?.text) {
+      if (input.value !== undefined) {
+        input.value = response.text;
+      } else {
+        input.textContent = response.text;
+      }
+      // Dispatch input event so the React/Vue frameworks notice the change
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await showNotification('Prompt improved ✨');
+    } else {
+      await showNotification('Could not improve prompt.');
+    }
+  } catch (error) {
+    console.error('[PromptNest] Improve fail:', error);
+    await showNotification('Failed to improve prompt.');
+  }
+};
+
+/** Routes FAB action clicks to prompt save, export dialog, library guidance, or improvement. */
 const handleFabAction = (platform, action) => {
   if (action === 'save-prompt') {
     onSavePromptClick(platform).catch(console.error);
@@ -378,6 +410,11 @@ const handleFabAction = (platform, action) => {
 
   if (action === 'library') {
     onLibraryClick();
+    return;
+  }
+
+  if (action === 'improve-prompt') {
+    onImprovePromptClick(platform).catch(console.error);
   }
 };
 
@@ -387,6 +424,10 @@ const createToolbar = async () => {
   root.id = 'pn-fab-root';
   root.innerHTML = `
     <div id="pn-fab-menu" class="pn-fab-menu hidden">
+      <button class="pn-fab-action" data-action="improve-prompt" type="button" aria-label="Improve current Prompt">
+        <span class="pn-fab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v19"></path><path d="M5 10l7-7 7 7"></path></svg></span>
+        <span class="pn-fab-label">Improve</span>
+      </button>
       <button class="pn-fab-action" data-action="save-prompt" type="button" aria-label="Save current Prompt">
         <span class="pn-fab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg></span>
         <span class="pn-fab-label">Save Prompt</span>

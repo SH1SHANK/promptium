@@ -35,6 +35,10 @@ const AIBridge = {
     return this._send({ type: 'AI_CACHE_REMOVE', promptId });
   },
 
+  async improvePrompt(text, tags = [], style = 'general') {
+    return this._send({ type: 'AI_IMPROVE_PROMPT', text, tags, style });
+  },
+
   async getStatus() {
     return this._send({ type: 'AI_STATUS_CHECK' });
   },

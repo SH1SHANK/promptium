@@ -155,7 +155,19 @@
 
       <section class="tab-content pn-tab-content" data-tab="tags">
         <div class="pn-tags-view">
-          <div id="pn-tag-filter-bar" class="pn-tag-filter-bar"></div>
+          <div class="pn-tags-view-header" style="margin: 14px 12px 8px;">
+            <h3 class="pn-section-title">Quick Filters</h3>
+            <p class="pn-card-meta">Click a tag to view matching prompts</p>
+          </div>
+          <div id="pn-tag-filter-bar" class="pn-tag-filter-bar">
+            <!-- Chips injected here -->
+          </div>
+
+          <hr class="pn-sv-divider" style="margin: 16px 0;" />
+
+          <div class="pn-tags-view-header" style="margin: 14px 12px 8px;">
+            <h3 class="pn-section-title">Manage Tags</h3>
+          </div>
           <div id="tag-list" class="pn-tag-list">
             <div id="pn-tags-empty" class="pn-empty-state">
               <div class="pn-empty-icon">🏷️</div>
@@ -359,6 +371,19 @@
         <div id="pn-tag-suggestions" class="pn-tag-suggestions"></div>
 
         <div id="pn-duplicate-warning" class="pn-duplicate-warning pn-hidden"></div>
+
+        <div class="pn-ai-actions" style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center; justify-content: flex-end;">
+          <select id="pn-improve-style" class="pn-sv-select" style="padding: 4px 8px; font-size: 12px; background: #111114; color: #ececf1; border: 1px solid #333; border-radius: 6px;">
+            <option value="general">General Polish</option>
+            <option value="coding">Coding / Tech</option>
+            <option value="study">Study / Summarize</option>
+            <option value="creative">Creative Writing</option>
+          </select>
+          <button id="pn-improve-prompt-btn" class="pn-btn pn-btn--ghost" type="button" style="color: #a49aff; border: 1px solid rgba(164, 154, 255, 0.3); font-size: 13px; padding: 4px 12px; display: flex; align-items: center; gap: 6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v19"></path><path d="M5 10l7-7 7 7"></path></svg>
+            Improve
+          </button>
+        </div>
 
         <div class="pn-modal__actions">
           <button id="cancel-modal" class="pn-btn pn-btn--ghost" type="button">

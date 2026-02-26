@@ -858,6 +858,35 @@ const createPromptCard = async (prompt, activeFilter, canInject) => {
     });
   }
 
+  const improveButton = document.createElement('button');
+  improveButton.className = 'pn-btn pn-btn--ghost';
+  improveButton.type = 'button';
+  improveButton.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="pn-btn-icon" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#a49aff"><path d="M12 3v19"></path><path d="M5 10l7-7 7 7"></path></svg>Improve`;
+  improveButton.title = 'Improve prompt with AI';
+  improveButton.addEventListener('click', () => {
+    void (async () => {
+      improveButton.disabled = true;
+      improveButton.textContent = 'Improving...';
+      
+      try {
+        const response = await window.AIBridge.improvePrompt(prompt.text, prompt.tags, 'general');
+        if (response?.text) {
+          prompt.text = response.text;
+          await window.Store.savePrompt(prompt);
+          await showToast('Prompt improved and saved ✨');
+          await renderPrompts(activeFilter);
+        } else {
+          await showToast('Could not improve prompt.');
+        }
+      } catch (err) {
+        await showToast('Error enhancing prompt.');
+      } finally {
+        improveButton.disabled = false;
+        improveButton.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="pn-btn-icon" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#a49aff"><path d="M12 3v19"></path><path d="M5 10l7-7 7 7"></path></svg>Improve`;
+      }
+    })();
+  });
+
   const deleteButton = document.createElement('button');
   deleteButton.className = 'pn-btn pn-btn-danger';
   deleteButton.type = 'button';
@@ -899,6 +928,7 @@ const createPromptCard = async (prompt, activeFilter, canInject) => {
   }
 
   actions.appendChild(injectButton);
+  actions.appendChild(improveButton);
   actions.appendChild(deleteButton);
   card.appendChild(title);
   card.appendChild(text);
@@ -1837,6 +1867,43 @@ const bindEvents = async () => {
 
   document.querySelector('[data-close-modal]')?.addEventListener('click', () => {
     void closeModal();
+  });
+
+  (await byId('pn-improve-prompt-btn'))?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const textInput = await byId('prompt-text');
+    const tagsHidden = await byId('prompt-tags');
+    const styleSelect = await byId('pn-improve-style');
+    
+    if (!textInput || !textInput.value.trim()) {
+      await showToast('Enter a prompt to improve.');
+      return;
+    }
+
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = 'Improving...';
+
+    try {
+      const tags = await parseTags(tagsHidden?.value || '');
+      const style = styleSelect?.value || 'general';
+      const response = await window.AIBridge.improvePrompt(textInput.value, tags, style);
+      
+      if (response?.text) {
+        textInput.value = response.text;
+        await showToast('Prompt improved ✨');
+        
+        // Also fire prefill tags if appropriate
+        void prefillSuggestedTags();
+      } else {
+        await showToast('Failed to improve prompt.');
+      }
+    } catch (err) {
+      await showToast('Error during AI improvement.');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+    }
   });
 
   (await byId('prompt-text'))?.addEventListener('blur', () => {

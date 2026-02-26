@@ -287,6 +287,60 @@ async function getSmartSuggestions(conversationText) {
   }
 }
 
+// ─── AI Feature: AI Prompt Improvement (Gemini Flash) ─────────────────────────
+
+async function improvePromptViaGemini(text, tags = [], style = 'general') {
+  if (!text || text.trim().length === 0) return null;
+
+  try {
+    const { pnGeminiKey } = await chrome.storage.local.get('pnGeminiKey');
+    if (!pnGeminiKey) return null;
+
+    let styleInstruction = 'Make it clear, concise, and highly effective for an AI.';
+    if (style === 'coding') {
+      styleInstruction = 'Optimize for software engineering. Ask for code snippets, architecture details, and edge case handling.';
+    } else if (style === 'study') {
+      styleInstruction = 'Optimize for learning and summarization. Ask for clear explanations, analogies, and step-by-step breakdowns.';
+    } else if (style === 'creative') {
+      styleInstruction = 'Optimize for creative writing. Ask for vivid imagery, character depth, and engaging tone.';
+    }
+
+    const tagContext = tags.length > 0 ? `Incorporate these concepts/topics: ${tags.join(', ')}.` : '';
+
+    const systemPrompt = `You are an expert prompt engineer. Your goal is to improve the user's prompt so it yields the best possible response from an LLM. 
+${styleInstruction} 
+${tagContext}
+ONLY return the improved prompt text. Do not add quotes, do not explain your changes, do not write "Here is the improved prompt:". Just the raw, ready-to-use prompt text.`;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${pnGeminiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            { role: 'user', parts: [{ text: `${systemPrompt}\n\nUser's Original Prompt: ${text}` }] }
+          ],
+          generationConfig: {
+            temperature: 0.4,
+            maxOutputTokens: 800,
+          },
+        }),
+      }
+    );
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    const textResult = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    
+    return textResult.trim() || null;
+  } catch (err) {
+    console.error('[PromptNest] Failed to improve prompt via Gemini:', err);
+    return null;
+  }
+}
+
 // ─── AI Message Handler ──────────────────────────────────────────────────────
 
 const handleAIMessage = async (message, sendResponse) => {
@@ -321,6 +375,10 @@ const handleAIMessage = async (message, sendResponse) => {
       case 'AI_CACHE_REMOVE':
         await removeFromCache(message.promptId);
         sendResponse({ ok: true });
+        return true;
+
+      case 'AI_IMPROVE_PROMPT':
+        sendResponse({ text: await improvePromptViaGemini(message.text, message.tags, message.style) });
         return true;
 
       case 'AI_STATUS_CHECK':
