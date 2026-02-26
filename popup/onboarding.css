@@ -78,6 +78,26 @@
   filter: drop-shadow(0 0 12px currentColor);
 }
 
+.pn-card-icon--violet {
+  color: #8b7cf6;
+}
+
+.pn-card-icon--mint {
+  color: #6ee7b7;
+}
+
+.pn-card-icon--amber {
+  color: #fbbf24;
+}
+
+.pn-card-icon--pink {
+  color: #f472b6;
+}
+
+.pn-card-icon--green {
+  color: #34d399;
+}
+
 .pn-card-sub {
   font-family: var(--font-mono);
   font-size: 10px;
@@ -210,6 +230,21 @@
   border-radius: 2px;
   overflow: hidden;
   margin: 20px 0 8px;
+}
+
+.pn-progress-track::-webkit-progress-bar {
+  background: var(--bg-elevated);
+  border-radius: 2px;
+}
+
+.pn-progress-track::-webkit-progress-value {
+  background: linear-gradient(90deg, var(--accent), #a78bfa);
+  border-radius: 2px;
+}
+
+.pn-progress-track::-moz-progress-bar {
+  background: linear-gradient(90deg, var(--accent), #a78bfa);
+  border-radius: 2px;
 }
 
 .pn-progress-fill {

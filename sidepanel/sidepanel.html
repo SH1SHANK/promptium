@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PromptNest Side Panel</title>
+    <link rel="stylesheet" href="../popup/popup.css" />
+    <link rel="stylesheet" href="../popup/onboarding.css" />
+    <link rel="stylesheet" href="tailwind.css" />
+  </head>
+  <body class="pn-popup pn-sidepanel">
+    <header class="pn-header pn-sidepanel-header">
+      <h1 class="pn-title">PromptNest</h1>
+      <div class="pn-header-actions">
+        <button
+          id="add-prompt-btn"
+          class="pn-btn pn-btn--primary"
+          type="button"
+        >
+          Add Prompt
+        </button>
+      </div>
+    </header>
+
+    <div id="search-wrap" class="pn-search-row">
+      <input
+        id="prompt-search"
+        class="pn-search"
+        type="text"
+        placeholder="Search prompts by title, text, or tags"
+      />
+    </div>
+
+    <nav class="pn-tab-bar" aria-label="PromptNest tabs">
+      <button class="tab pn-tab active" data-tab="prompts" type="button">
+        Prompts
+      </button>
+      <button class="tab pn-tab" data-tab="history" type="button">
+        History
+      </button>
+      <button class="tab pn-tab" data-tab="export" type="button">Export</button>
+      <button class="tab pn-tab" data-tab="tags" type="button">Tags</button>
+      <button class="tab pn-tab" data-tab="settings" type="button">
+        Settings
+      </button>
+    </nav>
+
+    <main class="pn-main pn-sidepanel-main">
+      <section class="tab-content pn-tab-content active" data-tab="prompts">
+        <div id="prompt-list" class="pn-list"></div>
+      </section>
+
+      <section class="tab-content pn-tab-content" data-tab="history">
+        <div id="history-list" class="pn-list"></div>
+      </section>
+
+      <section class="tab-content pn-tab-content" data-tab="export">
+        <div class="pn-export-grid">
+          <aside class="pn-export-controls">
+            <p id="selection-meta" class="pn-card-meta">
+              No message selection received yet.
+            </p>
+
+            <label class="pn-field">
+              <span>Export Format</span>
+              <select id="export-format">
+                <option value="markdown">Markdown (.md)</option>
+                <option value="pdf">PDF (.pdf)</option>
+              </select>
+            </label>
+
+            <label class="pn-check-row">
+              <input id="include-date" type="checkbox" checked />
+              <span>Include export date</span>
+            </label>
+
+            <label class="pn-check-row">
+              <input id="include-platform" type="checkbox" checked />
+              <span>Include platform label</span>
+            </label>
+
+            <button
+              id="export-btn"
+              type="button"
+              class="pn-btn pn-btn--primary"
+            >
+              Export Markdown
+            </button>
+            <p id="export-status" class="pn-card-meta"></p>
+          </aside>
+
+          <section class="pn-export-preview-shell">
+            <div class="pn-export-preview-head">
+              <h3 class="pn-section-title">Preview</h3>
+              <p id="preview-label" class="pn-card-meta">Markdown preview</p>
+            </div>
+            <div id="preview" class="pn-export-preview-body"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="tab-content pn-tab-content" data-tab="tags">
+        <div class="pn-settings-card">
+          <h3 class="pn-section-title">Tag Manager</h3>
+          <p class="pn-card-meta">
+            Rename, remove, or filter prompts by existing tags.
+          </p>
+        </div>
+        <div id="tag-list" class="pn-list"></div>
+      </section>
+
+      <section class="tab-content pn-tab-content" data-tab="settings">
+        <div class="pn-settings-shell">
+          <div class="pn-settings-card pn-settings-hero">
+            <h3 class="pn-section-title">Workspace Settings</h3>
+            <p class="pn-card-meta">
+              Tune AI behavior, prompt quality checks, export defaults, and
+              personalization from one place.
+            </p>
+          </div>
+
+          <div class="pn-settings-grid">
+            <article class="pn-settings-card pn-settings-section">
+              <header class="pn-settings-section-head">
+                <h4 class="pn-settings-heading">AI and Search</h4>
+                <p class="pn-card-meta">
+                  Control smart search and ranking behavior (no model
+                  downloads).
+                </p>
+              </header>
+
+              <label class="pn-check-row pn-check-row--stacked">
+                <input id="setting-enable-ai" type="checkbox" checked />
+                <span class="pn-check-copy">
+                  <strong>Enable smart features</strong>
+                  <small
+                    >Uses built-in heuristics for search ranking, tag
+                    suggestions, and duplicate checks.</small
+                  >
+                </span>
+              </label>
+
+              <label class="pn-check-row pn-check-row--stacked">
+                <input id="setting-semantic-search" type="checkbox" checked />
+                <span class="pn-check-copy">
+                  <strong>Use relevance ranking for prompts</strong>
+                  <small
+                    >Ranks results by title, text, and tag overlap before
+                    fallback keyword filtering.</small
+                  >
+                </span>
+              </label>
+            </article>
+
+            <article class="pn-settings-card pn-settings-section">
+              <header class="pn-settings-section-head">
+                <h4 class="pn-settings-heading">Prompt Quality</h4>
+                <p class="pn-card-meta">
+                  Automate checks when creating new prompts.
+                </p>
+              </header>
+
+              <label class="pn-check-row pn-check-row--stacked">
+                <input id="setting-auto-suggest" type="checkbox" checked />
+                <span class="pn-check-copy">
+                  <strong>Auto-suggest tags when adding prompts</strong>
+                  <small>Suggests topical tags based on prompt intent.</small>
+                </span>
+              </label>
+
+              <label class="pn-check-row pn-check-row--stacked">
+                <input id="setting-duplicate-check" type="checkbox" checked />
+                <span class="pn-check-copy">
+                  <strong>Run duplicate prompt detection on save</strong>
+                  <small>Warns before storing highly similar prompts.</small>
+                </span>
+              </label>
+            </article>
+
+            <article class="pn-settings-card pn-settings-section">
+              <header class="pn-settings-section-head">
+                <h4 class="pn-settings-heading">Export Defaults</h4>
+                <p class="pn-card-meta">
+                  Applied each time selected chat messages are exported.
+                </p>
+              </header>
+
+              <label class="pn-field">
+                <span>Default Export Format</span>
+                <select id="setting-export-format">
+                  <option value="markdown">Markdown (.md)</option>
+                  <option value="pdf">PDF (.pdf)</option>
+                </select>
+              </label>
+
+              <label class="pn-check-row pn-check-row--stacked">
+                <input id="setting-export-date" type="checkbox" checked />
+                <span class="pn-check-copy">
+                  <strong>Include date by default</strong>
+                  <small>Adds export timestamp in output metadata.</small>
+                </span>
+              </label>
+
+              <label class="pn-check-row pn-check-row--stacked">
+                <input id="setting-export-platform" type="checkbox" checked />
+                <span class="pn-check-copy">
+                  <strong>Include platform label by default</strong>
+                  <small
+                    >Adds source platform tags like ChatGPT or Claude.</small
+                  >
+                </span>
+              </label>
+            </article>
+
+            <article class="pn-settings-card pn-settings-section">
+              <header class="pn-settings-section-head">
+                <h4 class="pn-settings-heading">Personalization</h4>
+                <p class="pn-card-meta">
+                  Improves context-aware tag and search relevance.
+                </p>
+              </header>
+
+              <label class="pn-field">
+                <span>User Context for AI Suggestions</span>
+                <textarea
+                  id="setting-user-context"
+                  rows="4"
+                  placeholder="Example: I build TypeScript browser extensions and write technical docs."
+                ></textarea>
+              </label>
+            </article>
+
+            <article
+              class="pn-settings-card pn-settings-section pn-settings-section--wide"
+            >
+              <header class="pn-settings-section-head">
+                <h4 class="pn-settings-heading">Runtime Mode</h4>
+                <p class="pn-card-meta">
+                  PromptNest now runs model-free smart features with no local
+                  model payloads.
+                </p>
+              </header>
+              <p id="ai-progress-text" class="pn-card-meta">
+                Model-free mode active. No model download required.
+              </p>
+            </article>
+          </div>
+
+          <div class="pn-settings-actions">
+            <button
+              id="reset-settings-btn"
+              class="pn-btn pn-btn--ghost"
+              type="button"
+            >
+              Reset Defaults
+            </button>
+            <button
+              id="save-settings-btn"
+              class="pn-btn pn-btn--primary"
+              type="button"
+              disabled
+            >
+              Save Settings
+            </button>
+          </div>
+          <p id="settings-status" class="pn-card-meta pn-settings-status"></p>
+        </div>
+      </section>
+    </main>
+
+    <div id="add-modal" class="pn-modal pn-hidden">
+      <div class="pn-modal__backdrop" data-close-modal></div>
+      <div class="pn-modal__panel">
+        <h2 class="pn-modal__title">Save Prompt</h2>
+
+        <label class="pn-field">
+          <span>Title</span>
+          <input id="prompt-title" type="text" placeholder="Prompt title" />
+        </label>
+
+        <label class="pn-field">
+          <span>Prompt Text</span>
+          <textarea
+            id="prompt-text"
+            rows="6"
+            placeholder="Write your prompt here..."
+          ></textarea>
+        </label>
+
+        <label class="pn-field">
+          <span>Tags (comma separated)</span>
+          <input
+            id="prompt-tags"
+            type="text"
+            placeholder="writing, coding, summary"
+          />
+        </label>
+
+        <div class="pn-modal__actions">
+          <button id="cancel-modal" class="pn-btn pn-btn--ghost" type="button">
+            Cancel
+          </button>
+          <button
+            id="confirm-duplicate"
+            class="pn-btn pn-btn-warn hidden"
+            type="button"
+          >
+            Save Anyway
+          </button>
+          <button
+            id="save-new-prompt"
+            class="pn-btn pn-btn--primary"
+            type="button"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script src="../libs/jspdf.min.js"></script>
+    <script src="../libs/html2pdf.bundle.min.js"></script>
+    <script src="../libs/turndown.js"></script>
+    <script src="../utils/storage.js"></script>
+    <script src="../utils/exporter.js"></script>
+    <script src="../utils/ai.js"></script>
+    <script src="sidepanel.js"></script>
+  </body>
+</html>

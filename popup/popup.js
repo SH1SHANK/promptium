@@ -96,18 +96,7 @@ const resetDuplicateState = async () => {
 
 /** Moves the tab indicator under the currently active tab button. */
 const updateTabIndicator = async () => {
-  const tabBar = document.querySelector('.pn-tab-bar');
-  const indicator = document.querySelector('.pn-tab-indicator');
-  const activeTab = document.querySelector('.pn-tab.active');
-
-  if (!tabBar || !indicator || !activeTab) {
-    return;
-  }
-
-  const tabRect = activeTab.getBoundingClientRect();
-  const barRect = tabBar.getBoundingClientRect();
-  indicator.style.width = `${tabRect.width}px`;
-  indicator.style.transform = `translateX(${tabRect.left - barRect.left}px)`;
+  return;
 };
 
 /** Renders one prompt card with inject and delete actions. */

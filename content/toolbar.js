@@ -1,7 +1,7 @@
 /**
  * File: content/toolbar.js
  * Purpose: Injects and manages the PromptNest floating action button, save modal, and quick actions.
- * Communicates with: utils/platform.js, utils/storage.js, content/scraper.js, content/export-dialog.js, content/injector.js.
+ * Communicates with: utils/platform.js, utils/storage.js, content/scraper.js, content/content.js, content/injector.js.
  */
 
 let toolbarInjected = false;
@@ -209,31 +209,34 @@ const onSavePromptClick = async (platform) => {
   await openSaveModal(text);
 };
 
-/** Opens the unified export dialog after collecting current chat messages. */
-const onExportClick = async (platform) => {
-  const messages = await window.Scraper.scrape(platform);
+/** Opens side panel export with all visible messages preselected from current chat. */
+const onExportClick = async (_platform) => {
+  if (window.__PN?.SidePanelExport?.openWithAllMessages) {
+    const response = await window.__PN.SidePanelExport.openWithAllMessages();
 
-  if (!messages.length) {
-    await showNotification('No chat messages found to export.');
+    if (!response?.ok) {
+      await showNotification(response?.error || 'Failed to open side panel export.');
+    }
+
     return;
   }
 
-  if (!window.ExportDialog || typeof window.ExportDialog.open !== 'function') {
-    await showNotification('Export dialog is unavailable on this page.');
-    return;
-  }
-
-  await window.ExportDialog.open({
-    platform,
-    title: document.title || 'Untitled chat',
-    messages,
-    showNotification
-  });
+  await showNotification('Export selection is still initializing. Try again in a moment.');
 };
 
-/** Handles library action by guiding users to the popup entrypoint. */
+/** Handles library action with migration guidance while side panel work is in progress. */
 const onLibraryClick = async () => {
-  await showNotification('Open PromptNest popup to browse your prompt library (Alt+Shift+P).');
+  if (window.__PN?.SidePanelExport?.openPanelOnly) {
+    const response = await window.__PN.SidePanelExport.openPanelOnly();
+
+    if (!response?.ok) {
+      await showNotification(response?.error || 'Failed to open side panel.');
+    }
+
+    return;
+  }
+
+  await showNotification('PromptNest side panel is still initializing. Try again shortly.');
 };
 
 /** Routes FAB action clicks to prompt save, export dialog, or library guidance. */

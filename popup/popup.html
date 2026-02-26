@@ -4,12 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PromptNest</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
-      rel="stylesheet"
-    />
     <link rel="stylesheet" href="popup.css" />
     <link rel="stylesheet" href="onboarding.css" />
   </head>
@@ -32,7 +26,6 @@
     <nav class="pn-tab-bar" aria-label="PromptNest tabs">
       <button class="tab pn-tab active" data-tab="prompts" type="button">Prompts</button>
       <button class="tab pn-tab" data-tab="history" type="button">History</button>
-      <div class="pn-tab-indicator" aria-hidden="true"></div>
     </nav>
 
     <main class="pn-main">
@@ -73,15 +66,11 @@
       </div>
     </div>
 
-    <div id="pn-onboarding-mount"></div>
-
     <script src="../libs/jspdf.min.js"></script>
-    <script src="../libs/transformers.min.js"></script>
     <script src="../utils/platform.js"></script>
     <script src="../utils/storage.js"></script>
     <script src="../utils/exporter.js"></script>
     <script src="../utils/ai.js"></script>
-    <script src="onboarding.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

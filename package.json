@@ -1,13 +1,17 @@
 {
   "name": "promptnest",
   "version": "1.0.0",
-  "packageManager": "pnpm@latest",
+  "packageManager": "pnpm@8.9.0",
+  "scripts": {
+    "build:sidepanel-css": "tailwindcss -i ./src/input.css -o ./sidepanel/tailwind.css --minify",
+    "watch:sidepanel-css": "tailwindcss -i ./src/input.css -o ./sidepanel/tailwind.css --watch"
+  },
   "private": true,
   "dependencies": {
-    "@xenova/transformers": "^2.17.2",
     "jspdf": "^4.2.0"
   },
   "devDependencies": {
-    "canvas": "2.11.2"
+    "canvas": "2.11.2",
+    "tailwindcss": "^3.4.17"
   }
 }

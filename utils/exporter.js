@@ -1,7 +1,7 @@
 /**
  * File: utils/exporter.js
  * Purpose: Converts chat data into markdown, text, and PDF export files with optional presentation preferences.
- * Communicates with: popup/popup.js, content/toolbar.js, content/content.js, content/export-dialog.js.
+ * Communicates with: popup/popup.js, content/toolbar.js, content/content.js.
  */
 
 const DEFAULT_PREFS = {

@@ -341,17 +341,17 @@
     }
   };
 
-  /** Runs staged setup progress animation and initializes on-device AI model once. */
+  /** Runs staged setup progress animation and initializes smart features once. */
   const runModelInit = async () => {
     const bar = document.getElementById('pn-progress-bar');
     const label = document.getElementById('pn-progress-label');
     const pct = document.getElementById('pn-progress-pct');
 
     const steps = [
-      { pct: 15, label: 'Fetching model weights...', step: 'fetch', delay: 400 },
-      { pct: 45, label: 'Loading into memory...', step: 'fetch', delay: 1200 },
-      { pct: 70, label: 'Loading into memory...', step: 'load', delay: 800 },
-      { pct: 85, label: 'Warming up inference...', step: 'warmup', delay: 600 },
+      { pct: 15, label: 'Preparing smart search...', step: 'fetch', delay: 400 },
+      { pct: 45, label: 'Initializing runtime...', step: 'fetch', delay: 1200 },
+      { pct: 70, label: 'Applying preferences...', step: 'load', delay: 800 },
+      { pct: 85, label: 'Warming up suggestions...', step: 'warmup', delay: 600 },
       { pct: 95, label: 'Personalizing...', step: 'warmup', delay: 400 }
     ];
 
@@ -413,7 +413,7 @@
     }
   };
 
-  /** Replaces card deck with the model initialization interface in the same overlay. */
+  /** Replaces card deck with the smart-feature initialization interface in the same overlay. */
   const showModelInitScreen = async () => {
     const overlay = dom.overlay || document.getElementById('pn-onboarding');
 
@@ -426,8 +426,8 @@
       <div id="pn-model-init">
         <div class="pn-init-header">
           <div class="pn-init-icon">◈</div>
-          <h2>Setting up your AI</h2>
-          <p>Downloading the semantic search model.<br>This only happens once — it's cached locally forever.</p>
+          <h2>Setting up smart features</h2>
+          <p>PromptNest runs model-free smart ranking and tagging.<br>No model download is required.</p>
         </div>
 
         <div class="pn-progress-container">
@@ -443,15 +443,15 @@
         <div id="pn-init-steps" class="pn-init-steps">
           <div class="pn-step" data-step="fetch">
             <span class="pn-step-dot"></span>
-            <span class="pn-step-text">Fetching model weights</span>
+            <span class="pn-step-text">Preparing runtime</span>
           </div>
           <div class="pn-step" data-step="load">
             <span class="pn-step-dot"></span>
-            <span class="pn-step-text">Loading into memory</span>
+            <span class="pn-step-text">Applying preferences</span>
           </div>
           <div class="pn-step" data-step="warmup">
             <span class="pn-step-dot"></span>
-            <span class="pn-step-text">Warming up inference</span>
+            <span class="pn-step-text">Warming up ranking</span>
           </div>
           <div class="pn-step" data-step="ready">
             <span class="pn-step-dot"></span>
