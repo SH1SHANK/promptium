@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PromptNest</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body class="pn-popup">
+    <header class="pn-header">
+      <h1 class="pn-title">PromptNest</h1>
+      <button class="pn-btn pn-btn--primary" id="pn-open-modal">Add Prompt</button>
+    </header>
+
+    <nav class="pn-tabs" aria-label="PromptNest Tabs">
+      <button class="pn-tab pn-tab--active" data-tab="prompts">Prompts</button>
+      <button class="pn-tab" data-tab="history">History</button>
+    </nav>
+
+    <main class="pn-panels">
+      <section class="pn-panel pn-panel--active" data-panel="prompts">
+        <ul class="pn-list" id="pn-prompts-list"></ul>
+      </section>
+
+      <section class="pn-panel" data-panel="history">
+        <ul class="pn-list" id="pn-history-list"></ul>
+      </section>
+    </main>
+
+    <div class="pn-modal" id="pn-modal" aria-hidden="true">
+      <div class="pn-modal__overlay" id="pn-modal-close"></div>
+      <div class="pn-modal__content" role="dialog" aria-modal="true" aria-label="Add Prompt">
+        <h2 class="pn-modal__title">Add Prompt</h2>
+        <label class="pn-field">
+          <span>Title</span>
+          <input type="text" id="pn-prompt-title" placeholder="Short label" />
+        </label>
+        <label class="pn-field">
+          <span>Prompt</span>
+          <textarea id="pn-prompt-body" rows="5" placeholder="Write prompt text..."></textarea>
+        </label>
+        <div class="pn-modal__actions">
+          <button class="pn-btn" id="pn-cancel-modal">Cancel</button>
+          <button class="pn-btn pn-btn--primary" id="pn-save-prompt">Save Prompt</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="../utils/storage.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

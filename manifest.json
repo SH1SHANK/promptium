@@ -1,0 +1,56 @@
+{
+  "manifest_version": 3,
+  "name": "PromptNest",
+  "description": "A professional prompt and chat workflow toolkit for ChatGPT and Claude.",
+  "version": "0.1.0",
+  "action": {
+    "default_title": "PromptNest",
+    "default_popup": "popup/popup.html"
+  },
+  "background": {
+    "service_worker": "background/service_worker.js"
+  },
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "downloads"
+  ],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://claude.ai/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://claude.ai/*"
+      ],
+      "js": [
+        "utils/platform.js",
+        "utils/storage.js",
+        "utils/exporter.js",
+        "content/scraper.js",
+        "content/injector.js",
+        "content/toolbar.js",
+        "content/content.js"
+      ],
+      "css": [
+        "content/toolbar.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "content/toolbar.css",
+        "libs/jspdf.min.js"
+      ],
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://claude.ai/*"
+      ]
+    }
+  ]
+}
