@@ -4,49 +4,84 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PromptNest</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="popup.css" />
+    <link rel="stylesheet" href="onboarding.css" />
   </head>
   <body class="pn-popup">
     <header class="pn-header">
-      <h1 class="pn-title">PromptNest</h1>
-      <button class="pn-btn pn-btn--primary" id="pn-open-modal">Add Prompt</button>
+      <h1 class="pn-title pn-header-title">PromptNest</h1>
+      <div class="pn-header-actions">
+        <div id="ai-status" class="pn-ai-status pn-ai-status--loading">
+          <span class="pn-ai-dot loading"></span>
+          <span class="pn-ai-status__text">Loading AI...</span>
+        </div>
+        <button id="add-prompt-btn" class="pn-btn pn-btn--primary" type="button">Add Prompt</button>
+      </div>
     </header>
 
-    <nav class="pn-tabs" aria-label="PromptNest Tabs">
-      <button class="pn-tab pn-tab--active" data-tab="prompts">Prompts</button>
-      <button class="pn-tab" data-tab="history">History</button>
+    <div class="pn-search-row">
+      <input id="prompt-search" class="pn-search" type="text" placeholder="Search prompts by title or tags" />
+    </div>
+
+    <nav class="pn-tab-bar" aria-label="PromptNest tabs">
+      <button class="tab pn-tab active" data-tab="prompts" type="button">Prompts</button>
+      <button class="tab pn-tab" data-tab="history" type="button">History</button>
+      <div class="pn-tab-indicator" aria-hidden="true"></div>
     </nav>
 
-    <main class="pn-panels">
-      <section class="pn-panel pn-panel--active" data-panel="prompts">
-        <ul class="pn-list" id="pn-prompts-list"></ul>
+    <main class="pn-main">
+      <section class="tab-content pn-tab-content active" data-tab="prompts">
+        <div id="prompt-list" class="pn-list"></div>
       </section>
 
-      <section class="pn-panel" data-panel="history">
-        <ul class="pn-list" id="pn-history-list"></ul>
+      <section class="tab-content pn-tab-content" data-tab="history">
+        <div id="history-list" class="pn-list"></div>
       </section>
     </main>
 
-    <div class="pn-modal" id="pn-modal" aria-hidden="true">
-      <div class="pn-modal__overlay" id="pn-modal-close"></div>
-      <div class="pn-modal__content" role="dialog" aria-modal="true" aria-label="Add Prompt">
-        <h2 class="pn-modal__title">Add Prompt</h2>
+    <div id="add-modal" class="pn-modal pn-hidden">
+      <div class="pn-modal__backdrop" data-close-modal></div>
+      <div class="pn-modal__panel">
+        <h2 class="pn-modal__title">Save Prompt</h2>
+
         <label class="pn-field">
           <span>Title</span>
-          <input type="text" id="pn-prompt-title" placeholder="Short label" />
+          <input id="prompt-title" type="text" placeholder="Prompt title" />
         </label>
+
         <label class="pn-field">
-          <span>Prompt</span>
-          <textarea id="pn-prompt-body" rows="5" placeholder="Write prompt text..."></textarea>
+          <span>Prompt Text</span>
+          <textarea id="prompt-text" rows="6" placeholder="Write your prompt here..."></textarea>
         </label>
+
+        <label class="pn-field">
+          <span>Tags (comma separated)</span>
+          <input id="prompt-tags" type="text" placeholder="writing, coding, summary" />
+        </label>
+
         <div class="pn-modal__actions">
-          <button class="pn-btn" id="pn-cancel-modal">Cancel</button>
-          <button class="pn-btn pn-btn--primary" id="pn-save-prompt">Save Prompt</button>
+          <button id="cancel-modal" class="pn-btn pn-btn--ghost" type="button">Cancel</button>
+          <button id="confirm-duplicate" class="pn-btn pn-btn-warn hidden" type="button">Save Anyway</button>
+          <button id="save-new-prompt" class="pn-btn pn-btn--primary" type="button">Save</button>
         </div>
       </div>
     </div>
 
+    <div id="pn-onboarding-mount"></div>
+
+    <script src="../libs/jspdf.min.js"></script>
+    <script src="../libs/transformers.min.js"></script>
+    <script src="../utils/platform.js"></script>
     <script src="../utils/storage.js"></script>
+    <script src="../utils/exporter.js"></script>
+    <script src="../utils/ai.js"></script>
+    <script src="onboarding.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

@@ -1,53 +1,93 @@
 /**
  * File: content/scraper.js
- * Purpose: Scrapes visible conversation messages from supported LLM platform DOM structures.
- * Communicates with: content/toolbar.js, content/content.js, utils/platform.js, utils/storage.js.
+ * Purpose: Scrapes normalized user and assistant messages from supported LLM pages.
+ * Communicates with: utils/platform.js, content/toolbar.js, content/content.js.
  */
 
-/** Converts a message element into normalized role/text fields. */
-const parseMessageNode = async (node, selectors) => {
-  const text = (node.innerText || node.textContent || '').trim();
+/** Returns true when the platform is one of PromptNest's known integrations. */
+const isKnownPlatform = async (platform) => Boolean(platform && window.Platform?.SELECTORS?.[platform]);
 
-  if (!text) {
-    return null;
+/** Safely resolves all nodes for a selector or returns an empty list when unavailable. */
+const safeQueryAll = async (selector) => {
+  if (!selector || typeof selector !== 'string') {
+    return [];
   }
 
-  if (node.matches(selectors.userMessage) || node.querySelector(selectors.userMessage)) {
-    return { role: 'user', text };
+  try {
+    return Array.from(document.querySelectorAll(selector));
+  } catch (error) {
+    console.warn('[PromptNest][Scraper] Invalid selector.', selector, error);
+    return [];
   }
-
-  if (node.matches(selectors.assistantMessage) || node.querySelector(selectors.assistantMessage)) {
-    return { role: 'assistant', text };
-  }
-
-  return { role: 'unknown', text };
 };
 
-/** Scrapes current page chat messages using active platform selectors. */
-const scrape = async () => {
-  const platform = await window.PromptNestPlatform.detect();
-  const selectors = await window.PromptNestPlatform.getSelectors(platform);
+/** Returns a trimmed text value from a DOM node. */
+const readNodeText = async (node) => String(node?.innerText || node?.textContent || '').trim();
 
-  if (!platform || !selectors) {
-    return {
-      platform: 'unsupported',
-      title: document.title,
-      url: window.location.href,
-      messages: []
-    };
+/** Sorts DOM nodes by their physical position in document order. */
+const sortNodesByDomOrder = async (nodes) => {
+  const sorted = [...nodes];
+
+  sorted.sort((left, right) => {
+    if (left === right) {
+      return 0;
+    }
+
+    const relation = left.compareDocumentPosition(right);
+
+    if (relation & Node.DOCUMENT_POSITION_PRECEDING) {
+      return 1;
+    }
+
+    if (relation & Node.DOCUMENT_POSITION_FOLLOWING) {
+      return -1;
+    }
+
+    return 0;
+  });
+
+  return sorted;
+};
+
+/** Scrapes user and bot messages for a given platform and returns normalized message rows. */
+const scrape = async (platform = null) => {
+  try {
+    const resolvedPlatform = platform || (await window.Platform.detect());
+    const sel = await window.Platform.getSelectors(resolvedPlatform);
+
+    if (!resolvedPlatform || !sel || !sel.userMsg || !sel.botMsg) {
+      return [];
+    }
+
+    const userNodes = await safeQueryAll(sel.userMsg);
+    const botNodes = await safeQueryAll(sel.botMsg);
+    const mergedNodes = await sortNodesByDomOrder(Array.from(new Set([...userNodes, ...botNodes])));
+    const messages = [];
+
+    for (const node of mergedNodes) {
+      if (!node || typeof node.matches !== 'function') {
+        continue;
+      }
+
+      const text = await readNodeText(node);
+
+      if (!text) {
+        continue;
+      }
+
+      const role = node.matches(sel.userMsg) ? 'user' : 'assistant';
+      messages.push({ role, text });
+    }
+
+    if ((await isKnownPlatform(resolvedPlatform)) && messages.length === 0) {
+      console.warn('[PromptNest][Platform] No selectors matched for', resolvedPlatform);
+    }
+
+    return messages;
+  } catch (error) {
+    console.error('[PromptNest][Scraper] Failed to scrape messages.', error);
+    return [];
   }
-
-  const nodes = Array.from(document.querySelectorAll(selectors.messageItems));
-  const parsed = await Promise.all(nodes.map((node) => parseMessageNode(node, selectors)));
-  const messages = parsed.filter(Boolean);
-
-  return {
-    platform,
-    title: document.title,
-    url: window.location.href,
-    scrapedAt: new Date().toISOString(),
-    messages
-  };
 };
 
 const Scraper = {
@@ -55,5 +95,5 @@ const Scraper = {
 };
 
 if (typeof window !== 'undefined') {
-  window.PromptNestScraper = Scraper;
+  window.Scraper = Scraper;
 }

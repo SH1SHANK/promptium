@@ -1,47 +1,89 @@
 /**
  * File: utils/platform.js
- * Purpose: Defines platform selector mappings and detection helpers for supported LLM sites.
- * Communicates with: content/content.js, content/scraper.js, content/injector.js, content/toolbar.js.
+ * Purpose: Defines platform-specific selectors and detection logic for supported LLM websites.
+ * Communicates with: content/content.js, content/scraper.js, content/injector.js, content/toolbar.js, popup/popup.js.
  */
 
 const SELECTORS = {
   chatgpt: {
-    messageItems: '[data-message-author-role]',
-    userMessage: '[data-message-author-role="user"]',
-    assistantMessage: '[data-message-author-role="assistant"]',
-    input: 'textarea[placeholder*="Message"]',
-    submit: 'button[data-testid="send-button"]',
-    toolbarAnchor: 'main'
+    userMsg: '[data-message-author-role="user"]',
+    botMsg: '[data-message-author-role="assistant"]',
+    input: '#prompt-textarea',
+    inputParent: 'div.relative.flex, form'
   },
   claude: {
-    messageItems: '[data-testid="conversation-turn"]',
-    userMessage: '[data-testid="user-message"]',
-    assistantMessage: '[data-testid="assistant-message"]',
+    userMsg: '[data-testid="user-message"], .human-turn, [data-is-human="true"]',
+    botMsg: '[data-testid="assistant-message"], .assistant-turn, [data-is-assistant="true"]',
     input: 'div[contenteditable="true"]',
-    submit: 'button[aria-label*="Send"]',
-    toolbarAnchor: 'main'
+    inputParent: 'form, div:has(> div[contenteditable="true"])'
+  },
+  gemini: {
+    userMsg: '.user-query-bubble-with-background, [data-turn-role="user"]',
+    botMsg: '.model-response-text, [data-turn-role="model"]',
+    input: 'div[contenteditable="true"].ql-editor, rich-textarea div[contenteditable="true"]',
+    inputParent: 'div.input-area-container, form'
+  },
+  perplexity: {
+    userMsg: '[data-message-author-role="user"], .break-words:not([class*="assistant"])',
+    botMsg: '[data-message-author-role="assistant"]',
+    input: 'textarea[placeholder]',
+    inputParent: 'form, div.grow'
+  },
+  copilot: {
+    userMsg: '[data-content="user-message"]',
+    botMsg: '[data-content="ai-message"]',
+    input: 'textarea#userInput, div[contenteditable="true"]',
+    inputParent: 'form, div.input-container'
   }
 };
 
-/** Detects the active supported platform from the current hostname. */
-const detect = async () => {
-  const hostname = window.location.hostname;
+/** Returns true when a selector config contains all required shape keys. */
+const hasRequiredSelectors = async (config) => {
+  if (!config) {
+    return false;
+  }
 
-  if (hostname.includes('chatgpt.com')) {
+  const requiredKeys = ['userMsg', 'botMsg', 'input', 'inputParent'];
+  return requiredKeys.every((key) => typeof config[key] === 'string' && config[key].trim().length > 0);
+};
+
+/** Detects the current platform from the page hostname. */
+const detect = async () => {
+  const host = window.location.hostname.toLowerCase();
+
+  if (host.includes('chatgpt.com')) {
     return 'chatgpt';
   }
 
-  if (hostname.includes('claude.ai')) {
+  if (host.includes('claude.ai')) {
     return 'claude';
+  }
+
+  if (host.includes('gemini.google.com')) {
+    return 'gemini';
+  }
+
+  if (host.includes('perplexity.ai')) {
+    return 'perplexity';
+  }
+
+  if (host.includes('copilot.microsoft.com')) {
+    return 'copilot';
   }
 
   return null;
 };
 
-/** Returns selectors for a supported platform or null when unsupported. */
+/** Returns selector config for a supplied or detected platform. */
 const getSelectors = async (platform = null) => {
   const resolvedPlatform = platform || (await detect());
-  return resolvedPlatform ? SELECTORS[resolvedPlatform] || null : null;
+
+  if (!resolvedPlatform || !SELECTORS[resolvedPlatform]) {
+    return null;
+  }
+
+  const config = SELECTORS[resolvedPlatform];
+  return (await hasRequiredSelectors(config)) ? config : null;
 };
 
 const Platform = {
@@ -51,5 +93,5 @@ const Platform = {
 };
 
 if (typeof window !== 'undefined') {
-  window.PromptNestPlatform = Platform;
+  window.Platform = Platform;
 }

@@ -1,62 +1,102 @@
 /**
  * File: content/injector.js
- * Purpose: Injects prompt text into supported platform input controls.
- * Communicates with: popup/popup.js, content/content.js, utils/platform.js.
+ * Purpose: Injects prompt text into platform-specific chat composers.
+ * Communicates with: utils/platform.js, content/content.js, popup/popup.js.
  */
 
-/** Dispatches common input events to trigger host app listeners. */
-const dispatchInputEvents = async (element) => {
-  element.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true }));
-  element.dispatchEvent(new Event('change', { bubbles: true }));
+const reactPlatforms = ['chatgpt'];
+
+/** Dispatches an input event that host editors use to sync model state. */
+const dispatchInput = async (element) => {
+  if (!element || typeof element.dispatchEvent !== 'function') {
+    return;
+  }
+
+  element.dispatchEvent(new Event('input', { bubbles: true }));
 };
 
-/** Injects prompt text into a ChatGPT textarea and updates React-backed value. */
-const injectIntoTextarea = async (element, text) => {
-  const prototype = Object.getPrototypeOf(element);
-  const descriptor = Object.getOwnPropertyDescriptor(prototype, 'value');
+/** Sets a React-managed textarea value through the native setter API. */
+const injectIntoReactTextarea = async (textarea, text) => {
+  if (!(textarea instanceof HTMLTextAreaElement)) {
+    return false;
+  }
+
+  const descriptor = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
 
   if (descriptor && typeof descriptor.set === 'function') {
-    descriptor.set.call(element, text);
+    descriptor.set.call(textarea, text);
   } else {
-    element.value = text;
+    textarea.value = text;
   }
 
-  await dispatchInputEvents(element);
+  await dispatchInput(textarea);
+  return true;
 };
 
-/** Injects prompt text into a contenteditable editor used by Claude. */
-const injectIntoEditable = async (element, text) => {
-  element.focus();
-  element.textContent = text;
-  await dispatchInputEvents(element);
-};
-
-/** Injects text into the active platform's composer input. */
-const inject = async (text) => {
-  const platform = await window.PromptNestPlatform.detect();
-  const selectors = await window.PromptNestPlatform.getSelectors(platform);
-
-  if (!platform || !selectors) {
+/** Uses legacy execCommand editing flow for contenteditable chat composers. */
+const injectIntoEditable = async (editable, text) => {
+  if (!editable || editable.getAttribute('contenteditable') !== 'true') {
     return false;
   }
 
-  const input = document.querySelector(selectors.input);
+  editable.focus();
+  document.execCommand('selectAll');
+  document.execCommand('insertText', false, text);
+  await dispatchInput(editable);
+  return true;
+};
 
-  if (!input) {
+/** Uses direct value assignment for plain textareas outside React control. */
+const injectIntoPlainTextarea = async (textarea, text) => {
+  if (!(textarea instanceof HTMLTextAreaElement)) {
     return false;
   }
 
-  if (platform === 'chatgpt' && input.tagName.toLowerCase() === 'textarea') {
-    await injectIntoTextarea(input, text);
-    return true;
-  }
+  textarea.focus();
+  textarea.value = text;
+  await dispatchInput(textarea);
+  return true;
+};
 
-  if (platform === 'claude' && input.getAttribute('contenteditable') === 'true') {
-    await injectIntoEditable(input, text);
-    return true;
-  }
+/** Injects text into the active platform input and reports whether it succeeded. */
+const inject = async (text, platform = null) => {
+  try {
+    const resolvedPlatform = platform || (await window.Platform.detect());
+    const sel = await window.Platform.getSelectors(resolvedPlatform);
 
-  return false;
+    if (!resolvedPlatform || !sel || !sel.input || typeof sel.input !== 'string') {
+      return false;
+    }
+
+    let input = null;
+
+    try {
+      input = document.querySelector(sel.input);
+    } catch (_error) {
+      input = null;
+    }
+
+    if (!input) {
+      return false;
+    }
+
+    if (reactPlatforms.includes(resolvedPlatform)) {
+      return injectIntoReactTextarea(input, text);
+    }
+
+    if (input.getAttribute('contenteditable') === 'true') {
+      return injectIntoEditable(input, text);
+    }
+
+    if (input instanceof HTMLTextAreaElement) {
+      return injectIntoPlainTextarea(input, text);
+    }
+
+    return false;
+  } catch (error) {
+    console.error('[PromptNest][Injector] Failed to inject prompt.', error);
+    return false;
+  }
 };
 
 const Injector = {
@@ -64,5 +104,5 @@ const Injector = {
 };
 
 if (typeof window !== 'undefined') {
-  window.PromptNestInjector = Injector;
+  window.Injector = Injector;
 }

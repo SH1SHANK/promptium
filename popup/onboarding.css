@@ -1,0 +1,350 @@
+/* File: popup/onboarding.css | Naming convention: all style classes use the pn- prefix to avoid collisions. */
+
+#pn-onboarding {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-base);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.pn-card-deck {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+}
+
+.pn-onboard-card {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 32px 28px 24px;
+  transform: translateX(100%);
+  transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+  user-select: none;
+}
+
+.pn-onboard-card.active {
+  transform: translateX(0);
+}
+
+.pn-onboard-card.exited {
+  transform: translateX(-100%);
+}
+
+@keyframes textReveal {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.pn-onboard-card.pn-reveal .pn-card-icon {
+  animation: textReveal 0.3s ease both 0ms;
+}
+
+.pn-onboard-card.pn-reveal .pn-card-sub {
+  animation: textReveal 0.3s ease both 80ms;
+}
+
+.pn-onboard-card.pn-reveal .pn-card-headline {
+  animation: textReveal 0.3s ease both 160ms;
+}
+
+.pn-onboard-card.pn-reveal .pn-card-body,
+.pn-onboard-card.pn-reveal .pn-onboard-inputs {
+  animation: textReveal 0.3s ease both 240ms;
+}
+
+.pn-onboard-card.pn-reveal .pn-onboard-actions {
+  animation: textReveal 0.3s ease both 320ms;
+}
+
+.pn-card-icon {
+  font-size: 48px;
+  margin-bottom: 24px;
+  display: block;
+  filter: drop-shadow(0 0 12px currentColor);
+}
+
+.pn-card-sub {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.pn-card-headline {
+  font-family: var(--font-body);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  margin-bottom: 14px;
+  line-height: 1.2;
+}
+
+.pn-card-body {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+.pn-swipe-hint {
+  margin-top: 14px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  opacity: 0.85;
+  transition: opacity 0.25s ease;
+}
+
+.pn-swipe-hint.pn-hint-hidden {
+  opacity: 0;
+}
+
+.pn-dot-row {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 0;
+}
+
+.pn-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border-default);
+  transition: width 0.3s ease, background 0.3s ease;
+}
+
+.pn-dot.active {
+  width: 20px;
+  background: var(--accent);
+}
+
+.pn-onboard-actions {
+  margin-top: 24px;
+}
+
+.pn-onboard-btn {
+  width: 100%;
+  margin-top: 6px;
+  padding: 12px;
+  background: var(--accent);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  transition: opacity 0.2s ease, transform 0.1s ease;
+}
+
+.pn-onboard-btn:hover {
+  opacity: 0.9;
+}
+
+.pn-onboard-btn:active {
+  transform: scale(0.99);
+}
+
+.pn-onboard-skip {
+  display: block;
+  text-align: center;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+#pn-model-init {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 28px;
+  min-height: 100%;
+  animation: pn-model-fade 0.25s ease both;
+}
+
+.pn-init-header h2 {
+  margin: 0 0 8px;
+  font-size: 24px;
+  letter-spacing: -0.02em;
+}
+
+.pn-init-header p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  font-size: 13px;
+}
+
+.pn-init-icon {
+  font-size: 34px;
+  color: var(--accent);
+  filter: drop-shadow(0 0 14px var(--accent));
+  margin-bottom: 12px;
+}
+
+.pn-progress-track {
+  width: 100%;
+  height: 3px;
+  background: var(--bg-elevated);
+  border-radius: 2px;
+  overflow: hidden;
+  margin: 20px 0 8px;
+}
+
+.pn-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent), #a78bfa);
+  border-radius: 2px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+.pn-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.pn-init-steps {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pn-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pn-step-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-default);
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+  flex-shrink: 0;
+}
+
+.pn-step.active .pn-step-dot {
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+  animation: pn-step-pulse 1s ease-in-out infinite;
+}
+
+.pn-step.done .pn-step-dot {
+  background: var(--success);
+  box-shadow: none;
+  animation: none;
+}
+
+.pn-step-text {
+  font-size: 12px;
+  color: var(--text-muted);
+  transition: color 0.3s ease;
+}
+
+.pn-step.active .pn-step-text {
+  color: var(--text-primary);
+}
+
+.pn-step.done .pn-step-text {
+  color: var(--text-secondary);
+}
+
+.pn-onboard-inputs {
+  margin-top: 4px;
+}
+
+.pn-input-group {
+  margin-bottom: 14px;
+}
+
+.pn-input-group label {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.pn-input-group input,
+.pn-input-group textarea {
+  width: 100%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  padding: 9px 12px;
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 13px;
+  outline: none;
+  resize: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-sizing: border-box;
+}
+
+.pn-input-group input:focus,
+.pn-input-group textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.pn-input-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+@keyframes pn-step-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.65;
+    transform: scale(0.82);
+  }
+}
+
+@keyframes pn-model-fade {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

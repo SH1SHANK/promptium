@@ -1,190 +1,127 @@
 /**
  * File: utils/storage.js
- * Purpose: Provides CRUD helpers for prompts and chat history in chrome.storage.local.
- * Communicates with: popup/popup.js, background/service_worker.js, content/toolbar.js.
+ * Purpose: Provides prompt and history CRUD operations backed by chrome.storage.local.
+ * Communicates with: popup/popup.js, content/toolbar.js, content/content.js, background/service_worker.js.
  */
 
-const STORAGE_KEYS = {
-  prompts: 'prompts',
-  chatHistory: 'chatHistory'
-};
-
+const PROMPTS_KEY = 'prompts';
+const HISTORY_KEY = 'chatHistory';
 const HISTORY_CAP = 50;
 
-/** Builds a default storage object when no persisted state exists yet. */
-const getDefaultState = async () => ({
-  prompts: [],
-  chatHistory: []
-});
-
-/** Reads all PromptNest storage values from chrome.storage.local. */
-const readState = async () => {
-  const defaults = await getDefaultState();
-  const state = await chrome.storage.local.get(defaults);
-  return {
-    prompts: Array.isArray(state.prompts) ? state.prompts : [],
-    chatHistory: Array.isArray(state.chatHistory) ? state.chatHistory : []
-  };
+/** Returns prompts array from storage or an empty list when unavailable. */
+const getPrompts = async () => {
+  try {
+    const state = await chrome.storage.local.get([PROMPTS_KEY]);
+    return Array.isArray(state[PROMPTS_KEY]) ? state[PROMPTS_KEY] : [];
+  } catch (error) {
+    console.error('[PromptNest][Store] Failed to read prompts.', error);
+    return [];
+  }
 };
 
-/** Writes partial PromptNest storage updates to chrome.storage.local. */
-const writeState = async (partial) => {
-  await chrome.storage.local.set(partial);
-  return true;
-};
-
-/** Creates a stable identifier for prompt and history records. */
-const createId = async (prefix = 'pn') => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-
-/** Returns a safe document title across extension contexts. */
-const getSafeDocumentTitle = async () => (typeof document !== 'undefined' ? document.title : 'Untitled chat');
-
-/** Returns a safe location URL across extension contexts. */
-const getSafeLocationHref = async () => (typeof window !== 'undefined' ? window.location.href : '');
-
-/** Returns all saved prompt templates. */
-const listPrompts = async () => {
-  const state = await readState();
-  return state.prompts;
-};
-
-/** Returns one prompt by id or null if not found. */
-const getPromptById = async (id) => {
-  const prompts = await listPrompts();
-  return prompts.find((item) => item.id === id) || null;
-};
-
-/** Creates a new prompt template and persists it. */
-const createPrompt = async ({ title, body, tags = [] }) => {
-  const state = await readState();
-  const prompt = {
-    id: await createId('prompt'),
-    title: (title || 'Untitled prompt').trim(),
-    body: (body || '').trim(),
-    tags,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  };
-
-  await writeState({
-    prompts: [prompt, ...state.prompts]
-  });
-
-  return prompt;
-};
-
-/** Updates an existing prompt template and persists changes. */
-const updatePrompt = async (id, updates = {}) => {
-  const state = await readState();
-  const prompts = state.prompts.map((item) => {
-    if (item.id !== id) {
-      return item;
-    }
-
-    return {
-      ...item,
-      ...updates,
-      updatedAt: new Date().toISOString()
+/** Saves a new prompt entry with UUID and optional embedding payload. */
+const savePrompt = async ({ title, text, tags = [], category = null, embedding = null }) => {
+  try {
+    const prompts = await getPrompts();
+    const normalizedTags = Array.isArray(tags) ? tags.map((item) => String(item).trim()).filter(Boolean) : [];
+    const normalizedEmbedding = Array.isArray(embedding) && embedding.length > 0 ? embedding.map((value) => Number(value) || 0) : null;
+    const nextPrompt = {
+      id: crypto.randomUUID(),
+      title: String(title || '').trim(),
+      text: String(text || '').trim(),
+      tags: normalizedTags,
+      category: category ? String(category).trim() : null,
+      embedding: normalizedEmbedding,
+      createdAt: new Date().toISOString()
     };
-  });
 
-  await writeState({ prompts });
-  return prompts.find((item) => item.id === id) || null;
+    const nextPrompts = [nextPrompt, ...prompts];
+    await chrome.storage.local.set({ [PROMPTS_KEY]: nextPrompts });
+    return nextPrompt;
+  } catch (error) {
+    console.error('[PromptNest][Store] Failed to save prompt.', error);
+    return false;
+  }
 };
 
-/** Deletes a prompt template by id. */
+/** Deletes one prompt entry by id and returns true when complete. */
 const deletePrompt = async (id) => {
-  const state = await readState();
-  const prompts = state.prompts.filter((item) => item.id !== id);
-  await writeState({ prompts });
-  return prompts;
+  try {
+    const prompts = await getPrompts();
+    const nextPrompts = prompts.filter((item) => item.id !== id);
+    await chrome.storage.local.set({ [PROMPTS_KEY]: nextPrompts });
+    return true;
+  } catch (error) {
+    console.error('[PromptNest][Store] Failed to delete prompt.', error);
+    return false;
+  }
 };
 
-/** Returns chat history records in newest-first order. */
-const listChatHistory = async () => {
-  const state = await readState();
-  return state.chatHistory;
+/** Returns chat history array from storage or an empty list when unavailable. */
+const getChatHistory = async () => {
+  try {
+    const state = await chrome.storage.local.get([HISTORY_KEY]);
+    return Array.isArray(state[HISTORY_KEY]) ? state[HISTORY_KEY] : [];
+  } catch (error) {
+    console.error('[PromptNest][Store] Failed to read chat history.', error);
+    return [];
+  }
 };
 
-/** Returns one chat history entry by id or null if not found. */
-const getChatHistoryById = async (id) => {
-  const history = await listChatHistory();
-  return history.find((item) => item.id === id) || null;
-};
+/** Saves a chat history entry with UUID while enforcing the 50-item cap. */
+const saveChatToHistory = async (chat) => {
+  try {
+    const history = await getChatHistory();
+    const nextEntry = {
+      id: crypto.randomUUID(),
+      title: String(chat?.title || document.title || 'Untitled chat').trim(),
+      platform: String(chat?.platform || 'unknown').trim(),
+      tags: Array.isArray(chat?.tags) ? chat.tags.map((tag) => String(tag).trim()).filter(Boolean) : [],
+      messages: Array.isArray(chat?.messages) ? chat.messages : [],
+      createdAt: new Date().toISOString(),
+      url: String(chat?.url || window.location.href || '')
+    };
 
-/** Creates a chat history record while enforcing a 50-item cap. */
-const createChatHistory = async ({ platform, title, url, messages = [] }) => {
-  const state = await readState();
-  const entry = {
-    id: await createId('chat'),
-    platform: platform || 'unknown',
-    title: title || (await getSafeDocumentTitle()),
-    url: url || (await getSafeLocationHref()),
-    messages,
-    createdAt: new Date().toISOString()
-  };
+    const nextHistory = [...history, nextEntry];
 
-  const cappedHistory = [entry, ...state.chatHistory].slice(0, HISTORY_CAP);
-  await writeState({ chatHistory: cappedHistory });
-  return entry;
-};
-
-/** Updates an existing chat history record by id. */
-const updateChatHistory = async (id, updates = {}) => {
-  const state = await readState();
-  const chatHistory = state.chatHistory.map((item) => {
-    if (item.id !== id) {
-      return item;
+    while (nextHistory.length > HISTORY_CAP) {
+      nextHistory.shift();
     }
 
-    return {
-      ...item,
-      ...updates,
-      updatedAt: new Date().toISOString()
-    };
-  });
-
-  await writeState({ chatHistory });
-  return chatHistory.find((item) => item.id === id) || null;
+    await chrome.storage.local.set({ [HISTORY_KEY]: nextHistory });
+    return nextEntry;
+  } catch (error) {
+    console.error('[PromptNest][Store] Failed to save chat history.', error);
+    return false;
+  }
 };
 
-/** Deletes one chat history record by id. */
-const deleteChatHistory = async (id) => {
-  const state = await readState();
-  const chatHistory = state.chatHistory.filter((item) => item.id !== id);
-  await writeState({ chatHistory });
-  return chatHistory;
+/** Deletes one chat history entry by id and returns true when complete. */
+const deleteChatFromHistory = async (id) => {
+  try {
+    const history = await getChatHistory();
+    const nextHistory = history.filter((item) => item.id !== id);
+    await chrome.storage.local.set({ [HISTORY_KEY]: nextHistory });
+    return true;
+  } catch (error) {
+    console.error('[PromptNest][Store] Failed to delete chat history entry.', error);
+    return false;
+  }
 };
 
-/** Clears all chat history records. */
-const clearChatHistory = async () => {
-  await writeState({ chatHistory: [] });
-  return [];
-};
-
-const Storage = {
-  STORAGE_KEYS,
-  HISTORY_CAP,
-  getDefaultState,
-  readState,
-  writeState,
-  listPrompts,
-  getPromptById,
-  createPrompt,
-  updatePrompt,
+const Store = {
+  getPrompts,
+  savePrompt,
   deletePrompt,
-  listChatHistory,
-  getChatHistoryById,
-  createChatHistory,
-  updateChatHistory,
-  deleteChatHistory,
-  clearChatHistory
+  getChatHistory,
+  saveChatToHistory,
+  deleteChatFromHistory
 };
 
 if (typeof window !== 'undefined') {
-  window.PromptNestStorage = Storage;
+  window.Store = Store;
 }
 
 if (typeof self !== 'undefined') {
-  self.PromptNestStorage = Storage;
+  self.Store = Store;
 }

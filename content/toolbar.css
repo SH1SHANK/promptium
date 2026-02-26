@@ -1,50 +1,155 @@
-/* File: content/toolbar.css | Naming convention: all classes use the pn- prefix to avoid host-page conflicts. */
+/* File: content/toolbar.css | Naming convention: all style classes use the pn- prefix to avoid collisions. */
 
-.pn-toolbar {
-  position: sticky;
-  top: 12px;
-  z-index: 2147483647;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  margin: 10px 0;
-  padding: 10px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: linear-gradient(135deg, rgba(22, 26, 36, 0.96), rgba(14, 17, 24, 0.92));
-  backdrop-filter: blur(8px);
-  color: #e8edf7;
-  font-family: "Segoe UI", "SF Pro Text", -apple-system, BlinkMacSystemFont, sans-serif;
-}
-
-.pn-toolbar__brand {
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.3px;
-}
-
-.pn-toolbar__actions {
-  display: flex;
-  gap: 8px;
+:root {
+  --pn-bg-base: #0e0e10;
+  --pn-bg-surface: #18181c;
+  --pn-bg-elevated: #222228;
+  --pn-bg-hover: #2a2a32;
+  --pn-border-subtle: rgba(255, 255, 255, 0.06);
+  --pn-border-default: rgba(255, 255, 255, 0.1);
+  --pn-border-accent: rgba(124, 106, 247, 0.4);
+  --pn-accent: #8b7cf6;
+  --pn-accent-glow: rgba(139, 124, 246, 0.15);
+  --pn-text-primary: #f0f0f4;
+  --pn-text-secondary: #9090a0;
+  --pn-danger: #f87171;
 }
 
 .pn-btn {
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--pn-border-default);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
-  color: inherit;
+  background: transparent;
+  color: var(--pn-text-primary);
   font-size: 12px;
-  padding: 5px 10px;
+  font-weight: 500;
+  padding: 7px 10px;
   cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+  font-family: -apple-system, 'Segoe UI', sans-serif;
 }
 
 .pn-btn:hover {
-  background: rgba(255, 255, 255, 0.14);
+  border-color: var(--pn-accent);
+  background: rgba(139, 124, 246, 0.08);
+  box-shadow: 0 0 10px var(--pn-accent-glow);
 }
 
-.pn-toolbar__status {
-  margin-left: auto;
+.pn-btn--primary {
+  border-color: var(--pn-accent);
+  background: var(--pn-accent);
+  color: #f8f8ff;
+}
+
+.pn-btn--primary:hover {
+  background: #7d6ef1;
+  border-color: #7d6ef1;
+}
+
+.pn-btn--ghost {
+  background: transparent;
+}
+
+.pn-hidden {
+  display: none;
+}
+
+.pn-toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 999999;
+  max-width: 320px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(14, 14, 16, 0.95);
+  color: var(--pn-text-primary);
+  border: 1px solid var(--pn-border-default);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  animation: pn-toast-in 180ms ease-out;
+  font-family: -apple-system, 'Segoe UI', sans-serif;
   font-size: 12px;
-  color: #99a5bf;
+}
+
+.pn-save-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pn-save-modal.pn-hidden {
+  display: none;
+}
+
+.pn-save-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(14, 14, 16, 0.72);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.pn-save-modal__panel {
+  position: relative;
+  z-index: 1;
+  width: min(360px, calc(100vw - 24px));
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--pn-bg-elevated);
+  border: 1px solid var(--pn-border-default);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--pn-border-subtle);
+  font-family: -apple-system, 'Segoe UI', sans-serif;
+}
+
+.pn-save-modal__title {
+  margin: 0 0 10px;
+  color: var(--pn-text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.pn-save-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+  color: var(--pn-text-secondary);
+  font-size: 12px;
+}
+
+.pn-save-modal__field input {
+  width: 100%;
+  border: 1px solid var(--pn-border-default);
+  border-radius: 8px;
+  padding: 8px;
+  background: var(--pn-bg-surface);
+  color: var(--pn-text-primary);
+  font: inherit;
+}
+
+.pn-save-modal__field input:focus {
+  outline: none;
+  border-color: var(--pn-accent);
+  box-shadow: 0 0 0 2px rgba(139, 124, 246, 0.2);
+}
+
+.pn-save-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@keyframes pn-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

@@ -26,3 +26,5 @@ coverage/
 # Agents and Skills
 .agents
 skills-lock.json
+
+pnpm-lock.yaml

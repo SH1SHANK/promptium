@@ -1,226 +1,556 @@
 /**
  * File: popup/popup.js
- * Purpose: Controls popup tabs, renders prompts/history, and handles add/delete/inject actions.
- * Communicates with: utils/storage.js, content/content.js via runtime messaging.
+ * Purpose: Implements popup tabs, semantic prompt search, auto-tagging, duplicate checks, and export actions.
+ * Communicates with: utils/platform.js, utils/storage.js, utils/exporter.js, utils/ai.js, content/content.js.
  */
 
-/** Returns popup element references used across handlers. */
-const getElements = async () => ({
-  tabButtons: Array.from(document.querySelectorAll('.pn-tab')),
-  panels: Array.from(document.querySelectorAll('.pn-panel')),
-  promptsList: document.getElementById('pn-prompts-list'),
-  historyList: document.getElementById('pn-history-list'),
-  modal: document.getElementById('pn-modal'),
-  openModalButton: document.getElementById('pn-open-modal'),
-  closeModalOverlay: document.getElementById('pn-modal-close'),
-  cancelModalButton: document.getElementById('pn-cancel-modal'),
-  savePromptButton: document.getElementById('pn-save-prompt'),
-  promptTitleInput: document.getElementById('pn-prompt-title'),
-  promptBodyInput: document.getElementById('pn-prompt-body')
-});
+let pendingDuplicatePayload = null;
+let popupBootstrapped = false;
 
-/** Toggles active tab and panel state in popup UI. */
-const switchTab = async (tabName) => {
-  const elements = await getElements();
+/** Returns a required popup DOM node by id. */
+const byId = async (id) => document.getElementById(id);
 
-  elements.tabButtons.forEach((button) => {
-    button.classList.toggle('pn-tab--active', button.dataset.tab === tabName);
-  });
+/** Converts a comma-separated tag string into a normalized string array. */
+const parseTags = async (raw) => String(raw || '').split(',').map((item) => item.trim()).filter(Boolean);
 
-  elements.panels.forEach((panel) => {
-    panel.classList.toggle('pn-panel--active', panel.dataset.panel === tabName);
-  });
+/** Creates and displays a short-lived popup toast notification. */
+const showToast = async (message) => {
+  const toast = document.createElement('div');
+  toast.className = 'pn-toast';
+  toast.textContent = String(message || '').trim();
+  document.body.appendChild(toast);
+
+  setTimeout(() => {
+    toast.remove();
+  }, 2500);
 };
 
-/** Sends text injection request to the active tab content script. */
-const injectPromptToActiveTab = async (text) => {
-  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-  const activeTab = tabs[0];
+/** Returns true when a URL belongs to one of PromptNest's supported LLM platforms. */
+const isSupportedTabUrl = async (url) => {
+  const value = String(url || '').toLowerCase();
+  return [
+    'https://chatgpt.com/',
+    'https://claude.ai/',
+    'https://gemini.google.com/',
+    'https://www.perplexity.ai/',
+    'https://copilot.microsoft.com/'
+  ].some((prefix) => value.startsWith(prefix));
+};
 
-  if (!activeTab?.id) {
+/** Returns active tab metadata with support status and id fields. */
+const getActiveTabContext = async () => {
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tab = tabs[0] || null;
+
+  return {
+    tabId: tab?.id || null,
+    url: tab?.url || '',
+    supported: await isSupportedTabUrl(tab?.url || '')
+  };
+};
+
+/** Sends an action message to the active tab content script. */
+const sendToActiveTab = async (payload) => {
+  const context = await getActiveTabContext();
+
+  if (!context.tabId) {
+    return { ok: false, error: 'No active tab found.' };
+  }
+
+  try {
+    return await chrome.tabs.sendMessage(context.tabId, payload);
+  } catch (error) {
+    return { ok: false, error: error.message || 'Unable to reach content script.' };
+  }
+};
+
+/** Builds a reusable tag pill element for prompt and history cards. */
+const createTagPill = async (tag) => {
+  const pill = document.createElement('span');
+  pill.className = 'pn-tag-pill';
+  pill.textContent = tag;
+  return pill;
+};
+
+/** Creates a styled empty state block with inline SVG icon and copy. */
+const createEmptyState = async (message) => {
+  const state = document.createElement('div');
+  state.className = 'pn-empty-state';
+  state.innerHTML = `
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M4 6.5h16v11H4z"></path>
+      <path d="M8 10h8"></path>
+      <path d="M8 13h5"></path>
+    </svg>
+    <p>${message}</p>
+  `;
+  return state;
+};
+
+/** Hides duplicate confirmation controls and clears pending duplicate save state. */
+const resetDuplicateState = async () => {
+  pendingDuplicatePayload = null;
+  const confirmButton = await byId('confirm-duplicate');
+  confirmButton?.classList.add('hidden');
+};
+
+/** Moves the tab indicator under the currently active tab button. */
+const updateTabIndicator = async () => {
+  const tabBar = document.querySelector('.pn-tab-bar');
+  const indicator = document.querySelector('.pn-tab-indicator');
+  const activeTab = document.querySelector('.pn-tab.active');
+
+  if (!tabBar || !indicator || !activeTab) {
+    return;
+  }
+
+  const tabRect = activeTab.getBoundingClientRect();
+  const barRect = tabBar.getBoundingClientRect();
+  indicator.style.width = `${tabRect.width}px`;
+  indicator.style.transform = `translateX(${tabRect.left - barRect.left}px)`;
+};
+
+/** Renders one prompt card with inject and delete actions. */
+const createPromptCard = async (prompt, activeFilter, canInject) => {
+  const card = document.createElement('article');
+  card.className = 'pn-prompt-card';
+
+  const title = document.createElement('h3');
+  title.className = 'pn-card-title';
+  title.textContent = prompt.title;
+
+  const text = document.createElement('p');
+  text.className = 'pn-card-text';
+  text.textContent = prompt.text;
+
+  const tagsWrap = document.createElement('div');
+  tagsWrap.className = 'pn-tag-wrap';
+
+  for (const tag of prompt.tags || []) {
+    tagsWrap.appendChild(await createTagPill(tag));
+  }
+
+  const actions = document.createElement('div');
+  actions.className = 'pn-card-actions';
+
+  const injectButton = document.createElement('button');
+  injectButton.className = 'pn-btn pn-btn--ghost';
+  injectButton.type = 'button';
+  injectButton.textContent = 'Inject';
+
+  if (!canInject) {
+    injectButton.disabled = true;
+    injectButton.title = 'Open on a supported LLM page';
+  } else {
+    injectButton.addEventListener('click', () => {
+      void (async () => {
+        const response = await sendToActiveTab({ action: 'injectPrompt', text: prompt.text });
+
+        if (!response?.ok) {
+          await showToast(response?.error || 'Inject failed.');
+          return;
+        }
+
+        window.close();
+      })();
+    });
+  }
+
+  const deleteButton = document.createElement('button');
+  deleteButton.className = 'pn-btn pn-btn-danger';
+  deleteButton.type = 'button';
+  deleteButton.textContent = 'Delete';
+
+  deleteButton.addEventListener('click', () => {
+    void (async () => {
+      const deleted = await window.Store.deletePrompt(prompt.id);
+
+      if (!deleted) {
+        await showToast('Failed to delete prompt.');
+        return;
+      }
+
+      await renderPrompts(activeFilter);
+    })();
+  });
+
+  if (typeof prompt._semanticScore === 'number') {
+    const relevance = document.createElement('p');
+    relevance.className = 'pn-relevance';
+    relevance.textContent = `Relevance: ${(prompt._semanticScore * 100).toFixed(0)}%`;
+    card.appendChild(relevance);
+  }
+
+  actions.appendChild(injectButton);
+  actions.appendChild(deleteButton);
+  card.appendChild(title);
+  card.appendChild(text);
+  card.appendChild(tagsWrap);
+  card.appendChild(actions);
+  return card;
+};
+
+/** Renders one history card with delete and popup-only PDF export actions. */
+const createHistoryCard = async (entry) => {
+  const card = document.createElement('article');
+  card.className = 'pn-history-card';
+
+  const title = document.createElement('h3');
+  title.className = 'pn-card-title';
+  title.textContent = entry.title || 'Untitled chat';
+
+  const meta = document.createElement('p');
+  meta.className = 'pn-card-meta';
+  meta.textContent = `${String(entry.platform || 'unknown').toUpperCase()} • ${new Date(entry.createdAt).toLocaleString()}`;
+
+  const tagsWrap = document.createElement('div');
+  tagsWrap.className = 'pn-tag-wrap';
+
+  for (const tag of entry.tags || []) {
+    tagsWrap.appendChild(await createTagPill(tag));
+  }
+
+  const actions = document.createElement('div');
+  actions.className = 'pn-card-actions';
+
+  const pdfButton = document.createElement('button');
+  pdfButton.className = 'pn-btn pn-btn--ghost';
+  pdfButton.type = 'button';
+  pdfButton.textContent = 'Export PDF';
+
+  pdfButton.addEventListener('click', () => {
+    void (async () => {
+      const result = await window.Exporter.exportChat(entry, 'pdf');
+
+      if (!result.ok) {
+        await showToast(result.error || 'PDF export failed.');
+      }
+    })();
+  });
+
+  const deleteButton = document.createElement('button');
+  deleteButton.className = 'pn-btn pn-btn-danger';
+  deleteButton.type = 'button';
+  deleteButton.textContent = 'Delete';
+
+  deleteButton.addEventListener('click', () => {
+    void (async () => {
+      const deleted = await window.Store.deleteChatFromHistory(entry.id);
+
+      if (!deleted) {
+        await showToast('Failed to delete history item.');
+        return;
+      }
+
+      await renderHistory();
+    })();
+  });
+
+  actions.appendChild(pdfButton);
+  actions.appendChild(deleteButton);
+  card.appendChild(title);
+  card.appendChild(meta);
+  card.appendChild(tagsWrap);
+  card.appendChild(actions);
+  return card;
+};
+
+/** Shows one tab panel and marks the matching tab as active. */
+const switchTab = async (tabName) => {
+  const tabs = Array.from(document.querySelectorAll('.tab'));
+  const panes = Array.from(document.querySelectorAll('.tab-content'));
+
+  tabs.forEach((tab) => {
+    tab.classList.toggle('active', tab.dataset.tab === tabName);
+  });
+
+  panes.forEach((pane) => {
+    pane.classList.toggle('active', pane.dataset.tab === tabName);
+  });
+
+  await updateTabIndicator();
+};
+
+/** Uses AI semantic ranking when possible and keyword filtering as fallback. */
+const filterPrompts = async (filter, prompts) => {
+  const normalizedFilter = String(filter || '').trim();
+
+  if (!normalizedFilter) {
+    return prompts;
+  }
+
+  return window.AI.semanticSearch(normalizedFilter, prompts);
+};
+
+/** Renders prompts list with semantic or keyword filtering based on AI availability. */
+const renderPrompts = async (filter = '') => {
+  const container = await byId('prompt-list');
+
+  if (!container) {
+    return;
+  }
+
+  const prompts = await window.Store.getPrompts();
+  const filtered = await filterPrompts(filter, prompts);
+  const tabContext = await getActiveTabContext();
+
+  container.innerHTML = '';
+
+  if (!prompts.length) {
+    container.appendChild(
+      await createEmptyState('No prompts saved yet. Use the toolbar on any LLM to save your first prompt.')
+    );
+    return;
+  }
+
+  if (!filtered.length) {
+    container.appendChild(await createEmptyState('No prompts found for your current search.'));
+    return;
+  }
+
+  for (const prompt of filtered) {
+    container.appendChild(await createPromptCard(prompt, String(filter || '').trim().toLowerCase(), tabContext.supported));
+  }
+};
+
+/** Renders chat history cards from newest to oldest entries. */
+const renderHistory = async () => {
+  const container = await byId('history-list');
+
+  if (!container) {
+    return;
+  }
+
+  const history = await window.Store.getChatHistory();
+  const reversed = [...history].reverse();
+  container.innerHTML = '';
+
+  if (!reversed.length) {
+    container.appendChild(
+      await createEmptyState('No chat history yet. Export a chat from the toolbar to get started.')
+    );
+    return;
+  }
+
+  for (const entry of reversed) {
+    container.appendChild(await createHistoryCard(entry));
+  }
+};
+
+/** Calls AI tag suggestion and pre-fills the tags field when it is still empty. */
+const prefillSuggestedTags = async () => {
+  const textInput = await byId('prompt-text');
+  const tagsInput = await byId('prompt-tags');
+
+  if (!textInput || !tagsInput) {
+    return;
+  }
+
+  if (String(tagsInput.value || '').trim()) {
+    return;
+  }
+
+  const suggestions = await window.AI.suggestTags(String(textInput.value || '').trim());
+
+  if (suggestions.length) {
+    tagsInput.value = suggestions.join(', ');
+  }
+};
+
+/** Opens the add prompt modal and clears all input fields. */
+const openModal = async () => {
+  const modal = await byId('add-modal');
+  const title = await byId('prompt-title');
+  const text = await byId('prompt-text');
+  const tags = await byId('prompt-tags');
+
+  if (title) {
+    title.value = '';
+  }
+
+  if (text) {
+    text.value = '';
+  }
+
+  if (tags) {
+    tags.value = '';
+  }
+
+  await resetDuplicateState();
+  modal?.classList.remove('pn-hidden');
+};
+
+/** Closes the add prompt modal and resets duplicate confirmation state. */
+const closeModal = async () => {
+  const modal = await byId('add-modal');
+  modal?.classList.add('pn-hidden');
+  await resetDuplicateState();
+};
+
+/** Saves a prompt payload with AI embedding support and refreshes list output. */
+const persistPrompt = async (payload) => {
+  const embeddingVector = await window.AI.embedText(payload.text);
+  const saved = await window.Store.savePrompt({
+    ...payload,
+    embedding: embeddingVector ? Array.from(embeddingVector) : null
+  });
+
+  if (!saved) {
+    await showToast('Failed to save prompt.');
     return false;
   }
 
-  await chrome.tabs.sendMessage(activeTab.id, {
-    type: 'pn.injectPrompt',
-    payload: { text }
-  });
-
+  await closeModal();
+  await renderPrompts(String((await byId('prompt-search'))?.value || ''));
   return true;
 };
 
-/** Deletes a prompt entry and rerenders prompts list. */
-const onDeletePrompt = async (promptId) => {
-  await window.PromptNestStorage.deletePrompt(promptId);
-  await renderPrompts();
-};
-
-/** Injects a prompt entry into the active page input. */
-const onInjectPrompt = async (promptText) => {
-  await injectPromptToActiveTab(promptText);
-};
-
-/** Deletes a history entry and rerenders history list. */
-const onDeleteHistory = async (historyId) => {
-  await window.PromptNestStorage.deleteChatHistory(historyId);
-  await renderHistory();
-};
-
-/** Renders saved prompts with inject and delete controls. */
-const renderPrompts = async () => {
-  const elements = await getElements();
-  const prompts = await window.PromptNestStorage.listPrompts();
-  elements.promptsList.innerHTML = '';
-
-  if (prompts.length === 0) {
-    elements.promptsList.innerHTML = '<li class="pn-empty">No prompts saved yet.</li>';
+/** Handles duplicate confirmation path after user explicitly chooses to save anyway. */
+const saveDuplicateAnyway = async () => {
+  if (!pendingDuplicatePayload) {
     return;
   }
 
-  prompts.forEach((prompt) => {
-    const item = document.createElement('li');
-    item.className = 'pn-item';
-    item.innerHTML = `
-      <div class="pn-item__content">
-        <h3 class="pn-item__title">${prompt.title}</h3>
-        <p class="pn-item__body">${prompt.body}</p>
-      </div>
-      <div class="pn-item__actions">
-        <button class="pn-btn" data-action="inject">Inject</button>
-        <button class="pn-btn pn-btn--danger" data-action="delete">Delete</button>
-      </div>
-    `;
-
-    const injectButton = item.querySelector('[data-action="inject"]');
-    const deleteButton = item.querySelector('[data-action="delete"]');
-
-    if (injectButton) {
-      injectButton.addEventListener('click', () => {
-        void onInjectPrompt(prompt.body);
-      });
-    }
-
-    if (deleteButton) {
-      deleteButton.addEventListener('click', () => {
-        void onDeletePrompt(prompt.id);
-      });
-    }
-
-    elements.promptsList.appendChild(item);
-  });
+  await persistPrompt(pendingDuplicatePayload);
 };
 
-/** Renders chat history records with delete controls. */
-const renderHistory = async () => {
-  const elements = await getElements();
-  const history = await window.PromptNestStorage.listChatHistory();
-  elements.historyList.innerHTML = '';
+/** Saves a new prompt from modal fields with suggestions and duplicate checks. */
+const savePromptFromModal = async () => {
+  const titleInput = await byId('prompt-title');
+  const textInput = await byId('prompt-text');
+  const tagsInput = await byId('prompt-tags');
 
-  if (history.length === 0) {
-    elements.historyList.innerHTML = '<li class="pn-empty">No history captured yet.</li>';
+  if (!titleInput || !textInput || !tagsInput) {
     return;
   }
 
-  history.forEach((entry) => {
-    const item = document.createElement('li');
-    item.className = 'pn-item';
-    item.innerHTML = `
-      <div class="pn-item__content">
-        <h3 class="pn-item__title">${entry.title}</h3>
-        <p class="pn-item__meta">${entry.platform} · ${new Date(entry.createdAt).toLocaleString()}</p>
-      </div>
-      <div class="pn-item__actions">
-        <button class="pn-btn pn-btn--danger" data-action="delete">Delete</button>
-      </div>
-    `;
+  const titleValue = String(titleInput.value || '').trim();
+  const textValue = String(textInput.value || '').trim();
 
-    const deleteButton = item.querySelector('[data-action="delete"]');
-
-    if (deleteButton) {
-      deleteButton.addEventListener('click', () => {
-        void onDeleteHistory(entry.id);
-      });
-    }
-
-    elements.historyList.appendChild(item);
-  });
-};
-
-/** Opens the add-prompt modal and resets input fields. */
-const openModal = async () => {
-  const elements = await getElements();
-  elements.promptTitleInput.value = '';
-  elements.promptBodyInput.value = '';
-  elements.modal.classList.add('pn-modal--open');
-  elements.modal.setAttribute('aria-hidden', 'false');
-};
-
-/** Closes the add-prompt modal. */
-const closeModal = async () => {
-  const elements = await getElements();
-  elements.modal.classList.remove('pn-modal--open');
-  elements.modal.setAttribute('aria-hidden', 'true');
-};
-
-/** Saves a new prompt from modal inputs and refreshes list state. */
-const savePrompt = async () => {
-  const elements = await getElements();
-  const title = elements.promptTitleInput.value.trim();
-  const body = elements.promptBodyInput.value.trim();
-
-  if (!body) {
+  if (!titleValue || !textValue) {
+    await showToast('Title and prompt text are required.');
     return;
   }
 
-  await window.PromptNestStorage.createPrompt({
-    title: title || 'Untitled prompt',
-    body,
-    tags: []
-  });
+  await prefillSuggestedTags();
+  const tags = await parseTags(tagsInput.value || '');
+  const payload = {
+    title: titleValue,
+    text: textValue,
+    tags,
+    category: null
+  };
 
-  await closeModal();
-  await renderPrompts();
-  await switchTab('prompts');
+  const existingPrompts = await window.Store.getPrompts();
+  const duplicate = await window.AI.isDuplicate(textValue, existingPrompts);
+
+  if (duplicate.duplicate) {
+    pendingDuplicatePayload = payload;
+    const confirmButton = await byId('confirm-duplicate');
+
+    if (confirmButton) {
+      confirmButton.classList.remove('hidden');
+    }
+
+    await showToast(`Similar prompt already saved: ${duplicate.match?.title || 'Untitled'}. Save anyway?`);
+    return;
+  }
+
+  await persistPrompt(payload);
 };
 
-/** Wires popup tabs, modal controls, and action buttons. */
+/** Wires static popup event handlers for tabs, modal controls, and search field. */
 const bindEvents = async () => {
-  const elements = await getElements();
+  const addPromptButton = await byId('add-prompt-btn');
+  const saveButton = await byId('save-new-prompt');
+  const confirmDuplicateButton = await byId('confirm-duplicate');
+  const cancelButton = await byId('cancel-modal');
+  const searchInput = await byId('prompt-search');
+  const promptText = await byId('prompt-text');
+  const modalBackdrop = document.querySelector('[data-close-modal]');
+  const tabs = Array.from(document.querySelectorAll('.tab'));
 
-  elements.tabButtons.forEach((button) => {
-    button.addEventListener('click', () => {
-      void switchTab(button.dataset.tab);
+  tabs.forEach((tab) => {
+    tab.addEventListener('click', () => {
+      void switchTab(String(tab.dataset.tab || 'prompts'));
     });
   });
 
-  elements.openModalButton.addEventListener('click', () => {
+  addPromptButton?.addEventListener('click', () => {
     void openModal();
   });
 
-  elements.closeModalOverlay.addEventListener('click', () => {
+  saveButton?.addEventListener('click', () => {
+    void savePromptFromModal();
+  });
+
+  confirmDuplicateButton?.addEventListener('click', () => {
+    void saveDuplicateAnyway();
+  });
+
+  cancelButton?.addEventListener('click', () => {
     void closeModal();
   });
 
-  elements.cancelModalButton.addEventListener('click', () => {
+  modalBackdrop?.addEventListener('click', () => {
     void closeModal();
   });
 
-  elements.savePromptButton.addEventListener('click', () => {
-    void savePrompt();
+  promptText?.addEventListener('blur', () => {
+    void prefillSuggestedTags();
+  });
+
+  searchInput?.addEventListener('input', (event) => {
+    const target = event.target;
+    void renderPrompts(String(target?.value || ''));
+  });
+
+  window.addEventListener('resize', () => {
+    void updateTabIndicator();
   });
 };
 
-/** Boots popup rendering and event listeners. */
-const initPopup = async () => {
+/** Boots the main popup UI once and optionally skips duplicate AI init after onboarding setup. */
+const bootstrapMainUi = async ({ skipAiInit = false } = {}) => {
+  if (popupBootstrapped) {
+    return;
+  }
+
+  popupBootstrapped = true;
+
+  if (!skipAiInit) {
+    await window.AI.initModel();
+  }
+
   await bindEvents();
+  await switchTab('prompts');
   await renderPrompts();
   await renderHistory();
-  await switchTab('prompts');
+
+  const prompts = await window.Store.getPrompts();
+  void window.AI.rehydratePromptEmbeddings(prompts);
+  await updateTabIndicator();
 };
 
-/** Runs popup initialization after DOM content is loaded. */
-const onDomReady = async () => {
-  await initPopup();
+/** Initializes popup with first-run onboarding gate and falls through to normal UI boot flow. */
+const init = async () => {
+  const data = await chrome.storage.local.get(['onboardingComplete']);
+
+  if (!data?.onboardingComplete && window.Onboarding?.start) {
+    await window.Onboarding.start({
+      onComplete: async ({ aiInitialized = false } = {}) => {
+        await bootstrapMainUi({ skipAiInit: aiInitialized });
+      }
+    });
+    return;
+  }
+
+  await bootstrapMainUi();
 };
 
-document.addEventListener('DOMContentLoaded', onDomReady);
+/** Starts popup initialization when DOM content loading completes. */
+const onDomLoaded = async () => {
+  await init();
+};
+
+document.addEventListener('DOMContentLoaded', onDomLoaded);

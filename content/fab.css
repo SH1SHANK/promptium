@@ -1,0 +1,100 @@
+/* File: content/fab.css | Naming convention: all style classes use the pn- prefix to avoid collisions. */
+
+#pn-fab-root {
+  position: fixed;
+  bottom: 88px;
+  right: 24px;
+  z-index: 999998;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+#pn-fab-trigger {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #8b7cf6;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 20px rgba(139, 124, 246, 0.4);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  color: #ffffff;
+  letter-spacing: 0.02em;
+}
+
+#pn-fab-trigger:hover {
+  box-shadow: 0 6px 28px rgba(139, 124, 246, 0.6);
+  transform: scale(1.05);
+}
+
+#pn-fab-trigger.open {
+  transform: rotate(45deg) scale(1.05);
+}
+
+.pn-fab-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.pn-fab-menu.hidden {
+  display: none;
+}
+
+.pn-fab-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #18181c;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 22px;
+  padding: 8px 16px 8px 12px;
+  cursor: pointer;
+  color: #f0f0f4;
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(8px);
+  animation: pn-fab-action-in 0.18s ease forwards;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.pn-fab-action:hover {
+  background: #26262b;
+  border-color: rgba(139, 124, 246, 0.4);
+}
+
+.pn-fab-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.pn-fab-label {
+  line-height: 1.1;
+}
+
+@keyframes pn-fab-action-in {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 640px) {
+  #pn-fab-root {
+    bottom: 78px;
+    right: 16px;
+  }
+}
