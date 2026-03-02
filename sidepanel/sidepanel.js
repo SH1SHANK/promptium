@@ -21,6 +21,34 @@ const DEFAULT_SETTINGS = {
   userContext: ''
 };
 
+/** Reads Gemini key from session storage, with one-time migration from legacy local storage. */
+const getStoredGeminiKey = async () => {
+  const sessionSnapshot = await chrome.storage.session.get([GEMINI_KEY]);
+  const sessionKey = String(sessionSnapshot?.[GEMINI_KEY] || '').trim();
+  if (sessionKey) {
+    return sessionKey;
+  }
+
+  const localSnapshot = await chrome.storage.local.get([GEMINI_KEY]);
+  const localKey = String(localSnapshot?.[GEMINI_KEY] || '').trim();
+  if (localKey) {
+    await chrome.storage.session.set({ [GEMINI_KEY]: localKey });
+    await chrome.storage.local.remove([GEMINI_KEY]).catch(() => {});
+  }
+  return localKey;
+};
+
+/** Stores Gemini key in session storage only and clears any persistent legacy copy. */
+const setStoredGeminiKey = async (rawKey) => {
+  const key = String(rawKey || '').trim();
+  if (key) {
+    await chrome.storage.session.set({ [GEMINI_KEY]: key });
+  } else {
+    await chrome.storage.session.remove([GEMINI_KEY]).catch(() => {});
+  }
+  await chrome.storage.local.remove([GEMINI_KEY]).catch(() => {});
+};
+
 // PLATFORM_LABELS and SUPPORTED_URLS now provided by utils/constants.js
 
 const ONBOARDING_CARDS = [
@@ -639,7 +667,7 @@ const syncSettingsSaveState = async () => {
   const statusNode = byId('settings-status');
   if (!saveButton) return;
   const draftSettings = readSettingsControlsSnapshot();
-  const { [GEMINI_KEY]: promptiumGeminiKey } = await chrome.storage.local.get([GEMINI_KEY]);
+  const promptiumGeminiKey = await getStoredGeminiKey();
   const currentKey = String(byId('setting-gemini-key')?.value || '').trim();
   const storedKey = String(promptiumGeminiKey || '').trim();
   
@@ -658,7 +686,7 @@ const syncSettingsSaveState = async () => {
 const resetSettingsDraft = async () => {
   renderSettingsControls(DEFAULT_SETTINGS);
   const draftSettings = readSettingsControlsSnapshot();
-  const { [GEMINI_KEY]: promptiumGeminiKey } = await chrome.storage.local.get([GEMINI_KEY]);
+  const promptiumGeminiKey = await getStoredGeminiKey();
   const currentKey = String(byId('setting-gemini-key')?.value || '').trim();
   const storedKey = String(promptiumGeminiKey || '').trim();
 
@@ -1324,7 +1352,11 @@ const renderTags = async () => {
       chip.className = 'pn-tag-filter-chip';
       chip.type = 'button';
       chip.dataset.tag = item.tag;
-      chip.innerHTML = `${item.tag} <span class="pn-tag-count">${item.count}</span>`;
+      chip.textContent = `${item.tag} `;
+      const count = document.createElement('span');
+      count.className = 'pn-tag-count';
+      count.textContent = String(item.count);
+      chip.appendChild(count);
       chip.addEventListener('click', () => {
         const isActive = chip.classList.contains('active');
         filterBar.querySelectorAll('.pn-tag-filter-chip').forEach((c) =>
@@ -3189,10 +3221,7 @@ const saveSettingsFromPanel = async () => {
   // Save Gemini API key separately
   const geminiKeyInput = document.getElementById('setting-gemini-key');
   if (geminiKeyInput) {
-    const keyVal = String(geminiKeyInput.value || '').trim();
-    if (keyVal) {
-      await chrome.storage.local.set({ [GEMINI_KEY]: keyVal });
-    }
+    await setStoredGeminiKey(geminiKeyInput.value);
   }
 
   await setSettingsStatus('Settings saved.', 'ok');
@@ -3367,8 +3396,8 @@ const bindEvents = async () => {
     btn.textContent = '...';
     btn.classList.remove('pn-status-error', 'pn-status-ok');
     try {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
-      if (res.ok) {
+      const res = await chrome.runtime.sendMessage({ action: 'VALIDATE_GEMINI_KEY', key });
+      if (res?.ok) {
         btn.textContent = '✓ Valid';
         btn.classList.add('pn-status-ok');
       } else {
@@ -3573,7 +3602,8 @@ const init = async () => {
 
   // Load Gemini key & check for pending Improve prompt triggers
   try {
-    const { [GEMINI_KEY]: promptiumGeminiKey, [IMPROVE_PAYLOAD_KEY]: promptiumImprovePayload } = await chrome.storage.local.get([GEMINI_KEY, IMPROVE_PAYLOAD_KEY]);
+    const { [IMPROVE_PAYLOAD_KEY]: promptiumImprovePayload } = await chrome.storage.local.get([IMPROVE_PAYLOAD_KEY]);
+    const promptiumGeminiKey = await getStoredGeminiKey();
     
     if (promptiumImprovePayload) {
       await chrome.storage.local.remove([IMPROVE_PAYLOAD_KEY]).catch(() => {});

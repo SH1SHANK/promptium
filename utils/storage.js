@@ -20,6 +20,31 @@ const clearLastStorageError = () => {
 
 const isStorageQuotaError = (value) => /quota|QUOTA_BYTES|MAX_WRITE_OPERATIONS|MAX_ITEMS/i.test(String(value || ''));
 
+/** Strips query/hash fragments from URLs before local persistence. */
+const sanitizeStoredUrl = (value) => {
+  try {
+    const parsed = new URL(String(value || '').trim());
+    parsed.search = '';
+    parsed.hash = '';
+    return parsed.toString();
+  } catch (_error) {
+    return '';
+  }
+};
+
+/** Stores only minimal, text-first message fields in history payloads. */
+const normalizeHistoryMessages = (messages) => {
+  if (!Array.isArray(messages)) {
+    return [];
+  }
+
+  return messages.map((message) => ({
+    role: String(message?.role || 'assistant').trim().toLowerCase(),
+    text: String(message?.text || '').trim().slice(0, 30000),
+    timestamp: message?.timestamp ? String(message.timestamp) : undefined
+  }));
+};
+
 /** Returns prompts array from storage or an empty list when unavailable. */
 const getPrompts = async () => {
   try {
@@ -132,9 +157,9 @@ const saveChatToHistory = async (chat) => {
       title: String(chat?.title || 'Untitled chat').trim(),
       platform: String(chat?.platform || 'unknown').trim(),
       tags: Array.isArray(chat?.tags) ? chat.tags.map((tag) => String(tag).trim()).filter(Boolean) : [],
-      messages: Array.isArray(chat?.messages) ? chat.messages : [],
+      messages: normalizeHistoryMessages(chat?.messages),
       createdAt: new Date().toISOString(),
-      url: String(chat?.url || '')
+      url: sanitizeStoredUrl(chat?.url)
     };
 
     const nextHistory = [...history, nextEntry];

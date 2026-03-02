@@ -12,7 +12,6 @@ let lastUrl = window.location.href;
 let pendingPromptText = '';
 let reinjectDebounceTimer = null;
 let isFabMenuOpen = false;
-const SIDEPANEL_PAYLOAD_KEY = 'promptiumSidePanelPayload';
 const IMPROVE_PAYLOAD_KEY = 'promptiumImprovePayload';
 
 /** Returns the active input element for a platform based on selector config. */
@@ -72,9 +71,17 @@ const addTagBadge = (tag) => {
   const badge = document.createElement('span');
   badge.className = 'pn-tag-badge';
   badge.dataset.tag = cleanTag;
-  badge.innerHTML = `${cleanTag}<button type="button" class="pn-tag-badge__remove">×</button>`;
 
-  badge.querySelector('.pn-tag-badge__remove')?.addEventListener('click', () => {
+  const label = document.createElement('span');
+  label.textContent = cleanTag;
+  const removeButton = document.createElement('button');
+  removeButton.type = 'button';
+  removeButton.className = 'pn-tag-badge__remove';
+  removeButton.textContent = '×';
+  badge.appendChild(label);
+  badge.appendChild(removeButton);
+
+  removeButton.addEventListener('click', () => {
     badge.remove();
     syncBadgesToHidden();
   });
@@ -348,7 +355,7 @@ const onExportClick = async (platform) => {
       return;
     }
 
-    // Stage scraped payload in local storage for the side panel to read
+    // Stage payload in trusted service worker session storage to avoid local persistence.
     const payload = {
       title: document.title?.slice(0, 80) || 'Chat Export',
       platform: String(platform || 'unknown'),
@@ -357,7 +364,11 @@ const onExportClick = async (platform) => {
       messages
     };
 
-    await chrome.storage.local.set({ [SIDEPANEL_PAYLOAD_KEY]: payload });
+    const persisted = await chrome.runtime.sendMessage({ action: 'SET_SIDEPANEL_PAYLOAD', payload }).catch(() => null);
+    if (!persisted?.ok) {
+      await showNotification('Could not prepare export payload.');
+      return;
+    }
 
     // Ask background to open side panel and navigate to export view
     chrome.runtime.sendMessage({ action: 'openExport' }, (response) => {

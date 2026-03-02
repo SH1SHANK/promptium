@@ -27,11 +27,92 @@ const BRAND_KEYS = {
   improvePayload: 'promptiumImprovePayload'
 };
 
+const GEMINI_API_ROOT = 'https://generativelanguage.googleapis.com/v1beta';
+const GEMINI_MODEL = 'gemini-2.0-flash-lite';
+const GEMINI_TIMEOUT_MS = 15000;
+
+/** Executes fetch with strict defaults to reduce accidental data leakage and hangs. */
+const safeFetch = async (url, options = {}, timeoutMs = GEMINI_TIMEOUT_MS) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      cache: 'no-store',
+      credentials: 'omit',
+      referrerPolicy: 'no-referrer',
+      ...options,
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+/** Builds Gemini request headers without exposing key in URL/query strings. */
+const buildGeminiHeaders = (apiKey, includeJsonContentType = true) => {
+  const headers = {
+    'x-goog-api-key': String(apiKey || '').trim()
+  };
+  if (includeJsonContentType) {
+    headers['Content-Type'] = 'application/json';
+  }
+  return headers;
+};
+
+/** Redacts obvious secret-like and PII patterns before external API calls. */
+const redactSensitiveText = (value) => String(value || '')
+  .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[redacted-email]')
+  .replace(/\b(?:sk|ghp_|AIzaSy)[A-Za-z0-9_\-]{12,}\b/g, '[redacted-token]')
+  .replace(/\b\d{3}[-.\s]?\d{2}[-.\s]?\d{4}\b/g, '[redacted-ssn]');
+
 /** Returns the configured Promptium Gemini API key. */
 const getGeminiApiKey = async () => {
-  const snapshot = await chrome.storage.local.get([BRAND_KEYS.geminiKey]);
-  const primary = String(snapshot?.[BRAND_KEYS.geminiKey] || '').trim();
-  return primary;
+  const sessionSnapshot = await chrome.storage.session.get([BRAND_KEYS.geminiKey]);
+  const sessionKey = String(sessionSnapshot?.[BRAND_KEYS.geminiKey] || '').trim();
+  if (sessionKey) {
+    return sessionKey;
+  }
+
+  // Backward compatibility: read legacy local key once, promote to session, then clear persistent copy.
+  const localSnapshot = await chrome.storage.local.get([BRAND_KEYS.geminiKey]);
+  const localKey = String(localSnapshot?.[BRAND_KEYS.geminiKey] || '').trim();
+  if (localKey) {
+    await chrome.storage.session.set({ [BRAND_KEYS.geminiKey]: localKey });
+    await chrome.storage.local.remove([BRAND_KEYS.geminiKey]).catch(() => {});
+  }
+  return localKey;
+};
+
+/** Calls Gemini generateContent endpoint with secure request defaults. */
+const callGeminiGenerateContent = async (apiKey, payload) => safeFetch(
+  `${GEMINI_API_ROOT}/models/${GEMINI_MODEL}:generateContent`,
+  {
+    method: 'POST',
+    headers: buildGeminiHeaders(apiKey, true),
+    body: JSON.stringify(payload)
+  }
+);
+
+/** Validates a Gemini API key without exposing it in URL query parameters. */
+const validateGeminiApiKey = async (rawKey) => {
+  const key = String(rawKey || '').trim();
+  if (!key) {
+    return { ok: false, error: 'Missing API key.' };
+  }
+
+  try {
+    const response = await safeFetch(`${GEMINI_API_ROOT}/models`, {
+      method: 'GET',
+      headers: buildGeminiHeaders(key, false)
+    });
+    if (!response.ok) {
+      return { ok: false, error: `Gemini API key validation failed (${response.status}).` };
+    }
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error?.name === 'AbortError' ? 'Gemini key validation timed out.' : 'Gemini key validation failed.' };
+  }
 };
 
 // ─── AI Bootstrap ────────────────────────────────────────────────────────────
@@ -272,24 +353,18 @@ async function getSmartSuggestions(conversationText) {
 
     const systemPrompt = `You are a prompt suggestion engine. Given a conversation snippet and a numbered list of saved prompts, return the IDs of the top 3 most relevant prompts. Reply ONLY with a JSON array of ID strings, e.g. ["id1","id2","id3"]. If none are relevant, reply [].`;
 
-    const userMessage = `Conversation:\n${conversationText.slice(0, 600)}\n\nSaved prompts:\n${promptList}`;
+    const safeConversation = redactSensitiveText(conversationText).slice(0, 600);
+    const userMessage = `Conversation:\n${safeConversation}\n\nSaved prompts:\n${promptList}`;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${promptiumGeminiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            { role: 'user', parts: [{ text: `${systemPrompt}\n\n${userMessage}` }] }
-          ],
-          generationConfig: {
-            temperature: 0.1,
-            maxOutputTokens: 200,
-          },
-        }),
+    const response = await callGeminiGenerateContent(promptiumGeminiKey, {
+      contents: [
+        { role: 'user', parts: [{ text: `${systemPrompt}\n\n${userMessage}` }] }
+      ],
+      generationConfig: {
+        temperature: 0.1,
+        maxOutputTokens: 200
       }
-    );
+    });
 
     if (!response.ok) return null;
 
@@ -316,17 +391,13 @@ async function getSmartSuggestions(conversationText) {
 // ─── AI Feature: AI Prompt Improvement (Gemini Flash) ─────────────────────────
 
 async function improvePromptViaGemini(text, tags = [], style = 'general') {
-  console.log('[Promptium] improvePromptViaGemini called with:', { text, tags, style });
-  
   if (!text || text.trim().length === 0) {
-    console.warn('[Promptium] Empty text provided to improvePromptViaGemini');
     return { error: 'Empty prompt text provided.' };
   }
 
   try {
     const promptiumGeminiKey = await getGeminiApiKey();
     if (!promptiumGeminiKey) {
-      console.warn('[Promptium] No Gemini API key found in storage!');
       return { error: 'No Gemini API Key found in Extension Settings.' };
     }
 
@@ -346,39 +417,27 @@ ${styleInstruction}
 ${tagContext}
 ONLY return the improved prompt text. Do not add quotes, do not explain your changes, do not write "Here is the improved prompt:". Just the raw, ready-to-use prompt text.`;
 
-    console.log('[Promptium] Fetching from Gemini API...');
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${promptiumGeminiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            { role: 'user', parts: [{ text: `${systemPrompt}\n\nUser's Original Prompt: ${text}` }] }
-          ],
-          generationConfig: {
-            temperature: 0.4,
-            maxOutputTokens: 800,
-          },
-        }),
+    const response = await callGeminiGenerateContent(promptiumGeminiKey, {
+      contents: [
+        { role: 'user', parts: [{ text: `${systemPrompt}\n\nUser's Original Prompt: ${text}` }] }
+      ],
+      generationConfig: {
+        temperature: 0.4,
+        maxOutputTokens: 800
       }
-    );
+    });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[Promptium] Gemini API error:', response.status, errorText);
-      return { error: `Gemini API Error (${response.status}): ${errorText.substring(0, 100)}` };
+      return { error: `Gemini API request failed (${response.status}).` };
     }
 
     const data = await response.json();
     const textResult = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
     
-    console.log('[Promptium] Successfully grabbed Gemini response');
     return { text: textResult.trim() };
   } catch (err) {
-    console.error('[Promptium] Failed to improve prompt via Gemini:', err);
-    return { error: err.message || 'Failed to improve prompt via Gemini.' };
+    const fallback = err?.name === 'AbortError' ? 'Gemini request timed out.' : 'Failed to improve prompt via Gemini.';
+    return { error: fallback };
   }
 }
 
@@ -398,26 +457,18 @@ async function generatePromptTitleViaGemini(text) {
 Return ONLY the title text.
 No quotes, no numbering, no extra text.`;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${promptiumGeminiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            { role: 'user', parts: [{ text: `${instruction}\n\nPrompt:\n${source.slice(0, 2500)}` }] }
-          ],
-          generationConfig: {
-            temperature: 0.2,
-            maxOutputTokens: 40,
-          },
-        }),
+    const response = await callGeminiGenerateContent(promptiumGeminiKey, {
+      contents: [
+        { role: 'user', parts: [{ text: `${instruction}\n\nPrompt:\n${source.slice(0, 2500)}` }] }
+      ],
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 40
       }
-    );
+    });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      return { error: `Gemini API Error (${response.status}): ${errorText.substring(0, 100)}`, title: '' };
+      return { error: `Gemini API request failed (${response.status}).`, title: '' };
     }
 
     const data = await response.json();
@@ -435,7 +486,7 @@ No quotes, no numbering, no extra text.`;
 
     return { title };
   } catch (err) {
-    return { error: err?.message || 'Failed to generate title.', title: '' };
+    return { error: err?.name === 'AbortError' ? 'Gemini request timed out.' : 'Failed to generate title.', title: '' };
   }
 }
 
@@ -552,7 +603,7 @@ const handleOpenLlmTab = async (url) => {
   try {
     const parsed = new URL(String(url || ''));
 
-    if (!['https:', 'http:'].includes(parsed.protocol)) {
+    if (parsed.protocol !== 'https:') {
       return { ok: false, error: 'Invalid tab URL.' };
     }
 
@@ -712,6 +763,11 @@ const onRuntimeMessage = (message, sender, sendResponse) => {
 
       if (message?.action === 'SET_SIDEPANEL_PAYLOAD') {
         respond(await handleSetSidePanelPayload(message.payload));
+        return;
+      }
+
+      if (message?.action === 'VALIDATE_GEMINI_KEY') {
+        respond(await validateGeminiApiKey(message.key));
         return;
       }
 

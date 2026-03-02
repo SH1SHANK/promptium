@@ -29,15 +29,33 @@ const createEmptyState = (messageOrConfig, maybeOptions = {}) => {
 
   const stateNode = document.createElement('div');
   stateNode.className = 'pn-empty-state';
-  stateNode.innerHTML = `
-    <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M4 6.5h16v11H4z"></path>
-      <path d="M8 10h8"></path>
-      <path d="M8 13h5"></path>
-    </svg>
-    ${title ? `<p class="pn-empty-state__title">${title}</p>` : ''}
-    <p>${message}</p>
-  `;
+  const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  icon.setAttribute('viewBox', '0 0 24 24');
+  icon.setAttribute('fill', 'none');
+  icon.setAttribute('stroke-width', '1.6');
+  icon.setAttribute('stroke-linecap', 'round');
+  icon.setAttribute('stroke-linejoin', 'round');
+  icon.setAttribute('aria-hidden', 'true');
+
+  const pathTop = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  pathTop.setAttribute('d', 'M4 6.5h16v11H4z');
+  const pathMid = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  pathMid.setAttribute('d', 'M8 10h8');
+  const pathBottom = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  pathBottom.setAttribute('d', 'M8 13h5');
+  icon.append(pathTop, pathMid, pathBottom);
+  stateNode.appendChild(icon);
+
+  if (title) {
+    const titleNode = document.createElement('p');
+    titleNode.className = 'pn-empty-state__title';
+    titleNode.textContent = title;
+    stateNode.appendChild(titleNode);
+  }
+
+  const messageNode = document.createElement('p');
+  messageNode.textContent = message;
+  stateNode.appendChild(messageNode);
 
   if (actionLabel) {
     const actionButton = document.createElement('button');
