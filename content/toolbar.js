@@ -12,7 +12,10 @@ let lastUrl = window.location.href;
 let pendingPromptText = '';
 let reinjectDebounceTimer = null;
 let isFabMenuOpen = false;
+let fabGlobalListenersBound = false;
+let activeFabRoot = null;
 const IMPROVE_PAYLOAD_KEY = 'promptiumImprovePayload';
+const NOTIFICATION_DURATION_MS = 2200;
 
 /** Returns the active input element for a platform based on selector config. */
 const getInputElement = async (platform) => {
@@ -38,7 +41,7 @@ const showNotification = async (message) => {
 
   setTimeout(() => {
     toast.remove();
-  }, 2500);
+  }, NOTIFICATION_DURATION_MS);
 };
 
 /** Syncs badge tags to the hidden pn-save-tags-hidden input. */
@@ -185,7 +188,7 @@ const confirmSavePrompt = async () => {
   }
 
   if (!title) {
-    await showNotification('Please provide a prompt title.');
+    await showNotification('Enter a prompt title.');
     return;
   }
 
@@ -196,12 +199,12 @@ const confirmSavePrompt = async () => {
     if (window.Store?.isQuotaError?.(storageError)) {
       await showNotification('Storage quota exceeded. Delete older prompts/history, then try again.');
     } else {
-      await showNotification('Failed to save prompt. Try again.');
+      await showNotification('Save failed. Retry.');
     }
     return;
   }
 
-  await showNotification('Prompt saved.');
+  await showNotification('Prompt saved to library.');
   await closeSaveModal();
 };
 
@@ -286,6 +289,8 @@ const toggleFabMenu = async (nextOpen = !isFabMenuOpen) => {
   }
 
   isFabMenuOpen = Boolean(nextOpen);
+  trigger.setAttribute('aria-expanded', isFabMenuOpen ? 'true' : 'false');
+  menu.setAttribute('aria-hidden', isFabMenuOpen ? 'false' : 'true');
 
   if (isFabMenuOpen) {
     const actions = Array.from(menu.querySelectorAll('.pn-fab-action'));
@@ -296,6 +301,10 @@ const toggleFabMenu = async (nextOpen = !isFabMenuOpen) => {
 
     menu.classList.remove('hidden');
     trigger.classList.add('open');
+    const firstAction = actions[0];
+    if (firstAction) {
+      requestAnimationFrame(() => firstAction.focus());
+    }
     return;
   }
 
@@ -308,7 +317,7 @@ const onSavePromptClick = async (platform) => {
   const input = await getInputElement(platform);
 
   if (!input) {
-    await showNotification('No input box detected.');
+    await showNotification('No chat input detected.');
     return;
   }
 
@@ -351,7 +360,7 @@ const onExportClick = async (platform) => {
     }
 
     if (!messages || messages.length === 0) {
-      await showNotification('No messages found in this conversation.');
+      await showNotification('No messages found in this chat.');
       return;
     }
 
@@ -366,7 +375,7 @@ const onExportClick = async (platform) => {
 
     const persisted = await chrome.runtime.sendMessage({ action: 'SET_SIDEPANEL_PAYLOAD', payload }).catch(() => null);
     if (!persisted?.ok) {
-      await showNotification('Could not prepare export payload.');
+      await showNotification('Export staging failed.');
       return;
     }
 
@@ -374,12 +383,12 @@ const onExportClick = async (platform) => {
     chrome.runtime.sendMessage({ action: 'openExport' }, (response) => {
       if (chrome.runtime.lastError) {
         console.warn('[Promptium] Could not open export panel:', chrome.runtime.lastError.message);
-        showNotification('Could not open export panel. Try clicking the extension icon.').catch(console.error);
+        showNotification('Could not open export panel. Open Promptium from the extension icon.').catch(console.error);
       }
     });
   } catch (error) {
     console.error('[Promptium] Export flow failed:', error);
-    await showNotification('Export failed. Try again.');
+    await showNotification('Export failed. Retry.');
   }
 };
 
@@ -398,11 +407,11 @@ const onImprovePromptClick = async (platform) => {
   const text = String(input?.value || input?.textContent || '').trim();
 
   if (!text) {
-    await showNotification('Type a prompt in the chat box first.');
+    await showNotification('Enter a prompt in chat first.');
     return;
   }
 
-  showNotification('Opening improve prompt...').catch(console.error);
+  showNotification('Opening optimizer...').catch(console.error);
 
   try {
     await chrome.storage.local.set({
@@ -415,7 +424,7 @@ const onImprovePromptClick = async (platform) => {
     chrome.runtime.sendMessage({ action: 'openSidePanel' });
   } catch (error) {
     console.error('[Promptium] Improve trigger fail:', error);
-    await showNotification('Failed to open improve modal.');
+    await showNotification('Could not open optimizer.');
   }
 };
 
@@ -430,7 +439,7 @@ chrome.runtime.onMessage.addListener((msg) => {
           input.textContent = msg.text;
         }
         input.dispatchEvent(new Event('input', { bubbles: true }));
-        showNotification('Prompt applied ✨');
+        showNotification('Optimized prompt applied.');
       }
     });
   }
@@ -481,7 +490,7 @@ const createToolbar = async () => {
         <span class="pn-fab-label">Library</span>
       </button>
     </div>
-    <button id="pn-fab-trigger" type="button" aria-label="Promptium Actions">
+    <button id="pn-fab-trigger" type="button" aria-label="Promptium Actions" aria-haspopup="menu" aria-expanded="false">
       <svg class="pn-fab-logo" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <line x1="12" y1="5" x2="12" y2="19"></line>
         <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -502,6 +511,14 @@ const attachHandlers = async (platform) => {
 
   const trigger = root.querySelector('#pn-fab-trigger');
   const actions = Array.from(root.querySelectorAll('.pn-fab-action'));
+  const menu = root.querySelector('#pn-fab-menu');
+  activeFabRoot = root;
+
+  if (menu) {
+    menu.setAttribute('role', 'menu');
+    menu.setAttribute('aria-hidden', 'true');
+  }
+  actions.forEach((actionButton) => actionButton.setAttribute('role', 'menuitem'));
 
   trigger?.addEventListener('click', (event) => {
     event.stopPropagation();
@@ -521,11 +538,34 @@ const attachHandlers = async (platform) => {
     });
   });
 
-  document.addEventListener('click', (event) => {
-    if (!root.contains(event.target)) {
+  if (!fabGlobalListenersBound) {
+    document.addEventListener('click', (event) => {
+      if (!activeFabRoot || activeFabRoot.contains(event.target)) {
+        return;
+      }
       void toggleFabMenu(false);
-    }
-  });
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && isFabMenuOpen) {
+        void toggleFabMenu(false);
+      }
+    });
+
+    window.addEventListener('scroll', () => {
+      if (isFabMenuOpen) {
+        void toggleFabMenu(false);
+      }
+    }, { passive: true });
+
+    window.addEventListener('blur', () => {
+      if (isFabMenuOpen) {
+        void toggleFabMenu(false);
+      }
+    });
+
+    fabGlobalListenersBound = true;
+  }
 
   root.dataset.bound = 'true';
 };

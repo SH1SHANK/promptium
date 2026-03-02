@@ -16,9 +16,9 @@
     min-height: 100vh;
     overflow-y: auto;
     background:
-      radial-gradient(circle at 85% -15%, rgba(139, 124, 246, 0.16), transparent 42%),
-      radial-gradient(circle at 12% -24%, rgba(52, 211, 153, 0.08), transparent 36%),
-      #0e0e10;
+      radial-gradient(circle at 86% -14%, rgba(54, 214, 195, 0.16), transparent 38%),
+      radial-gradient(circle at 10% -28%, rgba(99, 102, 241, 0.14), transparent 40%),
+      #0d1017;
   }
 
   .pn-sidepanel-header {
@@ -71,19 +71,20 @@
 
   .pn-export-grid {
     display: grid;
-    gap: 10px;
+    gap: 12px;
     grid-template-columns: minmax(230px, 300px) 1fr;
-    min-height: 420px;
+    min-height: 440px;
   }
 
   .pn-export-controls {
-    background: #18181c;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 10px;
-    padding: 10px;
+    background: rgba(20, 24, 34, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 12px;
     display: grid;
     align-content: start;
     gap: 10px;
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
   }
 
   .pn-export-controls .pn-field {
@@ -94,18 +95,19 @@
   .pn-export-controls .pn-field textarea {
     width: 100%;
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
+    border-radius: 10px;
     padding: 8px;
-    background: #111114;
+    background: #101520;
     color: #f0f0f4;
     font: inherit;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
 
   .pn-export-controls .pn-field select:focus,
   .pn-export-controls .pn-field textarea:focus {
     outline: none;
-    border-color: #8b7cf6;
-    box-shadow: 0 0 0 2px rgba(139, 124, 246, 0.2);
+    border-color: #36d6c3;
+    box-shadow: 0 0 0 3px rgba(54, 214, 195, 0.18);
   }
 
   .pn-check-row {
@@ -124,10 +126,11 @@
     min-width: 0;
     display: grid;
     grid-template-rows: auto 1fr;
-    background: #18181c;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 10px;
+    background: rgba(20, 24, 34, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
     overflow: hidden;
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
   }
 
   .pn-export-preview-head {

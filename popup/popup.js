@@ -8,6 +8,8 @@ let pendingDuplicatePayload = null;
 let popupBootstrapped = false;
 let _searchTimer = null;
 const TEXT_CLAMP_LENGTH = 180;
+const COPY_FEEDBACK_RESET_MS = 1200;
+const SEARCH_DEBOUNCE_MS = 150;
 
 /** Formats a relative time string from an ISO date (e.g. '3 hours ago'). */
 const formatRelativeTime = (isoDate) => {
@@ -148,9 +150,9 @@ const createPromptCard = async (prompt, activeFilter, canInject) => {
         setTimeout(() => {
           copyButton.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" class="pn-btn-icon" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>Copy`;
           copyButton.classList.remove('pn-btn--copied');
-        }, 1500);
+        }, COPY_FEEDBACK_RESET_MS);
       } catch {
-        await showToast('Failed to copy');
+        await showToast('Copy failed.');
       }
     })();
   });
@@ -172,9 +174,9 @@ const createPromptCard = async (prompt, activeFilter, canInject) => {
         if (saved) {
           saveBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" class="pn-btn-icon" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>Saved!`;
           saveBtn.disabled = true;
-          await showToast('Template saved to your library!');
+          await showToast('Template saved to library.');
         } else {
-          await showToast('Failed to save template.');
+          await showToast('Template save failed.');
         }
       })();
     });
@@ -202,7 +204,7 @@ const createPromptCard = async (prompt, activeFilter, canInject) => {
       void (async () => {
         const deleted = await window.Store.deletePrompt(prompt.id);
         if (!deleted) {
-          await showToast('Failed to delete prompt.');
+          await showToast('Delete failed.');
           return;
         }
         await renderPrompts(activeFilter);
@@ -265,7 +267,7 @@ const createHistoryCard = async (entry) => {
     void (async () => {
       const deleted = await window.Store.deleteChatFromHistory(entry.id);
       if (!deleted) {
-        await showToast('Failed to delete history item.');
+        await showToast('Delete failed.');
         return;
       }
       await renderHistory();
@@ -487,7 +489,7 @@ const persistPrompt = async (payload) => {
     if (window.Store?.isQuotaError?.(storageError)) {
       await showToast('Storage quota exceeded. Delete older prompts or history items, then retry.');
     } else {
-      await showToast('Failed to save prompt.');
+      await showToast('Save failed.');
     }
     return false;
   }
@@ -521,7 +523,7 @@ const savePromptFromModal = async () => {
   const textValue = String(textInput.value || '').trim();
 
   if (!titleValue || !textValue) {
-    await showToast('Title and prompt text are required.');
+    await showToast('Title and prompt are required.');
     return;
   }
 
@@ -550,7 +552,7 @@ const savePromptFromModal = async () => {
       confirmButton.classList.remove('hidden');
     }
 
-    await showToast(`Similar prompt already saved: ${duplicate.match?.title || 'Untitled'}. Save anyway?`);
+    await showToast(`Similar prompt found: ${duplicate.match?.title || 'Untitled'}. Save anyway?`);
     return;
   }
 
@@ -603,7 +605,7 @@ const bindEvents = async () => {
     clearTimeout(_searchTimer);
     _searchTimer = setTimeout(() => {
       void renderPrompts(String(target?.value || ''));
-    }, 200);
+    }, SEARCH_DEBOUNCE_MS);
   });
 
   window.addEventListener('resize', () => {

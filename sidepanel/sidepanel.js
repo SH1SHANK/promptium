@@ -142,6 +142,13 @@ const state = {
   semanticResults: null,
   _searchDebounce: null,
 };
+const UI_FEEDBACK_MS = Object.freeze({
+  SEARCH_DEBOUNCE: 170,
+  COPY_RESET: 1400,
+  API_CHECK_RESET_SHORT: 1600,
+  API_CHECK_RESET_LONG: 2200,
+  IMPROVE_UNDO: 4200
+});
 
 // Safety guard: sidepanel export must never use html2pdf/html2canvas due MV3 CSP.
 if (typeof window !== 'undefined' && typeof window.html2pdf === 'function') {
@@ -784,7 +791,7 @@ const syncAiState = async () => {
           aiBar.classList.add('pn-ai-bar--ready');
         }
         const searchInput = document.getElementById('prompt-search');
-        if (searchInput) searchInput.placeholder = 'Search by meaning...';
+        if (searchInput) searchInput.placeholder = 'Semantic search...';
 
         const progressText = document.getElementById('ai-progress-text');
         if (progressText) progressText.textContent = '✦ Ready';
@@ -988,7 +995,7 @@ const createPromptCard = async (prompt, activeFilter, canInject) => {
       const deleted = await window.Store.deletePrompt(prompt.id);
 
       if (!deleted) {
-        showToast('Failed to delete prompt.');
+        showToast('Delete failed.');
         return;
       }
 
@@ -1032,9 +1039,9 @@ const createPromptCard = async (prompt, activeFilter, canInject) => {
           category: prompt.category
         });
         if (saved) {
-          await showToast('Template saved to your prompts!');
+          await showToast('Template saved to library.');
         } else {
-          await showToast('Failed to save template.');
+          await showToast('Template save failed.');
         }
       })();
     });
@@ -1202,7 +1209,7 @@ const createHistoryCard = async (entry) => {
       const deleted = await window.Store.deleteChatFromHistory(entry.id);
 
       if (!deleted) {
-        await showToast('Failed to delete history item.');
+        await showToast('Delete failed.');
         return;
       }
 
@@ -1550,7 +1557,7 @@ const persistPrompt = async (payload) => {
       await showToast('Storage quota exceeded. Delete older prompts or chat history, then try again.');
       await switchTab('history');
     } else {
-      await showToast('Failed to save prompt.');
+      await showToast('Save failed.');
     }
     return false;
   }
@@ -1563,7 +1570,7 @@ const persistPrompt = async (payload) => {
   await closeModal();
   await renderPrompts(String((await byId('prompt-search'))?.value || ''));
   await renderTags();
-  await showToast('Prompt saved.');
+  await showToast('Prompt saved to library.');
   return true;
 };
 
@@ -1662,7 +1669,7 @@ const hasPayloadMessages = (payload) => Array.isArray(payload?.messages) && payl
 
 const applyLatestExportSnapshot = async () => {
   if (!state.pendingExportPayload) {
-    await setExportStatus('Preview is already up to date.');
+    await setExportStatus('Preview already current.');
     return;
   }
   state.exportPayload = cloneExportPayload(state.pendingExportPayload);
@@ -1670,7 +1677,7 @@ const applyLatestExportSnapshot = async () => {
   state.pendingExportPayload = null;
   state.hasPendingExportUpdate = false;
   await renderExportPreview();
-  await setExportStatus('Loaded latest selected messages.');
+  await setExportStatus('Latest selection loaded.');
 };
 
 const ingestIncomingExportPayload = async (rawPayload) => {
@@ -1683,7 +1690,7 @@ const ingestIncomingExportPayload = async (rawPayload) => {
     state.hasPendingExportUpdate = hasPayloadMessages(state.pendingExportPayload);
     await renderExportMeta();
     if (state.hasPendingExportUpdate) {
-      await setExportStatus('New selection received. Click "Reload latest selection".');
+      await setExportStatus('New selection ready. Click "Reload latest selection".');
     }
     return;
   }
@@ -2569,7 +2576,7 @@ const selectMessagesForExport = async () => {
 
   const response = await chrome.tabs.sendMessage(context.tabId, { action: 'openSidePanelAll' }).catch(() => null);
   if (!response?.ok) {
-    await setExportStatus('Could not request message selection from the active tab.', true);
+    await setExportStatus('Selection request failed on active tab.', true);
     return;
   }
 
@@ -2577,7 +2584,7 @@ const selectMessagesForExport = async () => {
   const incoming = await loadExportPayload();
   await ingestIncomingExportPayload(incoming);
   await renderExportPreview();
-  await setExportStatus('Message selection loaded.');
+  await setExportStatus('Selection loaded.');
 };
 
 /** Renders export preview area from current payload and selected format. */
@@ -2680,7 +2687,7 @@ const runExport = async () => {
   if (format === 'markdown') {
     const markdown = await buildMarkdown();
     if (!markdown) {
-      await setExportStatus('Unable to build Markdown output.', true, {
+      await setExportStatus('Markdown build failed.', true, {
         showRetry: true,
         debugHint: 'Confirm selected messages are non-empty and try again.'
       });
@@ -2688,7 +2695,7 @@ const runExport = async () => {
     }
     await downloadSidepanelText(markdown, await buildExportFilename('md'), 'text/markdown;charset=utf-8');
     await window.Store.saveChatToHistory(payload);
-    await setExportStatus('Markdown exported!');
+    await setExportStatus('Markdown export complete.');
     return;
   }
 
@@ -2699,7 +2706,7 @@ const runExport = async () => {
       const text = await window.Exporter.toTXT(chat, buildExporterPrefs());
       await downloadSidepanelText(text, await buildExportFilename('txt'), 'text/plain;charset=utf-8');
       await window.Store.saveChatToHistory(payload);
-      await setExportStatus('Plain text exported!');
+      await setExportStatus('Text export complete.');
     } catch (err) {
       await setExportStatus(err?.message || 'Text export failed.', true, {
         showRetry: true,
@@ -2716,7 +2723,7 @@ const runExport = async () => {
       const json = await window.Exporter.toJSON(chat, buildExporterPrefs());
       await downloadSidepanelText(json, await buildExportFilename('json'), 'application/json;charset=utf-8');
       await window.Store.saveChatToHistory(payload);
-      await setExportStatus('JSON exported!');
+      await setExportStatus('JSON export complete.');
     } catch (err) {
       await setExportStatus(err?.message || 'JSON export failed.', true, {
         showRetry: true,
@@ -2743,7 +2750,7 @@ const runExport = async () => {
     const filename = await buildExportFilename('pdf');
     await downloadSidepanelText(pdfData, filename, 'application/pdf');
     await window.Store.saveChatToHistory(payload);
-    await setExportStatus('PDF exported!');
+    await setExportStatus('PDF export complete.');
   } catch (error) {
     await setExportStatus(error?.message || 'PDF export failed.', true, {
       showRetry: true,
@@ -2788,12 +2795,12 @@ const copyExportToClipboard = async () => {
       setTimeout(() => {
         copyBtn.innerHTML = origHTML;
         copyBtn.classList.remove('pn-btn--copied');
-      }, 2000);
+      }, UI_FEEDBACK_MS.COPY_RESET);
     }
 
-    await setExportStatus('Copied to clipboard!');
+    await setExportStatus('Copied to clipboard.');
   } catch (err) {
-    await setExportStatus('Failed to copy to clipboard.', true, {
+    await setExportStatus('Clipboard copy failed.', true, {
       showRetry: true,
       debugHint: 'Retry copy. If blocked, use file export and copy from the file.'
     });
@@ -2996,11 +3003,11 @@ const openImproveModal = async (promptId, originalText, tags = [], options = {})
       improveModalState.improvedText = response.text;
       showImproveDiff();
     } else {
-      showImproveError('AI could not generate an improvement. Try a different style.');
+      showImproveError('No optimized output. Try another style.');
     }
   } catch (err) {
     improveModalState.isRunning = false;
-    showImproveError(err?.message || 'Request failed. Check your API key.');
+    showImproveError(err?.message || 'Request failed. Check API key.');
   }
 };
 
@@ -3093,7 +3100,7 @@ const acceptImproveResult = async (mode = 'primary') => {
     if (textInput && isAddModalVisible) {
       textInput.value = improvedText;
       void prefillSuggestedTags();
-      await showToast('Prompt improved ✨');
+      await showToast('Prompt optimized.');
     }
     return;
   }
@@ -3108,14 +3115,14 @@ const acceptImproveResult = async (mode = 'primary') => {
     if (shouldInject) {
       injected = await tryInjectImprovedPrompt(improvedText, sourceTabId);
       if (!injected) {
-        await showToast('Could not inject into chat. Keep the target tab open and try again.');
+        await showToast('Injection failed. Keep target tab open and retry.');
       }
     }
 
     if (shouldSave) {
       saved = await saveImprovedTextToLibrary(improvedText, tags);
       if (!saved) {
-        await showToast('Could not save improved prompt.');
+        await showToast('Optimized prompt save failed.');
         return;
       }
       await renderPrompts(String(byId('prompt-search')?.value || ''));
@@ -3123,13 +3130,13 @@ const acceptImproveResult = async (mode = 'primary') => {
     }
 
     if (mode === 'primary' && injected) {
-      await showToast('Prompt injected ✨');
+      await showToast('Prompt injected.');
       return;
     }
 
     if (mode === 'secondary') {
       if (injected) {
-        await showToast('Injected and saved to library ✨');
+        await showToast('Injected and saved to library.');
       } else {
         await showToast('Saved to library. Injection failed.');
       }
@@ -3137,7 +3144,7 @@ const acceptImproveResult = async (mode = 'primary') => {
     }
 
     if (mode === 'save') {
-      await showToast('Improved prompt saved ✨');
+      await showToast('Optimized prompt saved.');
     }
     return;
   }
@@ -3151,7 +3158,7 @@ const acceptImproveResult = async (mode = 'primary') => {
     // Show undo toast
     const toast = document.createElement('div');
     toast.className = 'pn-toast pn-toast--undo';
-    toast.innerHTML = `Prompt improved ✨ <button class="pn-toast-undo-btn" type="button">Undo</button>`;
+    toast.innerHTML = `Prompt optimized. <button class="pn-toast-undo-btn" type="button">Undo</button>`;
     document.body.appendChild(toast);
 
     const undoBtn = toast.querySelector('.pn-toast-undo-btn');
@@ -3159,12 +3166,12 @@ const acceptImproveResult = async (mode = 'primary') => {
       await window.Store.updatePrompt(promptId, { text: originalText });
       await renderPrompts(String(byId('prompt-search')?.value || ''));
       toast.remove();
-      showToast('Reverted to original.');
+      showToast('Reverted to original prompt.');
     });
 
-    setTimeout(() => toast.remove(), 6000);
+    setTimeout(() => toast.remove(), UI_FEEDBACK_MS.IMPROVE_UNDO);
   } else {
-    showToast('Could not save improved prompt.');
+    showToast('Optimized prompt save failed.');
   }
 };
 
@@ -3262,7 +3269,7 @@ const performWorkspaceRefresh = async () => {
   await renderPrompts(String(document.getElementById('prompt-search')?.value || ''));
   await renderHistory();
   await renderTags();
-  await showToast('Workspace refreshed.');
+  await showToast('Workspace synced.');
 };
 
 /** Binds side panel event handlers for tabs, modal, search, export, and settings. */
@@ -3318,7 +3325,7 @@ const bindEvents = async () => {
     const tagsHidden = await byId('prompt-tags');
     
     if (!textInput || !textInput.value.trim()) {
-      await showToast('Enter a prompt to improve.');
+      await showToast('Enter a prompt to optimize.');
       return;
     }
 
@@ -3326,7 +3333,7 @@ const bindEvents = async () => {
       const tags = await parseTags(tagsHidden?.value || '');
       await openImproveModal(null, textInput.value, tags, { context: 'add_modal' });
     } catch (err) {
-      await showToast('Error firing improve modal.');
+      await showToast('Could not open optimizer.');
     }
   });
 
@@ -3390,7 +3397,7 @@ const bindEvents = async () => {
     if (!key) {
       btn.textContent = 'No key';
       btn.classList.add('pn-status-error');
-      setTimeout(() => { btn.textContent = 'Check'; btn.classList.remove('pn-status-error', 'pn-status-ok'); }, 2000);
+      setTimeout(() => { btn.textContent = 'Check'; btn.classList.remove('pn-status-error', 'pn-status-ok'); }, UI_FEEDBACK_MS.API_CHECK_RESET_SHORT);
       return;
     }
     btn.textContent = '...';
@@ -3408,7 +3415,7 @@ const bindEvents = async () => {
       btn.textContent = '✗ Error';
       btn.classList.add('pn-status-error');
     }
-    setTimeout(() => { btn.textContent = 'Check'; btn.classList.remove('pn-status-error', 'pn-status-ok'); }, 3000);
+    setTimeout(() => { btn.textContent = 'Check'; btn.classList.remove('pn-status-error', 'pn-status-ok'); }, UI_FEEDBACK_MS.API_CHECK_RESET_LONG);
   });
 
   const searchInput = document.getElementById('prompt-search');
@@ -3422,7 +3429,7 @@ const bindEvents = async () => {
     clearTimeout(state._searchDebounce);
     state._searchDebounce = setTimeout(() => {
       void renderPrompts(String(target?.value || ''));
-    }, 250);
+    }, UI_FEEDBACK_MS.SEARCH_DEBOUNCE);
   });
 
   clearBtn?.addEventListener('click', () => {

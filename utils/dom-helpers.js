@@ -7,6 +7,7 @@
 
 /** Returns a required DOM node by id. */
 const byId = (id) => document.getElementById(id);
+const TOAST_DURATION_MS = 2100;
 
 /** Creates and displays a short-lived toast message. */
 const showToast = (message) => {
@@ -14,7 +15,7 @@ const showToast = (message) => {
   toast.className = 'pn-toast';
   toast.textContent = String(message || '').trim();
   document.body.appendChild(toast);
-  setTimeout(() => { toast.remove(); }, 2400);
+  setTimeout(() => { toast.remove(); }, TOAST_DURATION_MS);
 };
 
 /** Builds reusable empty state markup with icon, copy, and optional action button. */
