@@ -11,6 +11,24 @@ const TEXT_CLAMP_LENGTH = 180;
 const COPY_FEEDBACK_RESET_MS = 1200;
 const SEARCH_DEBOUNCE_MS = 150;
 
+/** Returns true for editable form fields where global shortcuts should not hijack focus. */
+const isEditableField = (node) => {
+  if (!(node instanceof HTMLElement)) {
+    return false;
+  }
+
+  if (node.isContentEditable || node instanceof HTMLTextAreaElement) {
+    return true;
+  }
+
+  if (!(node instanceof HTMLInputElement)) {
+    return false;
+  }
+
+  const type = String(node.type || 'text').toLowerCase();
+  return !['button', 'checkbox', 'radio', 'submit', 'reset', 'range', 'color', 'file'].includes(type);
+};
+
 /** Formats a relative time string from an ISO date (e.g. '3 hours ago'). */
 const formatRelativeTime = (isoDate) => {
   try {
@@ -566,9 +584,17 @@ const bindEvents = async () => {
   const confirmDuplicateButton = await byId('confirm-duplicate');
   const cancelButton = await byId('cancel-modal');
   const searchInput = await byId('prompt-search');
+  const clearButton = await byId('pn-search-clear');
   const promptText = await byId('prompt-text');
   const modalBackdrop = document.querySelector('[data-close-modal]');
   const tabs = Array.from(document.querySelectorAll('.tab'));
+  const clearSearch = () => {
+    if (!searchInput) return;
+    if (!String(searchInput.value || '').trim()) return;
+    searchInput.value = '';
+    clearButton?.classList.add('pn-hidden');
+    void renderPrompts('');
+  };
 
   tabs.forEach((tab) => {
     tab.addEventListener('click', () => {
@@ -602,10 +628,32 @@ const bindEvents = async () => {
 
   searchInput?.addEventListener('input', (event) => {
     const target = event.target;
+    clearButton?.classList.toggle('pn-hidden', !String(target?.value || '').trim());
     clearTimeout(_searchTimer);
     _searchTimer = setTimeout(() => {
       void renderPrompts(String(target?.value || ''));
     }, SEARCH_DEBOUNCE_MS);
+  });
+  clearButton?.addEventListener('click', () => {
+    clearSearch();
+    searchInput?.focus();
+  });
+  searchInput?.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && String(searchInput.value || '').trim()) {
+      event.preventDefault();
+      clearSearch();
+    }
+  });
+  document.addEventListener('keydown', (event) => {
+    const isFocusShortcut = event.key.toLowerCase() === 'k' && (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey;
+    if (!isFocusShortcut || !searchInput) return;
+    const active = document.activeElement;
+    if (isEditableField(active) && active !== searchInput) {
+      return;
+    }
+    event.preventDefault();
+    searchInput.focus();
+    searchInput.select();
   });
 
   window.addEventListener('resize', () => {

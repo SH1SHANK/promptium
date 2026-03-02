@@ -160,6 +160,31 @@ body.pn-popup::-webkit-scrollbar-thumb:hover {
   align-items: center;
 }
 
+.pn-search-clear {
+  position: absolute;
+  right: 12px;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.18s ease;
+}
+
+.pn-search-clear svg {
+  width: 14px;
+  height: 14px;
+}
+
+.pn-search-clear:hover {
+  color: var(--text-primary);
+}
+
 /* Search spark — appears when AI is ready */
 .pn-search-spark {
   position: absolute;
@@ -176,7 +201,7 @@ body.pn-popup::-webkit-scrollbar-thumb:hover {
   width: 100%;
   border: 1px solid var(--border-default);
   border-radius: 11px;
-  padding: 10px 12px;
+  padding: 10px 38px 10px 12px;
   background: var(--bg-surface);
   color: var(--text-primary);
   font: inherit;

@@ -14,6 +14,7 @@ if (!window.__PN.PENDING_CONTEXT_KEY) {
 const OPEN_SIDEPANEL_ACTION = 'OPEN_SIDEPANEL';
 const OBSERVER_DEBOUNCE_MS = 140;
 const URL_WATCH_INTERVAL_MS = 1000;
+const INJECTION_UNDO_TTL_MS = 8000;
 
 const exportSelectionState = {
   platform: null,
@@ -27,6 +28,15 @@ const exportSelectionState = {
   messageOrder: [],
   messagesById: new Map(),
   sequence: 0
+};
+const injectionUndoState = {
+  previousText: '',
+  injectedText: '',
+  platform: null,
+  createdAt: 0,
+  consumed: true,
+  timer: null,
+  toast: null
 };
 
 /** Creates a chat payload object from scraped messages and page metadata. */
@@ -52,6 +62,95 @@ const notify = async (message) => {
   }
 
   console.info('[Promptium][Content]', text);
+};
+
+const normalizeComposerText = (value) => String(value || '').replace(/\r\n/g, '\n');
+
+const clearInjectionUndoState = () => {
+  if (injectionUndoState.timer) {
+    clearTimeout(injectionUndoState.timer);
+    injectionUndoState.timer = null;
+  }
+  injectionUndoState.toast?.remove();
+  injectionUndoState.toast = null;
+  injectionUndoState.previousText = '';
+  injectionUndoState.injectedText = '';
+  injectionUndoState.platform = null;
+  injectionUndoState.createdAt = 0;
+  injectionUndoState.consumed = true;
+};
+
+const getComposerNode = async (platform) => {
+  const selectors = await window.Platform.getSelectors(platform);
+  if (!selectors?.input) return null;
+  try {
+    return document.querySelector(selectors.input);
+  } catch (_error) {
+    return null;
+  }
+};
+
+const readComposerText = async (platform) => {
+  const composer = await getComposerNode(platform);
+  if (!composer) return null;
+
+  if (composer instanceof HTMLInputElement || composer instanceof HTMLTextAreaElement) {
+    return String(composer.value || '');
+  }
+  return String(composer.textContent || '');
+};
+
+const undoInjectedPrompt = async () => {
+  if (injectionUndoState.consumed || !injectionUndoState.platform) {
+    return;
+  }
+  injectionUndoState.consumed = true;
+
+  const currentText = await readComposerText(injectionUndoState.platform);
+  if (currentText == null) {
+    clearInjectionUndoState();
+    await notify('Undo unavailable: input not found.');
+    return;
+  }
+
+  const currentNormalized = normalizeComposerText(currentText);
+  const injectedNormalized = normalizeComposerText(injectionUndoState.injectedText);
+  if (currentNormalized !== injectedNormalized) {
+    clearInjectionUndoState();
+    await notify('Undo unavailable: input changed.');
+    return;
+  }
+
+  const reverted = await window.Injector.inject(injectionUndoState.previousText, injectionUndoState.platform);
+  clearInjectionUndoState();
+  await notify(reverted ? 'Injection undone.' : 'Undo failed.');
+};
+
+const showInjectionUndoToast = () => {
+  const toast = document.createElement('div');
+  toast.className = 'pn-toast pn-toast--undo';
+  toast.innerHTML = 'Prompt injected. <button class="pn-toast-undo-btn" type="button">Undo</button>';
+  const undoButton = toast.querySelector('.pn-toast-undo-btn');
+  undoButton?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    void undoInjectedPrompt();
+  });
+  document.body.appendChild(toast);
+  return toast;
+};
+
+const stageInjectionUndo = (platform, previousText, injectedText) => {
+  clearInjectionUndoState();
+  injectionUndoState.previousText = String(previousText || '');
+  injectionUndoState.injectedText = String(injectedText || '');
+  injectionUndoState.platform = String(platform || '');
+  injectionUndoState.createdAt = Date.now();
+  injectionUndoState.consumed = false;
+  injectionUndoState.toast = showInjectionUndoToast();
+  injectionUndoState.timer = setTimeout(() => {
+    clearInjectionUndoState();
+  }, INJECTION_UNDO_TTL_MS);
 };
 
 /** Safely queries one element and returns null if the selector throws. */
@@ -596,7 +695,12 @@ const initExportSelectionUi = async (platform) => {
 
 /** Handles injectPrompt action messages from popup and returns operation status. */
 const handleInjectPrompt = async (msg, platform, sendResponse) => {
-  const success = await window.Injector.inject(String(msg?.text || ''), platform);
+  const nextText = String(msg?.text || '');
+  const previousText = await readComposerText(platform);
+  const success = await window.Injector.inject(nextText, platform);
+  if (success && previousText != null) {
+    stageInjectionUndo(platform, previousText, nextText);
+  }
   sendResponse({ ok: success });
 };
 
@@ -757,6 +861,8 @@ const hydratePendingContext = async (platform) => {
 
 /** Disconnects observers and timers when the page unloads. */
 const cleanup = async () => {
+  clearInjectionUndoState();
+
   if (exportSelectionState.scanTimer) {
     clearTimeout(exportSelectionState.scanTimer);
     exportSelectionState.scanTimer = null;

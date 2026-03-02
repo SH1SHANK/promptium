@@ -150,6 +150,14 @@ const UI_FEEDBACK_MS = Object.freeze({
   IMPROVE_UNDO: 4200
 });
 
+const isEditableField = (node) => {
+  if (!(node instanceof HTMLElement)) return false;
+  if (node.isContentEditable || node instanceof HTMLTextAreaElement) return true;
+  if (!(node instanceof HTMLInputElement)) return false;
+  const type = String(node.type || 'text').toLowerCase();
+  return !['button', 'checkbox', 'radio', 'submit', 'reset', 'range', 'color', 'file'].includes(type);
+};
+
 // Safety guard: sidepanel export must never use html2pdf/html2canvas due MV3 CSP.
 if (typeof window !== 'undefined' && typeof window.html2pdf === 'function') {
   try {
@@ -970,8 +978,10 @@ const createPromptCard = async (prompt, activeFilter, canInject) => {
         const response = await sendToActiveTab({ action: 'injectPrompt', text: prompt.text });
 
         if (!response?.ok) {
-        await showToast(response?.error || 'Inject failed.');
+          await showToast(response?.error || 'Inject failed.');
+          return;
         }
+        await showToast('Injected. Undo in chat.');
       })();
     });
   }
@@ -3420,6 +3430,14 @@ const bindEvents = async () => {
 
   const searchInput = document.getElementById('prompt-search');
   const clearBtn = document.getElementById('pn-search-clear');
+  const searchWrap = document.getElementById('search-wrap');
+  const clearSearchInput = () => {
+    if (!searchInput) return;
+    if (!String(searchInput.value || '').trim()) return;
+    searchInput.value = '';
+    clearBtn?.classList.add('pn-hidden');
+    void renderPrompts('');
+  };
 
   searchInput?.addEventListener('input', (event) => {
     const target = event.target;
@@ -3433,12 +3451,16 @@ const bindEvents = async () => {
   });
 
   clearBtn?.addEventListener('click', () => {
-    if (searchInput) {
-      searchInput.value = '';
-      clearBtn.classList.add('pn-hidden');
-      void renderPrompts('');
+    clearSearchInput();
+    searchInput?.focus();
+  });
+  searchInput?.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && String(searchInput.value || '').trim()) {
+      event.preventDefault();
+      clearSearchInput();
     }
   });
+  clearBtn?.classList.toggle('pn-hidden', !String(searchInput?.value || '').trim());
 
   const rerenderExport = async () => {
     await syncExportPrefsFromControls();
@@ -3523,6 +3545,17 @@ const bindEvents = async () => {
   }
 
   window.addEventListener('keydown', (event) => {
+    const isFocusShortcut = event.key.toLowerCase() === 'k' && (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey;
+    if (isFocusShortcut) {
+      if (!searchInput || !searchWrap || searchWrap.classList.contains('hidden')) return;
+      const active = document.activeElement;
+      if (isEditableField(active) && active !== searchInput) return;
+      event.preventDefault();
+      searchInput.focus();
+      searchInput.select();
+      return;
+    }
+
     if (event.key !== 'Escape') return;
     if (!document.getElementById('pn-improve-modal')?.classList.contains('pn-hidden')) {
       closeImproveModal();
@@ -3530,6 +3563,11 @@ const bindEvents = async () => {
     }
     if (!document.getElementById('add-modal')?.classList.contains('pn-hidden')) {
       void closeModal();
+      return;
+    }
+    if (document.activeElement === searchInput && String(searchInput?.value || '').trim()) {
+      event.preventDefault();
+      clearSearchInput();
     }
   });
 

@@ -78,6 +78,33 @@
   pointer-events: none;
 }
 
+.pn-toast--undo {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pn-toast-undo-btn {
+  border: 1px solid var(--pn-border-accent);
+  border-radius: 7px;
+  background: rgba(54, 214, 195, 0.12);
+  color: var(--pn-text-primary);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 9px;
+  cursor: pointer;
+}
+
+.pn-toast-undo-btn:hover {
+  background: rgba(54, 214, 195, 0.2);
+}
+
+.pn-toast-undo-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--pn-accent-glow);
+}
+
 .pn-save-modal {
   position: fixed;
   inset: 0;
