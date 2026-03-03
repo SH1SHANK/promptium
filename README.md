@@ -1,74 +1,37 @@
 # Promptium
 
-Promptium is a Manifest V3 Chrome extension for managing prompts and exporting chat content across modern LLM web apps.
+Promptium is a Manifest V3 Chrome extension for prompt management and conversation workflows across modern LLM web apps.
 
-It combines a reusable prompt library, semantic search, built-in templates, optional Gemini-based prompt improvement, and multi-format export in one workflow.
+It provides a reusable prompt library, template variables, cross-LLM context bridging, semantic search, prompt improvement, conversation bookmarks, and rich export formats from one workspace.
 
 ## Table of Contents
 
-- [Extension Overview](#extension-overview)
-- [Core Capabilities](#core-capabilities)
+- [Overview](#overview)
 - [Supported Platforms](#supported-platforms)
-- [How Promptium Works](#how-promptium-works)
-- [Requirements](#requirements)
-- [Installation and Setup](#installation-and-setup)
-- [Detailed Usage Guide](#detailed-usage-guide)
-- [Development Workflow](#development-workflow)
-- [Detailed Folder Structure](#detailed-folder-structure)
-- [Data, Privacy, and Permissions](#data-privacy-and-permissions)
+- [What You Can Do](#what-you-can-do)
+- [Onboarding Flow](#onboarding-flow)
+- [Install and Setup](#install-and-setup)
+- [Usage Guide](#usage-guide)
+- [Storage and Privacy](#storage-and-privacy)
+- [Development Notes](#development-notes)
 - [Troubleshooting](#troubleshooting)
-- [Related Project Docs](#related-project-docs)
+- [Project Docs](#project-docs)
 
-## Extension Overview
+## Overview
 
-Promptium is designed for users who frequently work inside ChatGPT, Claude, Gemini, Perplexity, and Copilot and need repeatable workflows for:
+Promptium ships with three surfaces:
 
-- Capturing and organizing prompts
-- Finding old prompts quickly using keywords or semantic similarity
-- Refining prompts before use
-- Exporting selected parts of conversations in clean formats
+- Popup: quick prompt/history access
+- Side panel: full workspace (`prompts`, `history`, `export`, `tags`, `settings`)
+- Content tools on supported pages: toolbar/FAB actions, selection controls, injection hooks, bookmark controls
 
-The extension ships with three user-facing surfaces:
+Key goals:
 
-- Popup: quick actions and lightweight prompt/history access
-- Side panel: full workspace for prompts, tags, history, export, and settings
-- In-page content tools: floating action button (FAB), selection helpers, and prompt injection on supported sites
-
-## Core Capabilities
-
-### 1. Prompt Library
-
-- Save prompts from the active page or extension UI
-- Edit, delete, and tag prompts
-- Reuse saved prompts by injecting them back into supported chat inputs
-
-### 2. Semantic Search
-
-- Uses on-device embeddings (Transformers.js) for meaning-based retrieval
-- Ranks prompts by cosine similarity
-- Falls back to deterministic keyword matching if semantic search is unavailable
-
-### 3. Prompt Improvement
-
-- Improves draft prompts using Gemini (`gemini-2.0-flash-lite`)
-- Supports style presets (general, coding, study, creative)
-- Returns results to a diff modal so users can review before saving/replacing/injecting
-
-### 4. Template System
-
-- Includes curated built-in prompt templates
-- Templates are searchable and can be added to personal prompt storage
-- Data-driven registry in `utils/templates.js` for easy extension
-
-### 5. Chat Export
-
-- Select message ranges directly on supported chat pages
-- Export to Markdown, Text, JSON, or PDF
-- Configure metadata, content mode, fonts, theme/background, and filename
+- Keep core workflows local-first
+- Preserve compatibility across supported LLM pages
+- Degrade safely on unsupported pages without runtime breakage
 
 ## Supported Platforms
-
-Promptium currently targets:
 
 - ChatGPT (`chatgpt.com`)
 - Claude (`claude.ai`)
@@ -76,32 +39,79 @@ Promptium currently targets:
 - Perplexity (`www.perplexity.ai`)
 - Copilot (`copilot.microsoft.com`)
 
-## How Promptium Works
+## What You Can Do
 
-High-level flow:
+### Prompt templates with variables
 
-1. Content scripts run on supported LLM pages and provide in-page actions (save, improve, export, inject).
-2. Popup and side panel UIs read/write extension state via shared utilities.
-3. Background service worker handles:
-   - Runtime coordination and message routing
-   - Gemini API requests
-   - Semantic embedding lifecycle
-4. Data is stored locally in Chrome extension storage.
+- Use `{{name}}` for required variables
+- Use `{{name?}}` for optional variables
+- Prompts with variables show a `{{}}` badge in the library
+- Inject opens a fill form with live preview before final injection
 
-Key storage model:
+### Cross-LLM context bridge
 
-- `chrome.storage.local`: persistent prompts/history/settings/API key/cache
-- `chrome.storage.session`: short-lived side panel payload handoffs for export workflows
+- Continue conversation context on a different platform in one click
+- Available from Prompts and Export tabs
+- Uses `pendingBridge` staging in storage with TTL protection
+- Migrates legacy `pendingContext` to `pendingBridge` automatically
+- Shows explicit expiry feedback: `Bridge expired. Open source tab and try again.`
 
-## Requirements
+### Conversation bookmarks
 
-- Google Chrome with extension developer mode enabled
-- Node.js and `pnpm` for local development tasks
-- Gemini API key only if using Prompt Improvement features
+- Bookmark assistant responses with click-to-toggle star
+- Keyboard shortcut: `Alt+Shift+B` bookmarks/unbookmarks the latest assistant response
+- Bookmark identity validated by URL key + index + preview hash to prevent false matches
+- Bookmarked content is marked with `⭐` in preview and exports
 
-## Installation and Setup
+### Smart export naming
 
-### 1. Clone and install dependencies
+Filename source priority:
+
+1. First user message in selected export payload
+2. First user message in fallback/full payload
+3. `platform-yyyy-mm-dd`
+
+Manual filename input (Export tab) always overrides generated names.
+
+### Export formats
+
+- Markdown (`.md`)
+- Text (`.txt`)
+- JSON (`.json`)
+- PDF (`.pdf`)
+- Notion Markdown (`.md`)
+- Obsidian Markdown (`.md`, with YAML frontmatter and callouts)
+
+Export controls include:
+
+- Structured vs combined content mode
+- Include/exclude date and platform labels
+- Font family, size, and background theme
+- Copy-to-clipboard flow and format-aware preview
+
+### Semantic search and improvement
+
+- Local embeddings via Transformers.js for semantic retrieval
+- Gemini-backed prompt improvement with style presets
+- Falls back to deterministic keyword behavior when AI features are unavailable
+
+## Onboarding Flow
+
+Promptium onboarding highlights:
+
+- Prompt library and template workflow
+- Semantic search and prompt improvement
+- Export + bookmark workflow
+- Cross-LLM continuation concept
+- Local-first data model
+
+Onboarding completion flag:
+
+- `onboardingComplete` in `chrome.storage.local`
+
+## Install and Setup
+
+### 1. Clone and install
 
 ```bash
 git clone <https://github.com/sh1shank/promptium>
@@ -109,200 +119,140 @@ cd Promptium
 pnpm install
 ```
 
-### 2. Build side panel CSS
-
-Promptium uses Tailwind for side panel styles. Build once before loading:
+### 2. Build sidepanel styles
 
 ```bash
 pnpm build:sidepanel-css
 ```
 
-For active development:
+Watch mode during development:
 
 ```bash
 pnpm watch:sidepanel-css
 ```
 
-### 3. Load extension in Chrome
+### 3. Load unpacked extension
 
 1. Open `chrome://extensions`
 2. Enable `Developer mode`
 3. Click `Load unpacked`
-4. Select the project root folder (`Promptium`)
+4. Select the `Promptium` project folder
 
-### 4. Verify installation
+## Usage Guide
 
-1. Open any supported LLM site
-2. Confirm Promptium FAB appears on page
-3. Click the extension icon and open the side panel
+### Prompt injection
 
-### 5. Optional Gemini setup
+1. Open a supported LLM tab
+2. Open side panel `Prompts`
+3. Click `Use Prompt`
+4. If variables exist, fill required fields and inject
 
-1. Open Promptium side panel
-2. Go to `Settings`
-3. Add your Gemini API key
-4. Use Improve Prompt from side panel or FAB workflows
+### Bridge flow
 
-## Detailed Usage Guide
+1. On a supported conversation page, open side panel
+2. Use `Continue on` button strip in Prompts or Export tab
+3. Select target platform
+4. Promptium stages context and opens target tab
+5. Target page hydrates staged bridge and injects context
 
-### A. In-page workflow (fastest path)
+### Bookmark flow
 
-1. Open a supported chat page.
-2. Use Promptium FAB actions to:
-   - Save active prompt/content
-   - Open Promptium workspace
-   - Improve a draft prompt
-   - Export selected messages
-3. For export, mark message ranges in-page, then open export view and download.
+1. Hover assistant response to reveal bookmark icon
+2. Click `☆` to bookmark (`⭐`)
+3. Or press `Alt+Shift+B` to toggle latest assistant response
+4. Export to see bookmarked markers
 
-### B. Side panel workflow (full workspace)
+### Export flow
 
-Main sections (hash-routable):
+1. Select messages on source page
+2. Open Export tab and verify preview
+3. Pick format and options
+4. Export or copy
 
-- `#prompts`: prompt library management and search
-- `#history`: stored chat interaction history
-- `#export`: preview and export selected payloads
-- `#tags`: tag management and filtering
-- `#settings`: feature toggles, API key, AI readiness
+## Storage and Privacy
 
-Typical side panel flow:
+Persistent (`chrome.storage.local`):
 
-1. Search prompts (keyword + semantic if enabled)
-2. Open a prompt and inject into active tab
-3. Improve prompt quality if needed
-4. Save final version back to library
-5. Export selected conversation segments when required
+- `prompts`
+- `chatHistory`
+- `promptiumSettings`
+- `promptiumGeminiKey`
+- `promptiumImprovePayload`
+- `bookmarks`
+- `pendingBridge`
 
-### C. Popup workflow (quick actions)
+Session (`chrome.storage.session`):
 
-Use popup for lightweight access when you do not need the full side panel:
+- `promptiumSidePanelPayload`
 
-- Quick prompt/history interactions
-- Onboarding shortcuts
-- Fast navigation into side panel for deeper tasks
+Privacy notes:
 
-## Development Workflow
+- Prompt and history data remains local to extension storage
+- Semantic embeddings are generated locally
+- Gemini API is used only for improvement/generative flows
+- Bridge context is short-lived and TTL-expired
 
-### Available scripts
+## Development Notes
 
-- `pnpm build:sidepanel-css`: one-time/minified side panel stylesheet build
-- `pnpm watch:sidepanel-css`: watch mode while editing `src/input.css`
+### Main entry files
 
-### Typical local dev loop
+- `manifest.json`
+- `background/service_worker.js`
+- `content/content.js`
+- `popup/popup.html`
+- `sidepanel/sidepanel.html`
 
-1. Run `pnpm watch:sidepanel-css` in one terminal.
-2. Make code changes.
-3. Reload extension from `chrome://extensions` (click reload on Promptium).
-4. Refresh target LLM tab to re-run content scripts.
+### Sidepanel modules
 
-### Extension entry points
+- `sidepanel/app-shell-init.js`
+- `sidepanel/prompts-ui.js`
+- `sidepanel/template-fill.js`
+- `sidepanel/export-payload-ui.js`
+- `sidepanel/export-actions-ui.js`
+- `sidepanel/history-ui.js`
+- `sidepanel/tags-ui.js`
+- `sidepanel/settings-ai-ui.js`
+- `sidepanel/improve-ui.js`
+- `sidepanel/prompt-form.js`
+- `sidepanel/state.js`
 
-- `manifest.json`: extension registration, permissions, script wiring, icons
-- `background/service_worker.js`: runtime orchestration and AI handlers
-- `content/content.js`: page lifecycle + selection/export handoff
-- `popup/popup.html`: popup shell
-- `sidepanel/sidepanel.html`: full workspace shell
+### Shared utility modules
 
-## Detailed Folder Structure
-
-```text
-Promptium/
-├── background/
-│   └── service_worker.js       # MV3 service worker; AI requests, search orchestration, messaging
-├── content/
-│   ├── content.js              # Host-page runtime, selection flow, side panel handoff
-│   ├── injector.js             # Prompt injection into supported chat composers
-│   ├── scraper.js              # Conversation scraping and normalization
-│   ├── toolbar.js              # Floating action button actions and UI wiring
-│   ├── fab.css                 # Floating action button styles
-│   └── toolbar.css             # Toolbar/selection styles
-├── icons/
-│   ├── promptium/              # Extension icons referenced by manifest (16/32/48/128)
-│   ├── promptium-logo.png      # Source brand logo asset
-│   └── icon16|32|48|128.png    # Additional generated icon set
-├── libs/
-│   ├── jspdf.min.js            # PDF generation library
-│   ├── markdown-it.min.js      # Markdown rendering
-│   ├── transformers.min.js     # On-device embeddings runtime
-│   └── turndown.js             # HTML -> Markdown conversion
-├── popup/
-│   ├── popup.html              # Popup markup
-│   ├── popup.js                # Popup interactions and actions
-│   ├── popup.css               # Popup styles
-│   ├── onboarding.js           # Onboarding flow logic
-│   └── onboarding.css          # Onboarding styles
-├── sidepanel/
-│   ├── sidepanel.html          # Side panel app shell
-│   ├── sidepanel.js            # Main Promptium workspace logic
-│   └── tailwind.css            # Built output from src/input.css
-├── src/
-│   └── input.css               # Tailwind input source for side panel styling
-├── utils/
-│   ├── ai-bridge.js            # UI -> background AI bridge wrappers
-│   ├── ai.js                   # Shared AI/status helpers
-│   ├── constants.js            # Shared platform/constants declarations
-│   ├── dom-helpers.js          # Reusable DOM helpers
-│   ├── exporter.js             # Markdown/PDF/JSON/TXT export transforms
-│   ├── platform.js             # Platform detection and context helpers
-│   ├── storage.js              # Prompt/history storage CRUD helpers
-│   ├── tags.js                 # Tag generation/normalization helpers
-│   └── templates.js            # Built-in prompt template catalog
-├── manifest.json               # Chrome extension manifest (MV3)
-├── package.json                # Project metadata + scripts
-├── tailwind.config.js          # Tailwind configuration
-├── FEATURES.md                 # Feature catalog
-├── ARCHITECTURE.md             # Architecture and dataflow reference
-├── MODELS.md                   # AI model and intelligence layer notes
-└── README.md                   # This file
-```
-
-## Data, Privacy, and Permissions
-
-### Local-first data handling
-
-- Prompt and history data is stored in extension storage, not a separate backend
-- Semantic embeddings are generated locally in extension context
-- Export payloads are staged through extension storage/session channels
-
-### External calls
-
-- Gemini API is called only for improvement/generation flows that require it
-- Calls are routed through the background service worker, not page context
-
-### Permissions used (manifest)
-
-- `storage`: persist prompts, history, settings, keys, cache
-- `activeTab` + `scripting`: interact with active supported tabs
-- `downloads`: save export files
-- `sidePanel`: open and control side panel UI
+- `utils/bridge.js`
+- `utils/smart-name.js`
+- `utils/exporter.js`
+- `utils/export-preview-renderer.js`
+- `utils/session-storage.js`
+- `utils/storage.js`
+- `utils/platform.js`
+- `utils/ai-bridge.js`
+- `utils/templates.js`
 
 ## Troubleshooting
 
-### Extension UI not updating after edits
+### No bridge injection on target
 
-1. Re-run `pnpm build:sidepanel-css` if style changes are not reflected.
-2. Reload the extension in `chrome://extensions`.
-3. Refresh the target chat tab.
+- Check toast for expiry feedback
+- Re-run bridge from source tab if expired
+- Ensure target platform matches selected destination
 
-### Semantic search not returning results
+### Export has no messages
 
-- Confirm prompts are saved (empty library returns empty semantic matches)
-- Check AI/semantic status in Promptium settings UI
-- Retry after model initialization finishes
+- Re-select messages on source page
+- Re-open Export tab and load latest selection
 
-### Improve Prompt fails
+### Prompt improvement fails
 
-- Verify Gemini key in `Settings`
-- Check network availability
-- Retry from side panel and review error message shown by Promptium
+- Verify Gemini key in Settings
+- Check network status
+- Retry from side panel
 
-### Export shows no messages
+### Template inject blocked
 
-- Re-select message ranges on the source chat page
-- Trigger Export Selected again from FAB
-- Open side panel `#export` tab to confirm payload loaded
+- Fill all required `{{name}}` fields
+- Optional `{{name?}}` can remain empty
 
-## Related Project Docs
+## Project Docs
 
 - [FEATURES.md](FEATURES.md)
 - [ARCHITECTURE.md](ARCHITECTURE.md)

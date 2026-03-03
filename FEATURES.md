@@ -1,46 +1,84 @@
 # Promptium Features
 
-## Prompt Library
+## Prompt Library and Templates
 
-- Save prompts from popup, side panel, or in-page toolbar
-- Edit prompts from the library workflow
-- Tag system with custom user-defined tags
-- Filter by tags and search terms
-- Structured categorization support for organized retrieval
+- Save, edit, delete, and tag prompts from popup, sidepanel, or in-page actions
+- Curated templates from `utils/templates.js`
+- Variable templates with inline grammar:
+  - Required: `{{name}}`
+  - Optional: `{{name?}}`
+- Template prompts show a `{{}}` badge and open a fill workflow before inject
 
-## Prompt Enhancement
+## Prompt Injection
 
-- Improve prompts before saving or injecting
-- One-click optimization with style modes (general, coding, study, creative)
-- Direct inject to the active LLM chat after improvement
+- One-click injection into supported LLM inputs
+- Template-aware pre-inject form with:
+  - Required-field enforcement
+  - Optional-field passthrough
+  - Live preview of resolved prompt text
 
-## Curated Templates
+## Cross-LLM Context Bridge
 
-- Built-in expert templates for common tasks
-- Expandable template architecture via `utils/templates.js`
+- Continue conversation context on a different LLM platform in one click
+- Available in both Prompts and Export tabs
+- Uses staged storage key `pendingBridge` with TTL validation
+- Legacy key migration supported (`pendingContext` -> `pendingBridge`)
+- Explicit expiry feedback on target page
+
+## Bookmarks
+
+- Bookmark assistant responses with hover icon toggle (`☆`/`⭐`)
+- Keyboard shortcut: `Alt+Shift+B` toggles latest assistant response bookmark
+- Persistence keyed by sanitized conversation URL (`origin + pathname`)
+- Safety validation uses both `messageIndex` and `messageHash`
+- Bookmarked entries are highlighted and exported with `⭐`
 
 ## Semantic Search
 
-- Transformers.js powered embedding search
-- Relevance-based ranking from cosine similarity
-- Vector similarity comparison for semantically related prompts
-- Efficient indexing strategy using cached embeddings in extension storage
+- Transformers.js embedding-based local semantic search
+- Keyword fallback for graceful degradation
+- Relevance merges semantic and keyword results in prompt list
 
-## Chat Export
+## Prompt Improvement
 
-- Select specific message ranges using in-page checkboxes
-- Multi-format export: Markdown, PDF, JSON, Plain Text
-- Custom header/footer style controls through export preferences and metadata toggles
+- Gemini-powered prompt improvement with style modes
+- Side-by-side review flow before accepting/injecting/saving
+- Graceful fallback states when AI is unavailable
 
-## Settings
+## Export Engine
 
-- API key management for Gemini-based prompt improvement
-- Model selection behavior through style presets and AI readiness state
-- Feature toggles for semantic search, duplicate detection, and auto-tagging
+Supported formats:
 
-## Additional UX Improvements
+- Markdown (`.md`)
+- Text (`.txt`)
+- JSON (`.json`)
+- PDF (`.pdf`)
+- Notion Markdown (`.md`)
+- Obsidian Markdown (`.md`)
 
-- Action-oriented empty states with primary CTAs
-- Actionable error states with retry paths and guidance
-- Side panel hash routing (`#prompts`, `#settings`, etc.)
-- Updated onboarding with feature grouping and launch actions
+Export capabilities:
+
+- Structured or combined content mode
+- Include/exclude date and platform
+- Font and theme controls
+- Clipboard copy
+- Format-aware preview renderer
+- Deterministic bookmark marker propagation (including PDF text path)
+
+## Smart Filename Generation
+
+Filename generation order:
+
+1. First user message in selected export payload
+2. First user message in fallback/full payload
+3. `platform-yyyy-mm-dd`
+
+Manual filename input in Export tab has highest priority.
+
+## UX and Reliability
+
+- Modular sidepanel architecture for maintainability
+- Hash-routed sidepanel sections
+- Actionable empty/error states
+- Non-breaking degradation on unsupported pages
+- No new dependencies required for these features

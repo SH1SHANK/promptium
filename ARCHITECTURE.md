@@ -1,134 +1,134 @@
 # Promptium Architecture
 
-## High-Level System Diagram Description
+## High-Level Runtime Model
 
 ```mermaid
 flowchart LR
-  A["Supported LLM Page"] --> B["Content Scripts"]
-  B --> C["Background Service Worker"]
-  C --> D["chrome.storage.local/session"]
-  C --> E["Gemini API"]
-  C --> F["Transformers.js Pipeline"]
-  G["Popup UI"] --> D
-  H["Side Panel UI"] --> D
-  G --> C
-  H --> C
+  LLM["Supported LLM Page"] --> CS["Content Scripts"]
+  CS <--> SW["Background Service Worker"]
+  SW <--> SL["chrome.storage.local"]
+  SW <--> SS["chrome.storage.session"]
+  SW --> GEM["Gemini API"]
+  POP["Popup UI"] <--> SW
+  POP <--> SL
+  SP["Sidepanel UI"] <--> SW
+  SP <--> SL
+  SP <--> SS
 ```
 
-## Separation of Concerns
+## Execution Contexts
 
-- `content/`
-  - Host-page integration (FAB, prompt capture, message range selection)
-  - Prompt injection into active chat editors
-  - Scraping and normalizing chat messages
-- `background/`
-  - AI orchestration and runtime messaging
-  - Embedding model lifecycle and semantic search operations
-  - Secure Gemini request handling outside page context
-- `popup/`
-  - Lightweight quick-access interface
-  - Onboarding and rapid prompt/history interactions
-- `sidepanel/`
-  - Full workspace for prompts, tags, export, settings, and improvement flows
-- `utils/`
-  - Shared storage, export, constants, DOM, and AI bridge abstractions
+### Content scripts (`content/`)
 
-## State Management Approach
+Responsibilities:
 
-Promptium uses pragmatic module-level state within each execution context:
-- Side panel maintains in-memory `state` for active tab, settings draft, export preferences, and selection snapshots.
-- Background service worker maintains transient AI pipeline state and embedding cache, with persistence to storage for recovery.
-- Content scripts maintain per-tab selection and observer state.
+- Platform lifecycle boot (`content/content.js`)
+- Prompt injection (`content/injector.js`)
+- Conversation scraping with stable indices (`content/scraper.js`)
+- In-page toolbar/FAB actions (`content/toolbar.js`)
+- Bookmark controls and persistence (`content/bookmarks.js`)
 
-No global framework store is used; each context owns local state and exchanges data through explicit message contracts.
+Key runtime actions handled:
 
-## Storage Layer (`chrome.storage`)
+- `injectPrompt`
+- `exportChat`
+- `openSidePanelAll`
+- `scrapeForBridge`
+- `getPlatform`
 
-- `chrome.storage.local`
-  - Prompt library (`prompts`)
-  - Chat history (`chatHistory`)
-  - Settings (`promptiumSettings`)
-  - Gemini key (`promptiumGeminiKey`)
-  - Pending improve payload (`promptiumImprovePayload`)
-- `chrome.storage.session`
-  - Ephemeral side panel export payload handoff (`promptiumSidePanelPayload`)
+### Service worker (`background/service_worker.js`)
 
-## Embedding Generation Flow
+Responsibilities:
 
-1. Service worker initializes Transformers.js feature-extraction pipeline.
-2. Prompt text is converted to normalized embedding vectors.
-3. Embeddings are cached in memory and persisted to storage.
-4. Cache updates occur on prompt add/remove operations.
+- Message routing and cross-context orchestration
+- Sidepanel open/payload handoff support
+- Gemini API improvement requests
+- Allowlisted LLM tab opening (`openLlmTab`) for bridge targets
 
-## Search Pipeline
+### Sidepanel app (`sidepanel/`)
 
-1. User enters a search query.
-2. Keyword results are generated immediately for responsiveness.
-3. If semantic mode is enabled and ready, query embedding is generated.
-4. Cosine similarity ranks prompt embeddings.
-5. UI merges semantic ranking with keyword matches and renders results.
+Modular composition:
 
-## Prompt Improvement Pipeline
+- `app-shell-init.js`: boot, routing, wiring, pending action handling
+- `state.js`: shared sidepanel state and onboarding card metadata
+- `prompts-ui.js`: prompt list, search, template inject entry, prompts bridge strip
+- `template-fill.js`: `{{var}}`/`{{var?}}` parsing and pre-inject form UI
+- `export-payload-ui.js`: payload normalization, bookmark reconciliation, preview rendering
+- `export-actions-ui.js`: export/copy actions, smart filename use, export bridge strip
+- `history-ui.js`, `tags-ui.js`, `settings-ai-ui.js`, `improve-ui.js`, `prompt-form.js`
 
-1. UI sends improvement request (`text`, `tags`, `style`) via AI bridge.
-2. Service worker validates input and Gemini API key.
-3. Service worker requests improvement from Gemini endpoint.
-4. Result returns to side panel diff modal.
-5. User chooses save, replace, or inject action.
+### Popup app (`popup/`)
 
-## Export Engine Pipeline
+Responsibilities:
 
-1. Content script gathers selected chat message ranges.
-2. Payload is staged to session/local transport key.
-3. Side panel loads payload and renders format-aware preview.
-4. Exporter module transforms content into target format.
-5. Blob download is triggered with generated Promptium filename.
+- Lightweight prompt/history actions
+- Onboarding and quick navigation flows
 
-## Error Handling Architecture
+### Shared utilities (`utils/`)
 
-Promptium applies actionable, user-facing error handling:
-- Missing API key: explicit UI state + "Go to Settings" action
-- Embedding/model failures: retry action in settings workspace
-- Export failures: retry + debug hint near export status
-- Storage quota failures: cleanup guidance and route to removable data areas
+- `bridge.js`: bridge payload build/stage/read, TTL checks, legacy key migration
+- `smart-name.js`: deterministic filename generation and extension normalization
+- `exporter.js`: format transforms (`markdown`, `txt`, `json`, `pdf`, `notion`, `obsidian`)
+- `export-preview-renderer.js`: centralized markdown/code preview rendering helpers
+- `session-storage.js`: sidepanel payload snapshot helpers
+- `storage.js`, `platform.js`, `ai-bridge.js`, `templates.js`, `dom-helpers.js`
 
-Raw stack traces are not surfaced in UI.
+## Storage Contracts
 
-## Security Considerations
+### Persistent (`chrome.storage.local`)
 
-- API keys are stored locally in extension storage; no external backend.
-- Gemini calls are routed through service worker context.
-- Content script HTML extraction strips unsafe nodes/attributes.
-- Side panel payload handling validates object shape before persistence.
-- Host navigation is allowlisted for supported LLM domains.
+- `prompts`
+- `chatHistory`
+- `promptiumSettings`
+- `promptiumGeminiKey`
+- `promptiumImprovePayload`
+- `pendingBridge`
+- `bookmarks`
 
-## Folder-Level Breakdown
+Legacy compatibility:
 
-```text
-background/
-  service_worker.js       # runtime messaging, AI orchestration, Gemini requests
-content/
-  content.js              # content runtime, selection bar, payload handoff
-  toolbar.js              # in-page FAB actions
-  injector.js             # prompt injection into active composer
-  scraper.js              # message scraping/normalization
-popup/
-  popup.html/js/css       # compact management UI
-  onboarding.js/css       # first-run guided onboarding
-sidepanel/
-  sidepanel.html/js       # full Promptium workspace
-utils/
-  storage.js              # CRUD + quota diagnostics
-  exporter.js             # markdown/pdf/json/txt export transforms
-  ai-bridge.js            # typed runtime bridge to service worker AI handlers
-  dom-helpers.js          # shared UI helper primitives
-  templates.js            # curated template registry
-```
+- `pendingContext` is migrated to `pendingBridge` when possible, then removed.
 
-## Data Flow Summary
+### Session (`chrome.storage.session`)
 
-- User action starts in popup, side panel, or page FAB.
-- Action routes to utility layer and/or background worker.
-- Storage is updated and UI re-renders from normalized state.
-- For AI flows, background mediates model/API calls and returns structured responses.
-- For export flows, selected message payloads are transported through session/local storage and rendered in side panel preview before download.
+- `promptiumSidePanelPayload` for export handoff
+
+## Bridge Pipeline
+
+1. Sidepanel requests source conversation (`scrapeForBridge`)
+2. `Bridge.buildContextPrompt()` creates bounded context prompt
+3. Payload staged under `pendingBridge`
+4. Service worker opens allowlisted target tab
+5. Target content init checks bridge status:
+   - `ready`: inject context into composer
+   - `expired`: show expiry toast
+6. Payload removed after consume/expiry
+
+## Bookmark Pipeline
+
+1. Content script identifies assistant messages
+2. Conversation index resolved from merged DOM order (user + assistant)
+3. Bookmark payload stores:
+   - `messageIndex`
+   - `messagePreview`
+   - `messageHash`
+4. On render/export, bookmark is valid only when index and hash align
+5. Export layer emits `⭐` markers across preview/text formats and PDF text path
+
+## Export Pipeline
+
+1. Selected messages staged via sidepanel payload key
+2. Sidepanel normalizes payload and reconciles bookmark metadata
+3. Preview rendered according to selected format:
+   - Markdown raw/visual paths
+   - Notion/Obsidian via shared markdown document renderer
+   - JSON code-highlight preview
+4. Export actions call `Exporter` transforms
+5. Filename resolved by manual name (if set) or `SmartName` fallback order
+
+## Degradation and Safety Rules
+
+- Unsupported pages do not crash feature flows; bridge/bookmark/inject extras remain hidden or no-op
+- Semantic and AI flows degrade to deterministic behavior when unavailable
+- No destructive storage schema changes; only additive keys
+- CSP-safe preview path avoids prohibited HTML-to-PDF/browser-exec patterns

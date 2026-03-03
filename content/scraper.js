@@ -64,6 +64,7 @@ const scrape = async (platform = null) => {
     const botNodes = await safeQueryAll(sel.botMsg);
     const mergedNodes = await sortNodesByDomOrder(Array.from(new Set([...userNodes, ...botNodes])));
     const messages = [];
+    let order = 0;
 
     for (const node of mergedNodes) {
       if (!node || typeof node.matches !== 'function') {
@@ -78,7 +79,8 @@ const scrape = async (platform = null) => {
       }
 
       const role = node.matches(sel.userMsg) ? 'user' : 'assistant';
-      messages.push({ role, text, html });
+      messages.push({ role, text, html, index: order });
+      order += 1;
     }
 
     if ((await isKnownPlatform(resolvedPlatform)) && messages.length === 0) {

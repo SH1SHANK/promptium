@@ -1,8 +1,7 @@
 (() => {
 /**
  * File: utils/exporter.js
- * Purpose: Converts chat data into markdown, text, and PDF export files with optional presentation preferences.
- * Communicates with: popup/popup.js, content/toolbar.js, content/content.js.
+ * Purpose: Converts chat data into multiple export formats with optional presentation preferences.
  */
 
 const DEFAULT_PREFS = {
@@ -15,13 +14,20 @@ const DEFAULT_PREFS = {
   includeExportDate: true,
   includePlatformLabel: true,
   includeMessageNumbers: false,
-  headerText: ''
+  headerText: '',
+  bookmarkedIndices: new Set(),
+  fallbackMessages: []
 };
 
 /** Returns a safe merged preferences object with normalized values. */
 const normalizePrefs = (prefs = {}) => {
   const merged = { ...DEFAULT_PREFS, ...(prefs || {}) };
   const numericFontSize = Number(merged.fontSize);
+  const inputBookmarked = merged.bookmarkedIndices;
+  const bookmarkedIndices = inputBookmarked instanceof Set
+    ? inputBookmarked
+    : new Set(Array.isArray(inputBookmarked) ? inputBookmarked : []);
+
   return {
     fontStyle: String(merged.fontStyle || DEFAULT_PREFS.fontStyle),
     fontSize: Number.isFinite(numericFontSize) ? Math.min(20, Math.max(12, numericFontSize)) : DEFAULT_PREFS.fontSize,
@@ -32,24 +38,41 @@ const normalizePrefs = (prefs = {}) => {
     includeExportDate: Boolean(merged.includeExportDate),
     includePlatformLabel: Boolean(merged.includePlatformLabel),
     includeMessageNumbers: Boolean(merged.includeMessageNumbers),
-    headerText: String(merged.headerText || '').trim()
+    headerText: String(merged.headerText || '').trim(),
+    bookmarkedIndices,
+    fallbackMessages: Array.isArray(merged.fallbackMessages) ? merged.fallbackMessages : []
   };
 };
 
 /** Builds a safe export chat object from unknown input. */
 const normalizeChat = (chat) => {
   const value = chat && typeof chat === 'object' ? chat : {};
+  const messages = Array.isArray(value.messages) ? value.messages : [];
+
   return {
     title: String(value.title || 'Promptium Chat').trim(),
     platform: String(value.platform || 'unknown').trim(),
     createdAt: String(value.createdAt || new Date().toISOString()),
-    messages: Array.isArray(value.messages) ? value.messages : []
+    messages: messages.map((message, index) => {
+      const indexCandidate = Number(message?.index);
+      return {
+        role: String(message?.role || 'assistant').trim().toLowerCase(),
+        text: String(message?.text || '').trim(),
+        html: String(message?.html || '').trim(),
+        index: Number.isFinite(indexCandidate) ? indexCandidate : index,
+        bookmarkMeta: message?.bookmarkMeta && typeof message.bookmarkMeta === 'object'
+          ? { ...message.bookmarkMeta }
+          : { isBookmarked: false }
+      };
+    })
   };
 };
 
 /** Returns a human-readable role label for exported message rows. */
 const formatRole = (role) => {
   const safeRole = String(role || 'unknown').trim().toLowerCase();
+  if (safeRole === 'user' || safeRole === 'human' || safeRole === 'you') return 'You';
+  if (safeRole === 'assistant' || safeRole === 'model' || safeRole === 'bot') return 'Assistant';
   return safeRole.charAt(0).toUpperCase() + safeRole.slice(1);
 };
 
@@ -69,11 +92,27 @@ const buildTimestampPrefix = (message, prefs) => {
   return `[${stamp.toLocaleTimeString()}] `;
 };
 
+const isMessageBookmarked = (message, index, prefs) => {
+  if (message?.bookmarkMeta?.isBookmarked) {
+    return true;
+  }
+  const messageIndex = Number(message?.index);
+  if (Number.isFinite(messageIndex) && prefs.bookmarkedIndices.has(messageIndex)) {
+    return true;
+  }
+  return prefs.bookmarkedIndices.has(index);
+};
+
+const bookmarkTag = (message, index, prefs) => (isMessageBookmarked(message, index, prefs) ? ' ⭐' : '');
+const bookmarkPrefix = (message, index, prefs) => (isMessageBookmarked(message, index, prefs) ? '⭐ ' : '');
+
 /** Returns plain message text rows in original order. */
-const getMessageTextRows = (chat) => (chat.messages || []).map((message) => String(message?.text || '').trim()).filter(Boolean);
+const getMessageTextRows = (chat, prefs) => (chat.messages || [])
+  .map((message, index) => `${bookmarkPrefix(message, index, prefs)}${String(message?.text || '').trim()}`.trim())
+  .filter(Boolean);
 
 /** Returns one merged text block for combined export mode. */
-const getCombinedText = (chat) => getMessageTextRows(chat).join('\n\n').trim();
+const getCombinedText = (chat, prefs) => getMessageTextRows(chat, prefs).join('\n\n').trim();
 
 /** Maps user-facing font selection to an available jsPDF font family. */
 const resolvePdfFont = (fontStyle) => {
@@ -85,23 +124,6 @@ const resolvePdfFont = (fontStyle) => {
 
   if (normalized.includes('georgia') || normalized.includes('merriweather')) {
     return 'times';
-  }
-
-  if (
-    normalized.includes('outfit') ||
-    normalized.includes('montserrat') ||
-    normalized.includes('montstret') ||
-    normalized.includes('inter') ||
-    normalized.includes('helvetica') ||
-    normalized.includes('helivica') ||
-    normalized.includes('poppins') ||
-    normalized.includes('roboto') ||
-    normalized.includes('open sans') ||
-    normalized.includes('lato') ||
-    normalized.includes('nunito') ||
-    normalized.includes('source sans')
-  ) {
-    return 'helvetica';
   }
 
   return 'helvetica';
@@ -151,12 +173,24 @@ const hexToRgb = (hexColor) => {
   ];
 };
 
-/** Builds a human-readable export filename from platform and date values. */
-const buildFilename = (chat, extension) => {
+const normalizeFileExtension = (extension) => {
+  const raw = String(extension || '').toLowerCase().replace(/^\./, '');
+  if (raw === 'markdown' || raw === 'notion' || raw === 'obsidian') return 'md';
+  if (raw === 'text') return 'txt';
+  return raw || 'txt';
+};
+
+/** Builds a human-readable export filename from content and platform/date values. */
+const buildFilename = (chat, extension, prefs = {}) => {
+  const ext = normalizeFileExtension(extension);
+  if (window.SmartName?.getFilename) {
+    return window.SmartName.getFilename(chat?.messages || [], chat?.platform || 'unknown', ext, prefs?.fallbackMessages || []);
+  }
+
   const rawPlatform = String(chat?.platform || 'unknown').toLowerCase();
   const platform = rawPlatform.replace(/[^a-z0-9]+/g, '') || 'unknown';
   const date = new Date().toISOString().slice(0, 10);
-  return `promptium_${platform}_${date}.${extension}`;
+  return `promptium_${platform}_${date}.${ext}`;
 };
 
 /** Converts chat data to markdown with optional metadata controls from prefs. */
@@ -180,8 +214,7 @@ const toMarkdown = async (chat, prefs = {}) => {
   const rows = [];
 
   if (options.contentMode === 'combined') {
-    const combinedText = getCombinedText(normalizedChat);
-    rows.push(combinedText);
+    rows.push(getCombinedText(normalizedChat, options));
   } else {
     for (let index = 0; index < normalizedChat.messages.length; index += 1) {
       const message = normalizedChat.messages[index];
@@ -189,7 +222,8 @@ const toMarkdown = async (chat, prefs = {}) => {
       const prefix = buildTimestampPrefix(message, options);
       const messageNumber = options.includeMessageNumbers ? `${index + 1}. ` : '';
       const text = String(message.text || '').trim();
-      rows.push(`**${messageNumber}${role}:** ${prefix}${text}`);
+      const star = bookmarkTag(message, index, options);
+      rows.push(`**${messageNumber}${role}${star}:** ${prefix}${text}`);
     }
   }
 
@@ -219,7 +253,7 @@ const toTXT = async (chat, prefs = {}) => {
   const rows = [];
 
   if (options.contentMode === 'combined') {
-    rows.push(getCombinedText(normalizedChat));
+    rows.push(getCombinedText(normalizedChat, options));
   } else {
     for (let index = 0; index < normalizedChat.messages.length; index += 1) {
       const message = normalizedChat.messages[index];
@@ -227,11 +261,99 @@ const toTXT = async (chat, prefs = {}) => {
       const prefix = buildTimestampPrefix(message, options);
       const messageNumber = options.includeMessageNumbers ? `${index + 1}. ` : '';
       const text = String(message.text || '').trim();
-      rows.push(`${messageNumber}${role}: ${prefix}${text}`);
+      const star = bookmarkTag(message, index, options);
+      rows.push(`${messageNumber}${role}${star}: ${prefix}${text}`);
     }
   }
 
   return `${header.join('\n')}\n${divider}\n${rows.join(`\n${divider}\n`)}`.trim();
+};
+
+/** Converts chat data to Notion-compatible markdown. */
+const toNotion = async (chat, prefs = {}) => {
+  const normalizedChat = normalizeChat(chat);
+  const options = normalizePrefs(prefs);
+  const title = options.headerText || normalizedChat.title;
+  const header = [`# ${title}`];
+
+  if (options.includeExportDate || options.includePlatformLabel) {
+    const meta = [];
+    if (options.includeExportDate) meta.push(`📅 ${new Date().toLocaleDateString()}`);
+    if (options.includePlatformLabel) meta.push(normalizedChat.platform);
+    header.push(`> ${meta.join(' · ')}`);
+  }
+
+  header.push('', '---', '');
+
+  if (options.contentMode === 'combined') {
+    header.push(getCombinedText(normalizedChat, options));
+    return header.join('\n').trim();
+  }
+
+  for (let index = 0; index < normalizedChat.messages.length; index += 1) {
+    const message = normalizedChat.messages[index];
+    const isUser = formatRole(message.role) === 'You';
+    const star = bookmarkTag(message, index, options);
+
+    if (isUser) {
+      header.push(`**You${star}**`, '', String(message.text || '').trim(), '', '---', '');
+    } else {
+      header.push(`> 💡 **Assistant${star}**`);
+      String(message.text || '').split('\n').forEach((line) => {
+        header.push(`> ${line}`);
+      });
+      header.push('', '---', '');
+    }
+  }
+
+  return header.join('\n').trim();
+};
+
+/** Converts chat data to Obsidian-compatible markdown. */
+const toObsidian = async (chat, prefs = {}) => {
+  const normalizedChat = normalizeChat(chat);
+  const options = normalizePrefs(prefs);
+  const title = options.headerText || normalizedChat.title;
+  const date = new Date().toISOString().slice(0, 10);
+
+  const lines = [
+    '---',
+    `title: "${title.replaceAll('"', '\\"')}"`,
+    `date: ${date}`,
+    `platform: ${normalizedChat.platform}`,
+    'tags:',
+    `  - ${normalizedChat.platform || 'chat'}`,
+    '  - ai-chat',
+    '---',
+    '',
+    `# ${title}`,
+    ''
+  ];
+
+  if (options.contentMode === 'combined') {
+    lines.push(getCombinedText(normalizedChat, options));
+    lines.push('', '---', `*Exported from [[Promptium]] · ${normalizedChat.platform} · ${date}*`);
+    return lines.join('\n').trim();
+  }
+
+  for (let index = 0; index < normalizedChat.messages.length; index += 1) {
+    const message = normalizedChat.messages[index];
+    const isUser = formatRole(message.role) === 'You';
+    const star = bookmarkTag(message, index, options);
+
+    if (isUser) {
+      lines.push(`## You${star}`, '', String(message.text || '').trim(), '');
+    } else {
+      lines.push(`> [!note] Assistant${star}`);
+      String(message.text || '').split('\n').forEach((line) => {
+        lines.push(`> ${line}`);
+      });
+      lines.push('');
+    }
+  }
+
+  lines.push('---', `*Exported from [[Promptium]] · ${normalizedChat.platform} · ${date}*`);
+  return lines.join('\n').trim();
 };
 
 /** Ensures there is enough vertical space on the current PDF page before writing text. */
@@ -314,7 +436,7 @@ const toPDF = async (chat, prefs = {}) => {
   y += lineHeight;
 
   if (options.contentMode === 'combined') {
-    const combinedText = getCombinedText(normalizedChat);
+    const combinedText = getCombinedText(normalizedChat, options);
     y = await writePdfLine(doc, combinedText, y, pageHeight, margin, maxWidth, lineHeight, backgroundRgb);
   } else {
     for (let index = 0; index < normalizedChat.messages.length; index += 1) {
@@ -322,9 +444,11 @@ const toPDF = async (chat, prefs = {}) => {
       const role = formatRole(message.role);
       const prefix = buildTimestampPrefix(message, options);
       const messageNumber = options.includeMessageNumbers ? `${index + 1}. ` : '';
+      const text = String(message.text || '').trim();
+      const star = bookmarkTag(message, index, options);
       y = await writePdfLine(
         doc,
-        `${messageNumber}${role}: ${prefix}${String(message.text || '').trim()}`,
+        `${messageNumber}${role}${star}: ${prefix}${text}`,
         y,
         pageHeight,
         margin,
@@ -352,26 +476,45 @@ const downloadBlob = (content, filename, mimeType) => {
   URL.revokeObjectURL(url);
 };
 
-/** Routes chat export to markdown, text, or PDF and returns operation status. */
+/** Routes chat export to supported formats and returns operation status. */
 const exportChat = async (chat, format = 'md', prefs = {}) => {
   try {
     const normalized = String(format || 'md').toLowerCase();
+    const options = normalizePrefs(prefs);
 
     if (normalized === 'md' || normalized === 'markdown') {
-      const markdown = await toMarkdown(chat, prefs);
-      downloadBlob(markdown, buildFilename(chat, 'md'), 'text/markdown;charset=utf-8');
+      const markdown = await toMarkdown(chat, options);
+      downloadBlob(markdown, buildFilename(chat, 'md', options), 'text/markdown;charset=utf-8');
       return { ok: true };
     }
 
     if (normalized === 'txt' || normalized === 'text') {
-      const text = await toTXT(chat, prefs);
-      downloadBlob(text, buildFilename(chat, 'txt'), 'text/plain;charset=utf-8');
+      const text = await toTXT(chat, options);
+      downloadBlob(text, buildFilename(chat, 'txt', options), 'text/plain;charset=utf-8');
+      return { ok: true };
+    }
+
+    if (normalized === 'json') {
+      const json = await toJSON(chat, options);
+      downloadBlob(json, buildFilename(chat, 'json', options), 'application/json;charset=utf-8');
       return { ok: true };
     }
 
     if (normalized === 'pdf') {
-      const pdfData = await toPDF(chat, prefs);
-      downloadBlob(pdfData, buildFilename(chat, 'pdf'), 'application/pdf');
+      const pdfData = await toPDF(chat, options);
+      downloadBlob(pdfData, buildFilename(chat, 'pdf', options), 'application/pdf');
+      return { ok: true };
+    }
+
+    if (normalized === 'notion') {
+      const notion = await toNotion(chat, options);
+      downloadBlob(notion, buildFilename(chat, 'md', options), 'text/markdown;charset=utf-8');
+      return { ok: true };
+    }
+
+    if (normalized === 'obsidian') {
+      const obsidian = await toObsidian(chat, options);
+      downloadBlob(obsidian, buildFilename(chat, 'md', options), 'text/markdown;charset=utf-8');
       return { ok: true };
     }
 
@@ -390,18 +533,24 @@ const toJSON = async (chat, prefs = {}) => {
     exportedAt: options.includeExportDate ? new Date().toISOString() : null,
     messageCount: normalizedChat.messages.length
   };
+
   if (options.contentMode === 'combined') {
-    output.combinedText = getCombinedText(normalizedChat);
+    output.combinedText = getCombinedText(normalizedChat, options);
   } else {
     output.messages = normalizedChat.messages.map((message, index) => {
       const entry = {
         role: String(message.role || 'unknown').trim(),
-        text: String(message.text || '').trim()
+        text: String(message.text || '').trim(),
+        bookmarked: isMessageBookmarked(message, index, options)
       };
+      if (entry.bookmarked) {
+        entry.marker = '⭐';
+      }
       if (options.includeMessageNumbers) entry.number = index + 1;
       return entry;
     });
   }
+
   if (options.includePlatformLabel) output.platform = normalizedChat.platform;
   if (!options.includeExportDate) delete output.exportedAt;
   if (!options.includePlatformLabel) delete output.platform;
@@ -423,7 +572,7 @@ const toClipboardText = async (chat, prefs = {}) => {
   lines.push('');
 
   if (options.contentMode === 'combined') {
-    lines.push(getCombinedText(normalizedChat));
+    lines.push(getCombinedText(normalizedChat, options));
     lines.push('');
   } else {
     for (let index = 0; index < normalizedChat.messages.length; index += 1) {
@@ -431,7 +580,8 @@ const toClipboardText = async (chat, prefs = {}) => {
       const role = formatRole(message.role);
       const prefix = buildTimestampPrefix(message, options);
       const messageNumber = options.includeMessageNumbers ? `${index + 1}. ` : '';
-      lines.push(`${messageNumber}${role}: ${prefix}${String(message.text || '').trim()}`);
+      const star = bookmarkTag(message, index, options);
+      lines.push(`${messageNumber}${role}${star}: ${prefix}${String(message.text || '').trim()}`);
       lines.push('');
     }
   }
@@ -444,9 +594,12 @@ const Exporter = {
   toTXT,
   toJSON,
   toPDF,
+  toNotion,
+  toObsidian,
   toClipboardText,
   downloadBlob,
-  exportChat
+  exportChat,
+  buildFilename
 };
 
 if (typeof window !== 'undefined') {

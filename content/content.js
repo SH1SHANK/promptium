@@ -7,10 +7,6 @@
 
 window.__PN = window.__PN || {};
 
-if (!window.__PN.PENDING_CONTEXT_KEY) {
-  window.__PN.PENDING_CONTEXT_KEY = 'pendingContext';
-}
-
 const OPEN_SIDEPANEL_ACTION = 'OPEN_SIDEPANEL';
 const OBSERVER_DEBOUNCE_MS = 140;
 const URL_WATCH_INTERVAL_MS = 1000;
@@ -357,7 +353,8 @@ const buildSelectedMessages = () => exportSelectionState.messageOrder
   .map((message) => ({
     role: message.role,
     text: message.text,
-    html: message.html
+    html: message.html,
+    index: message.order
   }));
 
 /** Stores selected data in session storage and asks service worker to open side panel. */
@@ -740,6 +737,12 @@ const handleOpenSidePanelAll = async (sendResponse) => {
   sendResponse(await openSidePanelWithAllMessages());
 };
 
+/** Handles cross-LLM bridge scrape requests from sidepanel modules. */
+const handleScrapeForBridge = async (platform, sendResponse) => {
+  const messages = await window.Scraper.scrape(platform);
+  sendResponse({ ok: true, platform, messages });
+};
+
 /** Routes incoming runtime messages by action name and wraps execution errors. */
 const onRuntimeMessage = (msg, _sender, sendResponse) => {
   void (async () => {
@@ -788,6 +791,11 @@ const onRuntimeMessage = (msg, _sender, sendResponse) => {
         return;
       }
 
+      if (msg?.action === 'scrapeForBridge') {
+        await handleScrapeForBridge(platform, respond);
+        return;
+      }
+
       if (msg?.type === 'GET_CONVERSATION_SNIPPET') {
         try {
           const selectors = exportSelectionState.selectors || await window.Platform.getSelectors();
@@ -824,21 +832,29 @@ const onRuntimeMessage = (msg, _sender, sendResponse) => {
   return true;
 };
 
-/** Reads pending cross-LLM context and injects it when current platform matches target. */
-const hydratePendingContext = async (platform) => {
+/** Reads pending cross-LLM bridge context and injects it on target platform load. */
+const hydratePendingBridge = async (platform) => {
   try {
-    const pendingKey = window.__PN.PENDING_CONTEXT_KEY;
-    const state = await chrome.storage.local.get([pendingKey]);
-    const pending = state?.[pendingKey];
+    if (!window.Bridge?.checkPendingBridge) {
+      return;
+    }
 
-    if (!pending || pending.targetPlatform !== platform || !pending.text) {
+    const bridge = await window.Bridge.checkPendingBridge(platform);
+    if (!bridge) return;
+
+    if (bridge.kind === 'expired') {
+      await notify('Bridge expired. Open source tab and try again.');
+      return;
+    }
+
+    if (bridge.kind !== 'ready' || !bridge.text) {
       return;
     }
 
     let success = false;
 
     for (let attempt = 0; attempt < 12; attempt += 1) {
-      success = await window.Injector.inject(String(pending.text), platform);
+      success = await window.Injector.inject(String(bridge.text), platform);
 
       if (success) {
         break;
@@ -850,12 +866,11 @@ const hydratePendingContext = async (platform) => {
     }
 
     if (success) {
-      await chrome.storage.local.remove(pendingKey);
-      const label = PLATFORM_LABELS[platform] || platform;
-      await notify(`Context injected into ${label}`);
+      const label = PLATFORM_LABELS[bridge.sourcePlatform] || bridge.sourcePlatform;
+      await notify(`Continued from ${label}`);
     }
   } catch (error) {
-    console.error('[Promptium][Content] Failed pending context hydration.', error);
+    console.error('[Promptium][Content] Failed pending bridge hydration.', error);
   }
 };
 
@@ -889,7 +904,10 @@ const init = async () => {
   }
 
   await window.Toolbar.waitAndInject(platform);
-  await hydratePendingContext(platform);
+  await hydratePendingBridge(platform);
+  if (window.Bookmarks?.init) {
+    await window.Bookmarks.init(platform);
+  }
   await initExportSelectionUi(platform);
 
   window.__PN.SidePanelExport = {

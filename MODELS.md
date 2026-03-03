@@ -1,25 +1,61 @@
-# AI Models & Intelligence Layer
+# AI Models and Intelligence Layer
 
-Promptium uses different layers of AI computation to run efficiently within a browser extension environment. The core goal is preserving privacy using on-device operations when possible, while securely tunneling complex tasks to a robust API.
+Promptium uses a mixed strategy: local inference for retrieval and selective API usage for generation.
 
-## 1. Local Browser Embedding (Transformers.js)
+## 1. Local Semantic Retrieval (Transformers.js)
 
-For standard prompt management operations (like searching for previously saved prompts or determining semantic similarity), Promptium leverages on-device neural network models using **Transformers.js**.
+Used for:
 
-- **Why**: Keeps your prompt data private and local. Searches are fast and do not drain API credits.
-- **Storage**: Vector embeddings (a mathematical representation of your prompt text) are generated in the browser and saved straight into `chrome.storage.local`.
-- **Latency**: First-run generation prompts a download of a quantized mini-model (usually ~20MB-30MB) which is cached in the browser permanently unless cleared.
+- Prompt semantic search
+- Meaning-based relevance ranking
 
-## 2. Gemini API 
+Characteristics:
 
-For intensive tasks requiring generative text generation, such as the **Improve Prompt** feature, Promptium connects to the Gemini API.
+- Runs in extension context (local execution)
+- Embeddings are cached for reuse
+- Falls back to keyword search when model is unavailable
 
-- **Routing**: API requests are funneled through the Chrome Extension's Background Service Worker.
-- **Prompt Engineering**: When a user selects "Coding/Tech" or "Creative Writing", Promptium automatically wraps the original user prompt with a predefined system message. For example, the Coding prompt forces the model to specify logic, parameters, edge conditions, and outputs while completely preventing conversational filler.
-- **Error Handling**: Network failures immediately propagate back to the Promptium UI, where the specific error message is passed inside a visually styled popup.
+## 2. Gemini API (Generative Improvement)
 
-## 3. Heuristic NLP Fallbacks
+Used for:
 
-When AI models fail (due to API rate limits, lack of network connection, or configuration errors), Promptium gracefully degrades to primitive techniques.
-- Smart suggestions for tags fall back to regex-based Keyword scans (e.g., matching the word "function" to automatically apply the "coding" tag).
-- Semantic search falls back to lowercase sub-string inclusion (`title.includes(term)`).
+- Prompt improvement flows (style-aware rewriting)
+
+Execution model:
+
+- UI sends structured request through `utils/ai-bridge.js`
+- Background service worker performs Gemini call
+- Result returns to sidepanel improve UI for user approval
+
+Notes:
+
+- API key is user-provided and stored locally
+- Network/API failures surface explicit UI errors
+
+## 3. Non-Model Heuristics
+
+Several v2 features intentionally use deterministic logic instead of external models:
+
+- Template variable parsing and fill (`{{name}}`, `{{name?}}`)
+- Cross-LLM bridge prompt packing and truncation
+- Smart filename generation from conversation text
+- Bookmark hash validation
+- Notion/Obsidian formatting transforms
+
+This keeps these flows fast, explainable, and dependency-free.
+
+## 4. Preview Rendering Layer
+
+Export preview uses markdown/code rendering helpers in `utils/export-preview-renderer.js`.
+
+- CSP-safe markdown rendering
+- Syntax highlighting for code blocks
+- Shared renderer path for Notion/Obsidian preview parity
+
+## 5. Graceful Degradation Principles
+
+When AI/model paths are unavailable:
+
+- Semantic search falls back to keyword filtering
+- Improvement UI surfaces actionable errors and retry options
+- Export, bridge, bookmark, and template-fill flows continue without model dependency

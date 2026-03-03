@@ -986,6 +986,482 @@
       tags: ['productivity', 'agile', 'management'],
       category: 'Productivity',
       isTemplate: true
+    },
+
+    // ─── Variable-First Template Pack (58) ───
+    {
+      id: 'tplv-coding-pr-review',
+      title: 'PR Review Plan',
+      text: 'Review pull request {{pr_title}} for repository {{repo_name}}. Focus areas: {{focus_areas}}. Risk level: {{risk_level}}. Optional context: {{context?}}. Return: 1) blocking issues, 2) non-blocking improvements, 3) test gaps, 4) merge recommendation.',
+      tags: ['coding', 'review', 'variables'],
+      category: 'Coding & Development',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-coding-commit-msg',
+      title: 'Conventional Commit Writer',
+      text: 'Generate {{commit_count}} Conventional Commit messages for changes in {{module_name}}. Change summary: {{change_summary}}. Type preference: {{commit_type}}. Optional ticket prefix: {{ticket_prefix?}}.',
+      tags: ['coding', 'git', 'variables'],
+      category: 'Coding & Development',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-coding-api-spec',
+      title: 'API Endpoint Spec',
+      text: 'Draft an API spec for endpoint {{http_method}} {{route_path}} in service {{service_name}}. Request shape: {{request_contract}}. Response shape: {{response_contract}}. Auth model: {{auth_model}}. Optional rate limits: {{rate_limits?}}.',
+      tags: ['coding', 'api', 'variables'],
+      category: 'Coding & Development',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-coding-bug-ticket',
+      title: 'Bug Ticket Formatter',
+      text: 'Create a complete bug ticket for issue {{bug_title}} in product {{product_name}}. Environment: {{environment}}. Repro steps: {{repro_steps}}. Expected behavior: {{expected_behavior}}. Actual behavior: {{actual_behavior}}. Optional logs: {{logs?}}.',
+      tags: ['coding', 'debugging', 'variables'],
+      category: 'Coding & Development',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-coding-refactor-plan',
+      title: 'Refactor Plan Generator',
+      text: 'Create a phased refactor plan for module {{module_name}}. Current pain points: {{pain_points}}. Constraints: {{constraints}}. Success criteria: {{success_criteria}}. Optional deadline: {{deadline?}}.',
+      tags: ['coding', 'refactoring', 'variables'],
+      category: 'Coding & Development',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-coding-test-cases',
+      title: 'Test Case Matrix',
+      text: 'Generate a test matrix for feature {{feature_name}} in {{framework}}. Primary behaviors: {{behaviors}}. Edge cases: {{edge_cases}}. Failure modes: {{failure_modes}}. Optional non-functional checks: {{non_functional?}}.',
+      tags: ['coding', 'testing', 'variables'],
+      category: 'Coding & Development',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-coding-security-audit',
+      title: 'Security Audit Checklist',
+      text: 'Audit component {{component_name}} for security risks. Tech stack: {{tech_stack}}. Data handled: {{data_types}}. Threat model scope: {{threat_scope}}. Optional compliance target: {{compliance_target?}}.',
+      tags: ['coding', 'security', 'variables'],
+      category: 'Coding & Development',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-coding-release-notes',
+      title: 'Release Notes Draft',
+      text: 'Write release notes for version {{version_number}} of {{product_name}}. Major updates: {{major_updates}}. Fixes: {{bug_fixes}}. Breaking changes: {{breaking_changes}}. Optional migration notes: {{migration_notes?}}.',
+      tags: ['coding', 'release', 'variables'],
+      category: 'Coding & Development',
+      isTemplate: true
+    },
+
+    {
+      id: 'tplv-eng-fea-setup',
+      title: 'FEA Setup Brief',
+      text: 'Create an FEA setup checklist for part {{part_name}} under load case {{load_case}}. Material: {{material}}. Boundary conditions: {{boundary_conditions}}. Mesh target: {{mesh_target}}. Optional solver notes: {{solver_notes?}}.',
+      tags: ['engineering', 'fea', 'variables'],
+      category: 'Engineering & CAD',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-eng-bom',
+      title: 'BOM Normalizer',
+      text: 'Normalize this bill of materials for assembly {{assembly_name}}. Inputs: {{bom_input}}. Required output columns: {{required_columns}}. Grouping rule: {{grouping_rule}}. Optional vendor constraints: {{vendor_constraints?}}.',
+      tags: ['engineering', 'manufacturing', 'variables'],
+      category: 'Engineering & CAD',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-eng-dfm',
+      title: 'DFM Review Prompt',
+      text: 'Run a design-for-manufacturing review for {{part_name}} made with {{process_name}}. Geometry summary: {{geometry_summary}}. Tolerance expectations: {{tolerance_expectations}}. Volume target: {{volume_target}}. Optional cost target: {{cost_target?}}.',
+      tags: ['engineering', 'dfm', 'variables'],
+      category: 'Engineering & CAD',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-eng-test-protocol',
+      title: 'Validation Test Protocol',
+      text: 'Draft a validation protocol for product {{product_name}}. Test objective: {{test_objective}}. Pass/fail criteria: {{pass_fail_criteria}}. Required instruments: {{instruments}}. Optional safety notes: {{safety_notes?}}.',
+      tags: ['engineering', 'testing', 'variables'],
+      category: 'Engineering & CAD',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-eng-cad-handoff',
+      title: 'CAD Handoff Package',
+      text: 'Prepare a CAD handoff checklist for project {{project_name}}. Deliverables required: {{deliverables}}. File formats: {{file_formats}}. Revision tag: {{revision_tag}}. Optional receiving team notes: {{handoff_notes?}}.',
+      tags: ['engineering', 'cad', 'variables'],
+      category: 'Engineering & CAD',
+      isTemplate: true
+    },
+
+    {
+      id: 'tplv-3d-asset-brief',
+      title: '3D Asset Production Brief',
+      text: 'Create a production brief for asset {{asset_name}} for platform {{platform_name}}. Poly budget: {{poly_budget}}. Texture budget: {{texture_budget}}. Style guide: {{style_guide}}. Optional animation requirement: {{animation_requirement?}}.',
+      tags: ['3d-modeling', 'workflow', 'variables'],
+      category: '3D Modeling & Animation',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-3d-material-prompt',
+      title: 'Procedural Material Recipe',
+      text: 'Design a procedural material for {{material_name}} in {{tool_name}}. Visual characteristics: {{visual_characteristics}}. Required maps: {{required_maps}}. Tiling constraints: {{tiling_constraints}}. Optional weathering level: {{weathering_level?}}.',
+      tags: ['3d-modeling', 'texturing', 'variables'],
+      category: '3D Modeling & Animation',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-3d-rig-checklist',
+      title: 'Rig QA Checklist',
+      text: 'Generate a rig QA checklist for character {{character_name}}. Required controls: {{required_controls}}. Deformation zones: {{deformation_zones}}. Export target: {{export_target}}. Optional engine constraints: {{engine_constraints?}}.',
+      tags: ['3d-modeling', 'rigging', 'variables'],
+      category: '3D Modeling & Animation',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-3d-render-pass',
+      title: 'Render Pass Plan',
+      text: 'Plan render passes for scene {{scene_name}} in {{renderer}}. Shot goal: {{shot_goal}}. Required passes: {{required_passes}}. Denoise strategy: {{denoise_strategy}}. Optional compositing notes: {{compositing_notes?}}.',
+      tags: ['3d-modeling', 'rendering', 'variables'],
+      category: '3D Modeling & Animation',
+      isTemplate: true
+    },
+
+    {
+      id: 'tplv-design-landing-page',
+      title: 'Landing Page UX Brief',
+      text: 'Design a landing page brief for product {{product_name}} targeting {{audience}}. Primary conversion action: {{primary_cta}}. Proof points: {{proof_points}}. Brand tone: {{brand_tone}}. Optional objections to address: {{objections?}}.',
+      tags: ['design', 'ux', 'variables'],
+      category: 'Design & UI/UX',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-design-design-system',
+      title: 'Design System Seed',
+      text: 'Create a starter design system for {{product_type}}. Color direction: {{color_direction}}. Typography direction: {{typography_direction}}. Core components: {{core_components}}. Optional accessibility level: {{accessibility_level?}}.',
+      tags: ['design', 'system', 'variables'],
+      category: 'Design & UI/UX',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-design-user-flow',
+      title: 'User Flow Mapper',
+      text: 'Map a user flow for task {{task_name}} in app {{app_name}}. Entry point: {{entry_point}}. Key steps: {{key_steps}}. Drop-off risks: {{dropoff_risks}}. Optional recovery steps: {{recovery_steps?}}.',
+      tags: ['design', 'research', 'variables'],
+      category: 'Design & UI/UX',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-design-ux-heuristic',
+      title: 'Heuristic UX Audit',
+      text: 'Run a heuristic audit on screen {{screen_name}}. Known pain points: {{pain_points}}. Business objective: {{business_objective}}. Severity rubric: {{severity_rubric}}. Optional benchmark apps: {{benchmark_apps?}}.',
+      tags: ['design', 'ui', 'variables'],
+      category: 'Design & UI/UX',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-design-case-study',
+      title: 'Design Case Study Draft',
+      text: 'Draft a case study for project {{project_name}}. Problem statement: {{problem_statement}}. Role and scope: {{role_scope}}. Outcome metrics: {{outcome_metrics}}. Optional constraints: {{constraints?}}.',
+      tags: ['design', 'portfolio', 'variables'],
+      category: 'Design & UI/UX',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-design-icon-set',
+      title: 'Icon Set Direction',
+      text: 'Define icon style rules for product {{product_name}}. Visual style: {{visual_style}}. Base grid: {{base_grid}}. Stroke/fill rule: {{stroke_fill_rule}}. Optional brand motifs: {{brand_motifs?}}.',
+      tags: ['design', 'icons', 'variables'],
+      category: 'Design & UI/UX',
+      isTemplate: true
+    },
+
+    {
+      id: 'tplv-writing-email',
+      title: 'Variable Professional Email',
+      text: 'Write a {{tone}} email to {{recipient}} about {{topic}}. Goal: {{goal}}. Keep under {{word_limit}} words. Optional context to include: {{context?}}.',
+      tags: ['writing', 'email', 'variables'],
+      category: 'Writing & Content',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-writing-blog-outline',
+      title: 'Blog Outline with Variables',
+      text: 'Create a blog outline for {{topic}} aimed at {{audience}}. Desired angle: {{angle}}. Include {{section_count}} main sections, FAQ, and CTA. Optional keyword list: {{keywords?}}.',
+      tags: ['writing', 'blog', 'variables'],
+      category: 'Writing & Content',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-writing-edit-pass',
+      title: 'Editing Pass Instructions',
+      text: 'Edit the draft below for {{editing_goal}} while preserving voice {{voice_style}}. Remove {{remove_items}} and strengthen {{strengthen_items}}. Optional strict word cap: {{word_cap?}}.\n\nDraft:\n{{draft_text}}',
+      tags: ['writing', 'editing', 'variables'],
+      category: 'Writing & Content',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-writing-social-thread',
+      title: 'Social Thread Builder',
+      text: 'Write a {{platform}} thread about {{topic}} for {{audience}}. Include hook style {{hook_style}}, {{tweet_count}} posts, and CTA {{cta_text}}. Optional example story: {{example_story?}}.',
+      tags: ['writing', 'social-media', 'variables'],
+      category: 'Writing & Content',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-writing-press-qa',
+      title: 'Press Q&A Sheet',
+      text: 'Generate a press Q&A sheet for announcement {{announcement_name}}. Core message: {{core_message}}. Risky questions to prepare for: {{risky_questions}}. Approved tone: {{approved_tone}}. Optional embargo details: {{embargo_details?}}.',
+      tags: ['writing', 'pr', 'variables'],
+      category: 'Writing & Content',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-writing-summary-brief',
+      title: 'Executive Summary Brief',
+      text: 'Summarize document {{document_name}} for {{audience_type}}. Prioritize {{priority_topics}}. Output format: {{output_format}}. Include action items for {{owner}}. Optional length target: {{length_target?}}.',
+      tags: ['writing', 'summary', 'variables'],
+      category: 'Writing & Content',
+      isTemplate: true
+    },
+
+    {
+      id: 'tplv-study-lesson-plan',
+      title: 'Lesson Plan Generator',
+      text: 'Create a lesson plan for topic {{topic}} at level {{level}}. Session duration: {{duration}}. Learning outcomes: {{learning_outcomes}}. Assessment type: {{assessment_type}}. Optional prerequisite review: {{prerequisites?}}.',
+      tags: ['study', 'planning', 'variables'],
+      category: 'Academic & Study',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-study-exam-drill',
+      title: 'Exam Drill Pack',
+      text: 'Create an exam drill pack for subject {{subject}}. Difficulty: {{difficulty}}. Question count: {{question_count}}. Topics to cover: {{topics}}. Optional time limit per section: {{time_limit?}}.',
+      tags: ['study', 'quiz', 'variables'],
+      category: 'Academic & Study',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-study-paper-abstract',
+      title: 'Abstract Rewrite',
+      text: 'Rewrite this abstract for paper {{paper_title}} with focus on {{focus}}. Keep technical rigor appropriate for {{target_journal}}. Word limit: {{word_limit}}. Optional methods emphasis: {{methods_emphasis?}}.\n\nSource abstract:\n{{source_abstract}}',
+      tags: ['study', 'academic', 'variables'],
+      category: 'Academic & Study',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-study-concept-map',
+      title: 'Concept Map Creator',
+      text: 'Generate a concept map for {{topic}} with core nodes {{core_nodes}} and dependencies {{dependencies}}. Audience level: {{audience_level}}. Optional misconceptions to address: {{misconceptions?}}.',
+      tags: ['study', 'explanation', 'variables'],
+      category: 'Academic & Study',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-study-citation-check',
+      title: 'Citation Consistency Checker',
+      text: 'Check citation consistency for style {{citation_style}} across section {{section_name}}. Known issues: {{known_issues}}. Required fixes: {{required_fixes}}. Optional bibliography source: {{bibliography?}}.',
+      tags: ['study', 'citation', 'variables'],
+      category: 'Academic & Study',
+      isTemplate: true
+    },
+
+    {
+      id: 'tplv-career-resume-bullets',
+      title: 'Resume Bullet Optimizer',
+      text: 'Turn this experience into {{bullet_count}} quantified resume bullets for role {{target_role}}. Scope: {{scope}}. Metrics: {{metrics}}. Optional ATS keywords: {{ats_keywords?}}.\n\nRaw experience:\n{{raw_experience}}',
+      tags: ['career', 'resume', 'variables'],
+      category: 'Career & Business',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-career-cover-letter',
+      title: 'Cover Letter with Variables',
+      text: 'Write a cover letter for {{role}} at {{company}}. Relevant experience: {{experience_highlights}}. Why this company: {{why_company}}. Tone: {{tone}}. Optional referral mention: {{referral?}}.',
+      tags: ['career', 'job-search', 'variables'],
+      category: 'Career & Business',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-career-interview-stories',
+      title: 'STAR Story Builder',
+      text: 'Build {{story_count}} STAR interview stories for competency {{competency}} based on this background: {{background}}. Target role: {{target_role}}. Optional company values to align: {{company_values?}}.',
+      tags: ['career', 'interview', 'variables'],
+      category: 'Career & Business',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-career-performance-review',
+      title: 'Performance Review Draft',
+      text: 'Draft a self-review for period {{review_period}} as {{role}}. Top achievements: {{achievements}}. Impact metrics: {{impact_metrics}}. Growth areas: {{growth_areas}}. Optional manager context: {{manager_context?}}.',
+      tags: ['career', 'management', 'variables'],
+      category: 'Career & Business',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-career-cold-outreach',
+      title: 'Cold Outreach Message',
+      text: 'Write a cold outreach note to {{recipient_name}} ({{recipient_role}} at {{recipient_company}}). Ask: {{ask_type}}. Shared context: {{shared_context}}. Tone: {{tone}}. Optional value add: {{value_add?}}.',
+      tags: ['career', 'networking', 'variables'],
+      category: 'Career & Business',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-career-offer-eval',
+      title: 'Job Offer Comparison',
+      text: 'Compare offers {{offer_a_name}} and {{offer_b_name}} for candidate priorities {{priorities}}. Compensation details: {{compensation_details}}. Culture signals: {{culture_signals}}. Optional risk factors: {{risk_factors?}}.',
+      tags: ['career', 'decision', 'variables'],
+      category: 'Career & Business',
+      isTemplate: true
+    },
+
+    {
+      id: 'tplv-mkt-campaign-brief',
+      title: 'Campaign Brief Generator',
+      text: 'Create a campaign brief for {{campaign_name}} promoting {{product_name}} to {{audience}}. Primary KPI: {{primary_kpi}}. Channels: {{channels}}. Optional creative constraints: {{creative_constraints?}}.',
+      tags: ['marketing', 'strategy', 'variables'],
+      category: 'Marketing & SEO',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-mkt-seo-cluster',
+      title: 'SEO Topic Cluster Plan',
+      text: 'Build an SEO cluster around pillar topic {{pillar_topic}} for site {{site_type}}. Target intent: {{search_intent}}. Competitor signals: {{competitor_signals}}. Optional locale target: {{locale?}}.',
+      tags: ['marketing', 'seo', 'variables'],
+      category: 'Marketing & SEO',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-mkt-ad-variants',
+      title: 'Ad Variant Generator',
+      text: 'Generate {{variant_count}} ad variants for product {{product_name}} targeting {{audience}}. Value proposition: {{value_prop}}. Tone: {{tone}}. Optional banned claims: {{banned_claims?}}.',
+      tags: ['marketing', 'ads', 'variables'],
+      category: 'Marketing & SEO',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-mkt-audience-persona',
+      title: 'Audience Persona Sheet',
+      text: 'Create persona {{persona_name}} for market {{market}}. Core pains: {{core_pains}}. Desired outcomes: {{desired_outcomes}}. Purchase blockers: {{purchase_blockers}}. Optional channels: {{channels?}}.',
+      tags: ['marketing', 'research', 'variables'],
+      category: 'Marketing & SEO',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-mkt-launch-calendar',
+      title: 'Launch Content Calendar',
+      text: 'Generate a {{duration_weeks}}-week launch calendar for {{launch_name}}. Key dates: {{key_dates}}. Content formats: {{content_formats}}. Team owners: {{team_owners}}. Optional budget notes: {{budget_notes?}}.',
+      tags: ['marketing', 'launch', 'variables'],
+      category: 'Marketing & SEO',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-mkt-funnel-audit',
+      title: 'Funnel Audit Prompt',
+      text: 'Audit funnel {{funnel_name}} from {{entry_channel}} to {{conversion_event}}. Current metrics: {{current_metrics}}. Suspected leaks: {{suspected_leaks}}. Optional experiment ideas: {{experiment_ideas?}}.',
+      tags: ['marketing', 'growth', 'variables'],
+      category: 'Marketing & SEO',
+      isTemplate: true
+    },
+
+    {
+      id: 'tplv-daily-trip-plan',
+      title: 'Trip Plan with Variables',
+      text: 'Plan a {{trip_length}} trip to {{destination}} for {{traveler_type}}. Budget: {{budget}}. Must-do experiences: {{must_do}}. Pace: {{pace}}. Optional dietary notes: {{dietary_notes?}}.',
+      tags: ['daily', 'travel', 'variables'],
+      category: 'Daily Life & General',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-daily-week-menu',
+      title: 'Weekly Menu Builder',
+      text: 'Create a {{days_count}}-day menu for {{household_size}} people. Goal: {{goal}}. Dietary style: {{diet_style}}. Max prep time: {{prep_time}}. Optional excluded ingredients: {{excluded_ingredients?}}.',
+      tags: ['daily', 'food', 'variables'],
+      category: 'Daily Life & General',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-daily-budget-reset',
+      title: 'Budget Reset Plan',
+      text: 'Build a monthly budget reset for income {{monthly_income}} and fixed costs {{fixed_costs}}. Savings target: {{savings_target}}. Debt priority: {{debt_priority}}. Optional upcoming one-offs: {{one_offs?}}.',
+      tags: ['daily', 'finance', 'variables'],
+      category: 'Daily Life & General',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-daily-difficult-message',
+      title: 'Difficult Message Draft',
+      text: 'Draft a {{tone}} message to {{recipient}} about {{situation}}. Desired outcome: {{desired_outcome}}. Boundaries to set: {{boundaries}}. Optional context to avoid: {{avoid_context?}}.',
+      tags: ['daily', 'communication', 'variables'],
+      category: 'Daily Life & General',
+      isTemplate: true
+    },
+
+    {
+      id: 'tplv-data-sql-analysis',
+      title: 'SQL Analysis Prompt',
+      text: 'Write SQL for question {{analysis_question}} using tables {{table_list}}. Required grain: {{grain}}. Time window: {{time_window}}. Output columns: {{output_columns}}. Optional engine: {{engine?}}.',
+      tags: ['data', 'sql', 'variables'],
+      category: 'Data & Analysis',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-data-dashboard-spec',
+      title: 'Dashboard Spec Draft',
+      text: 'Draft a dashboard spec for team {{team_name}} tracking {{business_goal}}. Core metrics: {{core_metrics}}. Filter dimensions: {{filter_dimensions}}. Refresh cadence: {{refresh_cadence}}. Optional alert thresholds: {{alert_thresholds?}}.',
+      tags: ['data', 'analytics', 'variables'],
+      category: 'Data & Analysis',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-data-cleaning-plan',
+      title: 'Data Cleaning Plan',
+      text: 'Create a cleaning plan for dataset {{dataset_name}}. Known issues: {{known_issues}}. Validation rules: {{validation_rules}}. Output schema: {{output_schema}}. Optional imputation policy: {{imputation_policy?}}.',
+      tags: ['data', 'cleaning', 'variables'],
+      category: 'Data & Analysis',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-data-experiment-design',
+      title: 'Experiment Design Template',
+      text: 'Design an experiment for hypothesis {{hypothesis}}. Population: {{population}}. Primary metric: {{primary_metric}}. Minimum detectable effect: {{mde}}. Optional guardrail metrics: {{guardrails?}}.',
+      tags: ['data', 'statistics', 'variables'],
+      category: 'Data & Analysis',
+      isTemplate: true
+    },
+
+    {
+      id: 'tplv-prod-week-plan',
+      title: 'Weekly Priority Planner',
+      text: 'Create a weekly plan for role {{role}}. Top goals: {{top_goals}}. Hard deadlines: {{deadlines}}. Available focus hours: {{focus_hours}}. Optional meeting load: {{meeting_load?}}.',
+      tags: ['productivity', 'planning', 'variables'],
+      category: 'Productivity',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-prod-meeting-notes',
+      title: 'Meeting Notes Synthesizer',
+      text: 'Convert notes from meeting {{meeting_name}} into decisions and action items. Raw notes: {{raw_notes}}. Owners: {{owners}}. Due date format: {{due_date_format}}. Optional follow-up cadence: {{followup_cadence?}}.',
+      tags: ['productivity', 'meeting', 'variables'],
+      category: 'Productivity',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-prod-decision-log',
+      title: 'Decision Log Entry',
+      text: 'Write a decision log entry for decision {{decision_title}}. Context: {{context}}. Options considered: {{options_considered}}. Chosen option: {{chosen_option}}. Optional revisit trigger: {{revisit_trigger?}}.',
+      tags: ['productivity', 'decision', 'variables'],
+      category: 'Productivity',
+      isTemplate: true
+    },
+    {
+      id: 'tplv-prod-retro-template',
+      title: 'Retro Template with Variables',
+      text: 'Generate a retrospective template for sprint {{sprint_name}} with team {{team_name}}. Wins: {{wins}}. Pain points: {{pain_points}}. Improvement themes: {{improvement_themes}}. Optional facilitator notes: {{facilitator_notes?}}.',
+      tags: ['productivity', 'agile', 'variables'],
+      category: 'Productivity',
+      isTemplate: true
     }
   ];
 

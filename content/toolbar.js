@@ -16,6 +16,9 @@ let fabGlobalListenersBound = false;
 let activeFabRoot = null;
 const IMPROVE_PAYLOAD_KEY = 'promptiumImprovePayload';
 const NOTIFICATION_DURATION_MS = 2200;
+const FAB_ACTION_STAGGER_MS = 36;
+const FAB_CLOSE_BASE_MS = 170;
+let fabMenuCloseTimer = null;
 
 /** Returns the active input element for a platform based on selector config. */
 const getInputElement = async (platform) => {
@@ -283,6 +286,7 @@ const toggleFabMenu = async (nextOpen = !isFabMenuOpen) => {
 
   const menu = root.querySelector('#pn-fab-menu');
   const trigger = root.querySelector('#pn-fab-trigger');
+  const triggerText = root.querySelector('.pn-fab-trigger__text');
 
   if (!menu || !trigger) {
     return;
@@ -291,15 +295,24 @@ const toggleFabMenu = async (nextOpen = !isFabMenuOpen) => {
   isFabMenuOpen = Boolean(nextOpen);
   trigger.setAttribute('aria-expanded', isFabMenuOpen ? 'true' : 'false');
   menu.setAttribute('aria-hidden', isFabMenuOpen ? 'false' : 'true');
+  if (triggerText) {
+    triggerText.textContent = isFabMenuOpen ? 'Close' : 'Promptium';
+  }
 
   if (isFabMenuOpen) {
     const actions = Array.from(menu.querySelectorAll('.pn-fab-action'));
+    if (fabMenuCloseTimer) {
+      clearTimeout(fabMenuCloseTimer);
+      fabMenuCloseTimer = null;
+    }
 
     actions.forEach((node, index) => {
-      node.style.animationDelay = `${index * 60}ms`;
+      node.style.animationDelay = `${index * FAB_ACTION_STAGGER_MS}ms`;
     });
 
     menu.classList.remove('hidden');
+    menu.classList.remove('pn-fab-menu--closing');
+    menu.classList.add('pn-fab-menu--open');
     trigger.classList.add('open');
     const firstAction = actions[0];
     if (firstAction) {
@@ -308,8 +321,27 @@ const toggleFabMenu = async (nextOpen = !isFabMenuOpen) => {
     return;
   }
 
-  menu.classList.add('hidden');
+  const actions = Array.from(menu.querySelectorAll('.pn-fab-action'));
+  const reversed = [...actions].reverse();
+  reversed.forEach((node, index) => {
+    node.style.animationDelay = `${index * FAB_ACTION_STAGGER_MS}ms`;
+  });
+  menu.classList.remove('pn-fab-menu--open');
+  menu.classList.add('pn-fab-menu--closing');
   trigger.classList.remove('open');
+  const totalCloseMs = FAB_CLOSE_BASE_MS + (actions.length * FAB_ACTION_STAGGER_MS);
+  if (fabMenuCloseTimer) {
+    clearTimeout(fabMenuCloseTimer);
+  }
+  fabMenuCloseTimer = setTimeout(() => {
+    fabMenuCloseTimer = null;
+    if (isFabMenuOpen) return;
+    menu.classList.remove('pn-fab-menu--closing');
+    menu.classList.add('hidden');
+    actions.forEach((node) => {
+      node.style.animationDelay = '0ms';
+    });
+  }, totalCloseMs);
 };
 
 /** Handles prompt save action by opening the modal seeded with current input text. */
@@ -475,26 +507,41 @@ const createToolbar = async () => {
     <div id="pn-fab-menu" class="pn-fab-menu hidden">
       <button class="pn-fab-action" data-action="save-prompt" type="button" aria-label="Save current Prompt">
         <span class="pn-fab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg></span>
-        <span class="pn-fab-label">Save Prompt</span>
+        <span class="pn-fab-copy">
+          <span class="pn-fab-label">Save Prompt</span>
+          <span class="pn-fab-sub">Store current input</span>
+        </span>
       </button>
       <button class="pn-fab-action" data-action="export" type="button" aria-label="Export Chat Thread">
         <span class="pn-fab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg></span>
-        <span class="pn-fab-label">Export Chat</span>
+        <span class="pn-fab-copy">
+          <span class="pn-fab-label">Export Chat</span>
+          <span class="pn-fab-sub">Select and export messages</span>
+        </span>
       </button>
       <button class="pn-fab-action" data-action="improve-prompt" type="button" aria-label="Improve current Prompt">
         <span class="pn-fab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></span>
-        <span class="pn-fab-label">Improve</span>
+        <span class="pn-fab-copy">
+          <span class="pn-fab-label">Improve Prompt</span>
+          <span class="pn-fab-sub">Optimize before sending</span>
+        </span>
       </button>
       <button class="pn-fab-action" data-action="library" type="button" aria-label="Open Prompt Library">
         <span class="pn-fab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg></span>
-        <span class="pn-fab-label">Library</span>
+        <span class="pn-fab-copy">
+          <span class="pn-fab-label">Library</span>
+          <span class="pn-fab-sub">Open Promptium workspace</span>
+        </span>
       </button>
     </div>
     <button id="pn-fab-trigger" type="button" aria-label="Promptium Actions" aria-haspopup="menu" aria-expanded="false">
-      <svg class="pn-fab-logo" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="12" y1="5" x2="12" y2="19"></line>
-        <line x1="5" y1="12" x2="19" y2="12"></line>
-      </svg>
+      <span class="pn-fab-logo-wrap" aria-hidden="true">
+        <svg class="pn-fab-logo" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+      </span>
+      <span class="pn-fab-trigger__text">Promptium</span>
     </button>
   `;
 

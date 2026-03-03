@@ -57,11 +57,14 @@
         "utils/tags.js",
         "utils/platform.js",
         "utils/storage.js",
+        "utils/smart-name.js",
         "utils/exporter.js",
+        "utils/bridge.js",
         "utils/templates.js",
         "content/scraper.js",
         "content/injector.js",
         "content/toolbar.js",
+        "content/bookmarks.js",
         "content/content.js"
       ],
       "css": [

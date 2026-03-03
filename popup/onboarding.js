@@ -14,7 +14,7 @@
       icon: '✦',
       headline: 'Meet Promptium',
       subheadline: 'Your AI workflow, elevated.',
-      body: 'Save prompts. Export conversations. Improve with AI. Search by meaning. All private.',
+      body: 'Save prompts, fill template variables, continue across LLMs, bookmark key replies, and export in clean formats. All private.',
       accent: '#8b7cf6'
     },
     {
@@ -22,7 +22,7 @@
       icon: '⌘',
       headline: 'Never lose a great prompt',
       subheadline: 'Save once. Inject anywhere.',
-      body: 'Hit Save Prompt on any LLM. Your library syncs across ChatGPT, Claude, Gemini, Perplexity, and Copilot. Plus, explore 100+ curated templates to get you started instantly.',
+      body: 'Save prompts on any supported LLM page. Build templates with {{name}} required and {{name?}} optional variables, then inject in one click.',
       accent: '#2dd4bf'
     },
     {
@@ -38,15 +38,15 @@
       icon: '↑',
       headline: 'Export with intention',
       subheadline: 'Your conversations, your format.',
-      body: 'Export multi-turn chats as Markdown, JSON, PDF or Text. Toggle message numbers, timestamps, and copy directly to your clipboard.',
+      body: 'Export chats as Markdown, TXT, JSON, PDF, Notion, or Obsidian. Smart filenames and starred bookmarks carry through exports.',
       accent: '#fbbf24'
     },
     {
       id: 'ai',
       icon: '◈',
-      headline: 'Search by meaning',
-      subheadline: 'On-device semantic search.',
-      body: 'Type "help me study" and find prompts tagged "quiz" — even without exact matches. The local ML model also auto-suggests tags.',
+      headline: 'Bridge between LLMs',
+      subheadline: 'Continue context in one click.',
+      body: 'Use Continue on buttons to move your active conversation context between ChatGPT, Claude, Gemini, Perplexity, and Copilot.',
       accent: '#f472b6'
     },
     {

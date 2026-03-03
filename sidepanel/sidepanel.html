@@ -110,6 +110,11 @@
           <div id="pn-smart-chips" class="pn-smart-chips"></div>
           <button class="pn-smart-strip__close" id="pn-smart-close" type="button">×</button>
         </div>
+        <div id="pn-bridge-strip" class="pn-bridge-strip pn-hidden">
+          <span class="pn-bridge-label">Continue on</span>
+          <div id="pn-bridge-targets" class="pn-bridge-targets"></div>
+        </div>
+        <div id="pn-template-fill-panel" class="pn-template-fill-panel pn-hidden"></div>
         <div id="prompt-list" class="pn-list"></div>
       </section>
 
@@ -127,6 +132,10 @@
                 <span id="export-word-count" class="pn-export-count-badge">0 words</span>
               </div>
             </div>
+            <div id="pn-bridge-strip-export" class="pn-bridge-strip pn-bridge-strip--export pn-hidden">
+              <span class="pn-bridge-label">Continue on</span>
+              <div id="pn-bridge-targets-export" class="pn-bridge-targets"></div>
+            </div>
 
             <label class="pn-field">
               <span>Export Format</span>
@@ -135,6 +144,8 @@
                 <option value="txt">Plain Text (.txt)</option>
                 <option value="json">JSON (.json)</option>
                 <option value="pdf">PDF (.pdf)</option>
+                <option value="notion">Notion Markdown (.md)</option>
+                <option value="obsidian">Obsidian Markdown (.md)</option>
               </select>
             </label>
 
@@ -223,6 +234,16 @@
                 Copy
               </button>
             </div>
+            <div class="pn-export-actions-row pn-export-actions-row--tools">
+              <button id="pn-export-notion-btn" type="button" class="pn-btn pn-btn--ghost pn-export-notion-btn">
+                <span class="pn-export-icon">N</span>
+                Notion
+              </button>
+              <button id="pn-export-obsidian-btn" type="button" class="pn-btn pn-btn--ghost pn-export-obsidian-btn">
+                <span class="pn-export-icon">⟁</span>
+                Obsidian
+              </button>
+            </div>
             <div id="export-status" class="pn-card-meta"></div>
           </aside>
 
@@ -243,7 +264,7 @@
 
       <section class="tab-content pn-tab-content" data-tab="tags">
         <div class="pn-tags-view">
-          <div class="pn-tags-view-header pn-tags-view-header--spaced">
+          <div id="pn-quick-filters-head" class="pn-tags-view-header pn-tags-view-header--spaced">
             <h3 class="pn-section-title">Quick Filters</h3>
             <p class="pn-card-meta">Click a tag to view matching prompts</p>
           </div>
@@ -251,7 +272,7 @@
             <!-- Chips injected here -->
           </div>
 
-          <hr class="pn-sv-divider pn-sv-divider--spaced" />
+          <hr id="pn-tags-quick-divider" class="pn-sv-divider pn-sv-divider--spaced" />
 
           <div class="pn-tags-view-header pn-tags-view-header--spaced">
             <h3 class="pn-section-title">Manage Tags</h3>
@@ -582,10 +603,24 @@
     <script src="../utils/dom-helpers.js"></script>
     <script src="../utils/tags.js"></script>
     <script src="../utils/storage.js"></script>
+    <script src="../utils/smart-name.js"></script>
     <script src="../utils/exporter.js"></script>
+    <script src="../utils/bridge.js"></script>
     <script src="../utils/templates.js"></script>
     <script src="../utils/ai.js"></script>
     <script src="../utils/ai-bridge.js"></script>
-    <script src="sidepanel.js"></script>
+    <script src="../utils/session-storage.js"></script>
+    <script src="../utils/export-preview-renderer.js"></script>
+    <script src="../sidepanel/state.js"></script>
+    <script src="../sidepanel/template-fill.js"></script>
+    <script src="../sidepanel/prompts-ui.js"></script>
+    <script src="../sidepanel/prompt-form.js"></script>
+    <script src="../sidepanel/tags-ui.js"></script>
+    <script src="../sidepanel/history-ui.js"></script>
+    <script src="../sidepanel/settings-ai-ui.js"></script>
+    <script src="../sidepanel/export-payload-ui.js"></script>
+    <script src="../sidepanel/export-actions-ui.js"></script>
+    <script src="../sidepanel/improve-ui.js"></script>
+    <script src="../sidepanel/app-shell-init.js"></script>
   </body>
 </html>
