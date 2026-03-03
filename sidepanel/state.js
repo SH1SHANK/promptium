@@ -39,7 +39,7 @@ const ONBOARDING_CARDS = [
     iconClass: 'pn-card-icon--mint',
     subheadline: 'Prompt Library',
     headline: 'Capture great prompts once.',
-    body: 'Save prompts with tags and categories, then inject directly into your active LLM chat. Use {{name}} required and {{name?}} optional template variables.',
+    body: 'Save prompts with tags and categories, then inject directly into your active LLM chat. Use [name] for required blanks and [name?] for optional blanks.',
     isPersonalize: false
   },
   {

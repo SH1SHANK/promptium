@@ -125,13 +125,25 @@ const undoInjectedPrompt = async () => {
 const showInjectionUndoToast = () => {
   const toast = document.createElement('div');
   toast.className = 'pn-toast pn-toast--undo';
-  toast.innerHTML = 'Prompt injected. <button class="pn-toast-undo-btn" type="button">Undo</button>';
-  const undoButton = toast.querySelector('.pn-toast-undo-btn');
+  toast.setAttribute('role', 'status');
+  toast.setAttribute('aria-live', 'polite');
+
+  const message = document.createElement('span');
+  message.textContent = 'Prompt injected.';
+
+  const undoButton = document.createElement('button');
+  undoButton.className = 'pn-toast-undo-btn';
+  undoButton.type = 'button';
+  undoButton.textContent = 'Undo';
   undoButton?.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
     void undoInjectedPrompt();
   });
+
+  toast.appendChild(message);
+  toast.appendChild(document.createTextNode(' '));
+  toast.appendChild(undoButton);
   document.body.appendChild(toast);
   return toast;
 };
@@ -245,8 +257,31 @@ const getSanitizedMessageHtml = async (node) => {
 
       if (['href', 'src', 'xlink:href', 'formaction'].includes(name)) {
         const normalized = value.toLowerCase();
+        if (!normalized) {
+          element.removeAttribute(attribute.name);
+          return;
+        }
 
-        if (normalized.startsWith('javascript:') || normalized.startsWith('data:text/html')) {
+        const isRelative =
+          normalized.startsWith('#')
+          || normalized.startsWith('/')
+          || normalized.startsWith('./')
+          || normalized.startsWith('../');
+
+        if (isRelative) {
+          return;
+        }
+
+        const allowedSchemes = ['http:', 'https:', 'mailto:', 'tel:'];
+        let url = null;
+        try {
+          url = new URL(value, window.location.href);
+        } catch (_) {
+          element.removeAttribute(attribute.name);
+          return;
+        }
+
+        if (!url || !allowedSchemes.includes(url.protocol)) {
           element.removeAttribute(attribute.name);
         }
       }
@@ -304,16 +339,15 @@ const ensureMessageCheckbox = async (node, messageId) => {
 
   const control = document.createElement('label');
   control.className = 'pn-inline-select';
-  control.innerHTML = `
-    <input
-      type="checkbox"
-      class="pn-inline-check"
-      aria-label="Select message for Promptium export"
-    />
-    <span class="pn-inline-mark"></span>
-  `;
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.className = 'pn-inline-check';
+  checkbox.setAttribute('aria-label', 'Select message for Promptium export');
+  control.appendChild(checkbox);
 
-  const checkbox = control.querySelector('.pn-inline-check');
+  const mark = document.createElement('span');
+  mark.className = 'pn-inline-mark';
+  control.appendChild(mark);
 
   if (checkbox instanceof HTMLInputElement) {
     checkbox.checked = exportSelectionState.selectedIds.has(messageId);
@@ -449,16 +483,45 @@ const ensureSelectionFab = async () => {
   const root = document.createElement('div');
   root.id = 'pn-selection-fab';
   root.className = 'pn-selection-fab pn-hidden';
-  root.innerHTML = `
-    <p id="pn-selection-fab-count" class="pn-selection-fab__count"><strong>0</strong> of 0</p>
-    <span class="pn-selection-fab__divider"></span>
-    <button id="pn-fab-select-all" class="pn-selection-fab__btn pn-selection-fab__btn--ghost" type="button">Select All</button>
-    <button id="pn-fab-deselect" class="pn-selection-fab__btn pn-selection-fab__btn--ghost" type="button">Deselect</button>
-    <button id="pn-selection-fab-trigger" class="pn-selection-fab__btn pn-selection-fab__btn--primary" type="button">Export</button>
-    <button id="pn-fab-dismiss" class="pn-selection-fab__close" type="button" aria-label="Dismiss selection">
-      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-    </button>
-  `;
+
+  const count = document.createElement('p');
+  count.id = 'pn-selection-fab-count';
+  count.className = 'pn-selection-fab__count';
+  count.textContent = '0 of 0';
+  root.appendChild(count);
+
+  const divider = document.createElement('span');
+  divider.className = 'pn-selection-fab__divider';
+  root.appendChild(divider);
+
+  const selectAllBtn = document.createElement('button');
+  selectAllBtn.id = 'pn-fab-select-all';
+  selectAllBtn.className = 'pn-selection-fab__btn pn-selection-fab__btn--ghost';
+  selectAllBtn.type = 'button';
+  selectAllBtn.textContent = 'Select All';
+  root.appendChild(selectAllBtn);
+
+  const deselectBtn = document.createElement('button');
+  deselectBtn.id = 'pn-fab-deselect';
+  deselectBtn.className = 'pn-selection-fab__btn pn-selection-fab__btn--ghost';
+  deselectBtn.type = 'button';
+  deselectBtn.textContent = 'Deselect';
+  root.appendChild(deselectBtn);
+
+  const exportBtn = document.createElement('button');
+  exportBtn.id = 'pn-selection-fab-trigger';
+  exportBtn.className = 'pn-selection-fab__btn pn-selection-fab__btn--primary';
+  exportBtn.type = 'button';
+  exportBtn.textContent = 'Export';
+  root.appendChild(exportBtn);
+
+  const dismissBtn = document.createElement('button');
+  dismissBtn.id = 'pn-fab-dismiss';
+  dismissBtn.className = 'pn-selection-fab__close';
+  dismissBtn.type = 'button';
+  dismissBtn.setAttribute('aria-label', 'Dismiss selection');
+  dismissBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
+  root.appendChild(dismissBtn);
 
   // Export Selected
   root.querySelector('#pn-selection-fab-trigger')?.addEventListener('click', (event) => {
@@ -506,6 +569,11 @@ const ensureSelectionFab = async () => {
 
   if (document.body) {
     document.body.appendChild(root);
+    const countNode = root.querySelector('#pn-selection-fab-count');
+    if (countNode) {
+      countNode.setAttribute('role', 'status');
+      countNode.setAttribute('aria-live', 'polite');
+    }
   }
 };
 
@@ -521,7 +589,7 @@ const updateSelectionFab = async () => {
 
   const selectedCount = exportSelectionState.selectedIds.size;
   const totalCount = exportSelectionState.messageOrder.length;
-  count.innerHTML = `<strong>${selectedCount}</strong> of ${totalCount}`;
+  count.textContent = `${selectedCount} of ${totalCount}`;
   root.classList.toggle('pn-hidden', selectedCount === 0);
 };
 

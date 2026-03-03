@@ -22,7 +22,7 @@
       icon: '⌘',
       headline: 'Never lose a great prompt',
       subheadline: 'Save once. Inject anywhere.',
-      body: 'Save prompts on any supported LLM page. Build templates with {{name}} required and {{name?}} optional variables, then inject in one click.',
+      body: 'Save prompts on any supported LLM page. Build templates with [name] required and [name?] optional blanks, then inject in one click.',
       accent: '#2dd4bf'
     },
     {

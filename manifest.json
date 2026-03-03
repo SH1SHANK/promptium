@@ -57,6 +57,7 @@
         "utils/tags.js",
         "utils/platform.js",
         "utils/storage.js",
+        "utils/template-parser.js",
         "utils/smart-name.js",
         "utils/exporter.js",
         "utils/bridge.js",

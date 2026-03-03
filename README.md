@@ -2,34 +2,7 @@
 
 Promptium is a Manifest V3 Chrome extension for prompt management and conversation workflows across modern LLM web apps.
 
-It provides a reusable prompt library, template variables, cross-LLM context bridging, semantic search, prompt improvement, conversation bookmarks, and rich export formats from one workspace.
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Supported Platforms](#supported-platforms)
-- [What You Can Do](#what-you-can-do)
-- [Onboarding Flow](#onboarding-flow)
-- [Install and Setup](#install-and-setup)
-- [Usage Guide](#usage-guide)
-- [Storage and Privacy](#storage-and-privacy)
-- [Development Notes](#development-notes)
-- [Troubleshooting](#troubleshooting)
-- [Project Docs](#project-docs)
-
-## Overview
-
-Promptium ships with three surfaces:
-
-- Popup: quick prompt/history access
-- Side panel: full workspace (`prompts`, `history`, `export`, `tags`, `settings`)
-- Content tools on supported pages: toolbar/FAB actions, selection controls, injection hooks, bookmark controls
-
-Key goals:
-
-- Keep core workflows local-first
-- Preserve compatibility across supported LLM pages
-- Degrade safely on unsupported pages without runtime breakage
+It provides a reusable prompt library, fill-in templates, cross-LLM continuation, semantic search, bookmarks, and rich export formats from one workspace.
 
 ## Supported Platforms
 
@@ -39,135 +12,64 @@ Key goals:
 - Perplexity (`www.perplexity.ai`)
 - Copilot (`copilot.microsoft.com`)
 
-## What You Can Do
+## Core Features
 
-### Prompt templates with variables
+### Template syntax (new)
 
-- Use `{{name}}` for required variables
-- Use `{{name?}}` for optional variables
-- Prompts with variables show a `{{}}` badge in the library
-- Inject opens a fill form with live preview before final injection
+- Required blank: `[label]`
+- Optional blank: `[label?]`
+- Legacy curly placeholders are auto-normalized in UI flows
+- Template cards show a `Fill-in` badge and support:
+  - `Use →` (opens fill form)
+  - `Inject as-is` (keeps required blanks, removes optional blanks)
 
-### Cross-LLM context bridge
+### Prompts UX overhaul
 
-- Continue conversation context on a different platform in one click
-- Available from Prompts and Export tabs
-- Uses `pendingBridge` staging in storage with TTL protection
-- Migrates legacy `pendingContext` to `pendingBridge` automatically
-- Shows explicit expiry feedback: `Bridge expired. Open source tab and try again.`
+- Two-mode add flow in Sidepanel and Popup:
+  - `Plain Prompt`
+  - `Fill-in Template`
+- Friendly variable toolbar inserts `[label]` / `[label?]`
+- Live detected-blank strip while typing templates
+- Curated quick category filter chips in Sidepanel Prompts tab
 
-### Conversation bookmarks
+### Bridge, bookmarks, and export
 
-- Bookmark assistant responses with click-to-toggle star
-- Keyboard shortcut: `Alt+Shift+B` bookmarks/unbookmarks the latest assistant response
-- Bookmark identity validated by URL key + index + preview hash to prevent false matches
-- Bookmarked content is marked with `⭐` in preview and exports
-
-### Smart export naming
-
-Filename source priority:
-
-1. First user message in selected export payload
-2. First user message in fallback/full payload
-3. `platform-yyyy-mm-dd`
-
-Manual filename input (Export tab) always overrides generated names.
-
-### Export formats
-
-- Markdown (`.md`)
-- Text (`.txt`)
-- JSON (`.json`)
-- PDF (`.pdf`)
-- Notion Markdown (`.md`)
-- Obsidian Markdown (`.md`, with YAML frontmatter and callouts)
-
-Export controls include:
-
-- Structured vs combined content mode
-- Include/exclude date and platform labels
-- Font family, size, and background theme
-- Copy-to-clipboard flow and format-aware preview
-
-### Semantic search and improvement
-
-- Local embeddings via Transformers.js for semantic retrieval
-- Gemini-backed prompt improvement with style presets
-- Falls back to deterministic keyword behavior when AI features are unavailable
-
-## Onboarding Flow
-
-Promptium onboarding highlights:
-
-- Prompt library and template workflow
-- Semantic search and prompt improvement
-- Export + bookmark workflow
-- Cross-LLM continuation concept
-- Local-first data model
-
-Onboarding completion flag:
-
-- `onboardingComplete` in `chrome.storage.local`
+- Cross-LLM `Continue on` from Prompts + Export tabs
+- Conversation bookmarks with click and `Alt+Shift+B`
+- Smart filename generation from conversation content
+- Export formats: Markdown, TXT, JSON, PDF, Notion, Obsidian
 
 ## Install and Setup
-
-### 1. Clone and install
 
 ```bash
 git clone <https://github.com/sh1shank/promptium>
 cd Promptium
 pnpm install
-```
-
-### 2. Build sidepanel styles
-
-```bash
 pnpm build:sidepanel-css
 ```
 
-Watch mode during development:
+Load unpacked extension in `chrome://extensions`.
 
-```bash
-pnpm watch:sidepanel-css
-```
+## Usage
 
-### 3. Load unpacked extension
+### Use a template
 
-1. Open `chrome://extensions`
-2. Enable `Developer mode`
-3. Click `Load unpacked`
-4. Select the `Promptium` project folder
+1. Open `Prompts`
+2. Click `Use →` on a template
+3. Fill required blanks
+4. Inject
 
-## Usage Guide
+### Inject template as-is
 
-### Prompt injection
+1. Click `Inject as-is`
+2. Prompt is injected immediately
+3. Fill remaining `[brackets]` directly in chat
 
-1. Open a supported LLM tab
-2. Open side panel `Prompts`
-3. Click `Use Prompt`
-4. If variables exist, fill required fields and inject
+### Add a prompt
 
-### Bridge flow
-
-1. On a supported conversation page, open side panel
-2. Use `Continue on` button strip in Prompts or Export tab
-3. Select target platform
-4. Promptium stages context and opens target tab
-5. Target page hydrates staged bridge and injects context
-
-### Bookmark flow
-
-1. Hover assistant response to reveal bookmark icon
-2. Click `☆` to bookmark (`⭐`)
-3. Or press `Alt+Shift+B` to toggle latest assistant response
-4. Export to see bookmarked markers
-
-### Export flow
-
-1. Select messages on source page
-2. Open Export tab and verify preview
-3. Pick format and options
-4. Export or copy
+1. Click `Add Prompt`
+2. Choose `Plain Prompt` or `Fill-in Template`
+3. Save
 
 ## Storage and Privacy
 
@@ -185,72 +87,34 @@ Session (`chrome.storage.session`):
 
 - `promptiumSidePanelPayload`
 
-Privacy notes:
+Notes:
 
-- Prompt and history data remains local to extension storage
-- Semantic embeddings are generated locally
-- Gemini API is used only for improvement/generative flows
-- Bridge context is short-lived and TTL-expired
+- Data remains local to extension storage
+- Semantic retrieval runs locally
+- AI improvement uses user-provided Gemini API key
 
 ## Development Notes
 
-### Main entry files
+Key files:
 
 - `manifest.json`
-- `background/service_worker.js`
-- `content/content.js`
-- `popup/popup.html`
-- `sidepanel/sidepanel.html`
-
-### Sidepanel modules
-
-- `sidepanel/app-shell-init.js`
+- `utils/template-parser.js`
+- `utils/templates.js`
 - `sidepanel/prompts-ui.js`
 - `sidepanel/template-fill.js`
-- `sidepanel/export-payload-ui.js`
-- `sidepanel/export-actions-ui.js`
-- `sidepanel/history-ui.js`
-- `sidepanel/tags-ui.js`
-- `sidepanel/settings-ai-ui.js`
-- `sidepanel/improve-ui.js`
 - `sidepanel/prompt-form.js`
-- `sidepanel/state.js`
+- `popup/popup.js`
 
-### Shared utility modules
+Validation checks:
 
-- `utils/bridge.js`
-- `utils/smart-name.js`
-- `utils/exporter.js`
-- `utils/export-preview-renderer.js`
-- `utils/session-storage.js`
-- `utils/storage.js`
-- `utils/platform.js`
-- `utils/ai-bridge.js`
-- `utils/templates.js`
-
-## Troubleshooting
-
-### No bridge injection on target
-
-- Check toast for expiry feedback
-- Re-run bridge from source tab if expired
-- Ensure target platform matches selected destination
-
-### Export has no messages
-
-- Re-select messages on source page
-- Re-open Export tab and load latest selection
-
-### Prompt improvement fails
-
-- Verify Gemini key in Settings
-- Check network status
-- Retry from side panel
-
-### Template inject blocked
-
-- Fill all required `{{name}}` fields
-- Optional `{{name?}}` can remain empty
+```bash
+node --check utils/template-parser.js
+node --check sidepanel/template-fill.js
+node --check sidepanel/prompts-ui.js
+node --check sidepanel/prompt-form.js
+node --check popup/popup.js
+node -e "JSON.parse(require('fs').readFileSync('manifest.json','utf8'))"
+```
 
 ## Project Docs
 

@@ -40,6 +40,8 @@ const showNotification = async (message) => {
   const toast = document.createElement('div');
   toast.className = 'pn-toast';
   toast.textContent = String(message || '').trim();
+  toast.setAttribute('role', 'status');
+  toast.setAttribute('aria-live', 'polite');
   document.body.appendChild(toast);
 
   setTimeout(() => {
@@ -112,10 +114,13 @@ const ensureSaveModal = async () => {
   const modal = document.createElement('div');
   modal.id = 'pn-save-modal';
   modal.className = 'pn-save-modal pn-hidden';
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+  modal.setAttribute('aria-labelledby', 'pn-save-modal-title');
   modal.innerHTML = `
     <div class="pn-save-modal__backdrop" data-modal-close></div>
     <div class="pn-save-modal__panel">
-      <h3 class="pn-save-modal__title">Save Prompt</h3>
+      <h3 id="pn-save-modal-title" class="pn-save-modal__title">Save Prompt</h3>
       <label class="pn-save-modal__field">
         <span>Title</span>
         <input id="pn-save-title" type="text" placeholder="Prompt title" />
@@ -224,6 +229,7 @@ const bindSaveModalEvents = async () => {
   const backdrop = modal.querySelector('[data-modal-close]');
   const tagBadgeInput = modal.querySelector('#pn-save-tags-input');
   const badgeWrap = modal.querySelector('#pn-tag-badges-wrap');
+  const titleInput = modal.querySelector('#pn-save-title');
 
   cancelButton?.addEventListener('click', () => {
     void closeSaveModal();
@@ -239,6 +245,18 @@ const bindSaveModalEvents = async () => {
   });
 
   backdrop?.addEventListener('click', () => {
+    void closeSaveModal();
+  });
+
+  titleInput?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    confirmButton?.click();
+  });
+
+  modal.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
     void closeSaveModal();
   });
 
@@ -463,17 +481,16 @@ const onImprovePromptClick = async (platform) => {
 // Listen for the improved prompt coming back from the side panel
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.action === 'APPLY_IMPROVED_PROMPT' && msg.text) {
-    getInputElement(null).then(input => {
-      if (input) {
-        if (input.value !== undefined) {
-          input.value = msg.text;
-        } else {
-          input.textContent = msg.text;
-        }
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        showNotification('Optimized prompt applied.');
+    void (async () => {
+      const runtimePlatform = await window.Platform.detect();
+      const targetPlatform = String(msg.platform || runtimePlatform || '').trim() || null;
+      const injected = await window.Injector.inject(String(msg.text), targetPlatform);
+      if (injected) {
+        await showNotification('Optimized prompt applied.');
+      } else {
+        await showNotification('Could not apply optimized prompt.');
       }
-    });
+    })();
   }
 });
 

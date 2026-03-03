@@ -1,61 +1,46 @@
 # AI Models and Intelligence Layer
 
-Promptium uses a mixed strategy: local inference for retrieval and selective API usage for generation.
+Promptium uses local-first heuristics plus selective model/API usage.
 
-## 1. Local Semantic Retrieval (Transformers.js)
-
-Used for:
-
-- Prompt semantic search
-- Meaning-based relevance ranking
-
-Characteristics:
-
-- Runs in extension context (local execution)
-- Embeddings are cached for reuse
-- Falls back to keyword search when model is unavailable
-
-## 2. Gemini API (Generative Improvement)
+## Local Retrieval (Transformers.js)
 
 Used for:
 
-- Prompt improvement flows (style-aware rewriting)
+- semantic prompt search
+- meaning-based ranking
 
-Execution model:
+Behavior:
 
-- UI sends structured request through `utils/ai-bridge.js`
-- Background service worker performs Gemini call
-- Result returns to sidepanel improve UI for user approval
+- runs locally in extension context
+- falls back to keyword search if unavailable
 
-Notes:
+## Gemini API
 
-- API key is user-provided and stored locally
-- Network/API failures surface explicit UI errors
+Used for:
 
-## 3. Non-Model Heuristics
+- prompt improvement flow
 
-Several v2 features intentionally use deterministic logic instead of external models:
+Execution path:
 
-- Template variable parsing and fill (`{{name}}`, `{{name?}}`)
-- Cross-LLM bridge prompt packing and truncation
-- Smart filename generation from conversation text
-- Bookmark hash validation
-- Notion/Obsidian formatting transforms
+- UI -> `utils/ai-bridge.js` -> service worker -> Gemini API -> UI diff review
 
-This keeps these flows fast, explainable, and dependency-free.
+## Deterministic Logic (no model required)
 
-## 4. Preview Rendering Layer
+- template parsing/filling (`[label]`, `[label?]`)
+- legacy placeholder normalization
+- bridge prompt packing and truncation
+- smart filename generation
+- bookmark hash validation
+- Notion/Obsidian formatting
 
-Export preview uses markdown/code rendering helpers in `utils/export-preview-renderer.js`.
+## Preview Rendering
 
-- CSP-safe markdown rendering
-- Syntax highlighting for code blocks
-- Shared renderer path for Notion/Obsidian preview parity
+`utils/export-preview-renderer.js` handles markdown/code preview rendering in a CSP-safe path and is reused across markdown/notion/obsidian previews.
 
-## 5. Graceful Degradation Principles
+## Degradation Principles
 
 When AI/model paths are unavailable:
 
-- Semantic search falls back to keyword filtering
-- Improvement UI surfaces actionable errors and retry options
-- Export, bridge, bookmark, and template-fill flows continue without model dependency
+- semantic search falls back to keyword matching
+- improvement flows surface explicit error states
+- template, bridge, bookmark, and export workflows continue

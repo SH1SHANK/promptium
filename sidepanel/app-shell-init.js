@@ -184,6 +184,10 @@ const switchTab = async (tabName) => {
 
   refreshHeaderControls();
 
+  if (state.activeTab === 'prompts' && window.PromptsUI?.resetTemplateFilter) {
+    window.PromptsUI.resetTemplateFilter();
+  }
+
   if (state.activeTab === 'export') {
     if (!state.exportSnapshotPayload) {
       state.exportSnapshotPayload = window.SessionStorage.cloneExportPayload(state.exportPayload);
@@ -271,6 +275,11 @@ const bindShellEvents = async () => {
     }
 
     if (event.key !== 'Escape') return;
+    if (window.TemplateFill?.isOpen?.()) {
+      event.preventDefault();
+      window.TemplateFill.closeActiveForm?.();
+      return;
+    }
     if (!document.getElementById('pn-improve-modal')?.classList.contains('pn-hidden')) {
       window.ImproveUI.close();
       return;

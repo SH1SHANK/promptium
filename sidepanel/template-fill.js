@@ -5,11 +5,46 @@
  */
 
 const PANEL_ID = 'pn-template-fill-panel';
-const FORM_ID = 'pn-template-fill-form';
 const PREVIEW_ID = 'pn-template-fill-preview';
 const ERROR_ID = 'pn-template-fill-error';
+
 let previousSmartHidden = true;
 let previousBridgeHidden = true;
+let previousFilterHidden = true;
+let activeCloseHandler = null;
+
+const normalizeText = (text) => {
+  if (window.TemplateParser?.normalizeLegacy) {
+    return window.TemplateParser.normalizeLegacy(text);
+  }
+  return String(text || '');
+};
+
+const parseVariables = (text) => {
+  const normalized = normalizeText(text);
+  if (!window.TemplateParser?.parse) return [];
+  return window.TemplateParser.parse(normalized).map((variable) => ({
+    name: variable.label,
+    label: variable.label,
+    optional: !variable.required,
+    required: variable.required,
+    raw: variable.raw
+  }));
+};
+
+const hasVariables = (text) => parseVariables(text).length > 0;
+
+const fillTemplate = (text, values = {}) => {
+  const normalized = normalizeText(text);
+  if (!window.TemplateParser?.fill) return normalized;
+
+  const lowered = {};
+  Object.entries(values || {}).forEach(([key, value]) => {
+    lowered[String(key || '').toLowerCase()] = String(value || '').trim();
+  });
+
+  return window.TemplateParser.fill(normalized, lowered);
+};
 
 const escapeHtml = (value) => String(value || '')
   .replaceAll('&', '&amp;')
@@ -18,60 +53,16 @@ const escapeHtml = (value) => String(value || '')
   .replaceAll('"', '&quot;')
   .replaceAll("'", '&#39;');
 
-const parseVariables = (text) => {
-  const source = String(text || '');
-  const matches = Array.from(source.matchAll(/\{\{\s*([^{}]+?)\s*\}\}/g));
-  const out = [];
-  const seen = new Set();
-
-  for (const match of matches) {
-    const raw = String(match?.[1] || '').trim();
-    if (!raw) continue;
-    const optional = raw.endsWith('?');
-    const name = optional ? raw.slice(0, -1).trim() : raw;
-    if (!name) continue;
-
-    const key = `${name}::${optional ? '1' : '0'}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push({ name, optional });
-  }
-
-  return out;
-};
-
-const hasVariables = (text) => parseVariables(text).length > 0;
-
-const fillTemplate = (text, values = {}) => String(text || '').replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (full, rawName) => {
-  const raw = String(rawName || '').trim();
-  const optional = raw.endsWith('?');
-  const name = optional ? raw.slice(0, -1).trim() : raw;
-
-  if (!name) return full;
-
-  const value = values[name];
-  if (value === undefined || value === null) {
-    return optional ? '' : full;
-  }
-
-  const trimmed = String(value).trim();
-  if (!trimmed) {
-    return optional ? '' : full;
-  }
-
-  return trimmed;
-});
-
 const collectValues = (container) => {
   const values = {};
   container.querySelectorAll('.pn-fill-input').forEach((input) => {
-    values[input.dataset.varName] = String(input.value || '').trim();
+    values[String(input.dataset.label || '').toLowerCase()] = String(input.value || '').trim();
   });
   return values;
 };
 
 const hasMissingRequired = (container) => {
-  const required = Array.from(container.querySelectorAll('.pn-fill-input[data-optional="0"]'));
+  const required = Array.from(container.querySelectorAll('.pn-fill-input[data-required="true"]'));
   return required.some((input) => !String(input.value || '').trim());
 };
 
@@ -79,9 +70,11 @@ const setPromptListVisibility = (visible) => {
   const list = document.getElementById('prompt-list');
   const smart = document.getElementById('pn-smart-strip');
   const bridge = document.getElementById('pn-bridge-strip');
+  const filterBar = document.getElementById('pn-template-filters');
   const panel = document.getElementById(PANEL_ID);
 
   if (list) list.classList.toggle('pn-hidden', !visible);
+
   if (smart) {
     if (!visible) {
       previousSmartHidden = smart.classList.contains('pn-hidden');
@@ -90,6 +83,7 @@ const setPromptListVisibility = (visible) => {
       smart.classList.toggle('pn-hidden', previousSmartHidden);
     }
   }
+
   if (bridge) {
     if (!visible) {
       previousBridgeHidden = bridge.classList.contains('pn-hidden');
@@ -98,7 +92,43 @@ const setPromptListVisibility = (visible) => {
       bridge.classList.toggle('pn-hidden', previousBridgeHidden);
     }
   }
+
+  if (filterBar) {
+    if (!visible) {
+      previousFilterHidden = filterBar.classList.contains('pn-hidden');
+      filterBar.classList.add('pn-hidden');
+    } else {
+      filterBar.classList.toggle('pn-hidden', previousFilterHidden);
+    }
+  }
+
   if (panel) panel.classList.toggle('pn-hidden', visible);
+};
+
+const buildPreviewText = (originalText, values) => {
+  const source = normalizeText(originalText);
+
+  const preview = source.replace(/\[([^\[\]]+?)\]/g, (match, inner, offset, full) => {
+    if (full[offset - 1] === '[' || full[offset + match.length] === ']') return match;
+
+    const token = String(inner || '').trim();
+    if (!token || token.startsWith('?')) return match;
+
+    const optional = token.endsWith('?');
+    const label = optional ? token.slice(0, -1).trim() : token;
+    if (!label) return match;
+
+    const value = String(values[label.toLowerCase()] || '').trim();
+    if (value) return `【${value}】`;
+    if (optional) return '';
+    return `[${label}]`;
+  });
+
+  return preview
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+([,.;:!?])/g, '$1')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 };
 
 const updatePreview = (promptText, container) => {
@@ -111,121 +141,173 @@ const updatePreview = (promptText, container) => {
   }
 
   const values = collectValues(container);
-  const filled = fillTemplate(promptText, values);
-  const display = filled.length > 260 ? `${filled.slice(0, 260)}…` : filled;
+  const display = buildPreviewText(promptText, values);
+  const clipped = display.length > 320 ? `${display.slice(0, 320)}…` : display;
 
-  preview.textContent = display;
+  preview.textContent = clipped;
 
   const missing = hasMissingRequired(container);
   injectButton.disabled = missing;
-  error.textContent = missing ? 'Fill all required variables to inject.' : '';
+  error.textContent = missing ? 'Fill all required blanks to continue.' : '';
 };
 
-const showFillForm = (promptText, promptTitle, onInject, onCancel) => {
-  const variables = parseVariables(promptText);
+const resolvePromptArgs = (promptOrText, maybeTitle, maybeOnInject, maybeOnCancel) => {
+  if (typeof promptOrText === 'object' && promptOrText !== null) {
+    return {
+      prompt: {
+        title: String(promptOrText.title || 'Template'),
+        text: normalizeText(promptOrText.text || '')
+      },
+      onInject: typeof maybeTitle === 'function' ? maybeTitle : null,
+      onCancel: typeof maybeOnInject === 'function' ? maybeOnInject : null
+    };
+  }
 
+  return {
+    prompt: {
+      title: String(maybeTitle || 'Template'),
+      text: normalizeText(promptOrText || '')
+    },
+    onInject: typeof maybeOnInject === 'function' ? maybeOnInject : null,
+    onCancel: typeof maybeOnCancel === 'function' ? maybeOnCancel : null
+  };
+};
+
+const showFillForm = (promptOrText, maybeTitle, maybeOnInject, maybeOnCancel) => {
+  const resolved = resolvePromptArgs(promptOrText, maybeTitle, maybeOnInject, maybeOnCancel);
+  const prompt = resolved.prompt;
+  const onInject = resolved.onInject;
+  const onCancel = resolved.onCancel;
+
+  const variables = parseVariables(prompt.text);
   if (!variables.length) {
-    onInject(String(promptText || ''));
+    if (typeof onInject === 'function') onInject(prompt.text);
     return;
   }
 
   const panel = document.getElementById(PANEL_ID);
   if (!panel) {
-    console.warn('[Promptium] Template fill panel is missing.');
-    onInject(String(promptText || ''));
+    if (typeof onInject === 'function') onInject(prompt.text);
     return;
   }
 
   panel.innerHTML = `
     <div class="pn-fill-header">
-      <span class="pn-fill-title">${escapeHtml(promptTitle || 'Template')}</span>
-      <span class="pn-fill-subtitle">Use {{name}} for required and {{name?}} for optional values.</span>
+      <button class="pn-back-btn" id="pn-fill-back" type="button">← Back</button>
+      <span class="pn-fill-title">${escapeHtml(prompt.title)}</span>
+      <span class="pn-fill-subtitle">Fill required blanks. Optional blanks can be skipped.</span>
     </div>
 
-    <div class="pn-fill-preview" id="${PREVIEW_ID}">${escapeHtml(String(promptText || '').slice(0, 260))}</div>
+    <div class="pn-fill-preview-wrap">
+      <span class="pn-fill-preview-label">Preview</span>
+      <div class="pn-fill-preview" id="${PREVIEW_ID}">${escapeHtml(String(prompt.text).slice(0, 320))}</div>
+    </div>
 
-    <form id="${FORM_ID}" class="pn-fill-fields" novalidate>
+    <div class="pn-fill-fields">
       ${variables.map((variable, index) => `
         <label class="pn-fill-field" for="pn-fill-input-${index}">
-          <span class="pn-fill-label">${escapeHtml(variable.name)}${variable.optional ? ' (optional)' : ' *'}</span>
+          <span class="pn-fill-label">${escapeHtml(window.TemplateParser?.toDisplayLabel ? window.TemplateParser.toDisplayLabel({ label: variable.label, required: variable.required }) : variable.label)}</span>
           <input
             id="pn-fill-input-${index}"
             type="text"
             class="pn-fill-input"
-            data-var-name="${escapeHtml(variable.name)}"
-            data-optional="${variable.optional ? '1' : '0'}"
-            placeholder="Enter ${escapeHtml(variable.name)}"
+            data-label="${escapeHtml(String(variable.label).toLowerCase())}"
+            data-required="${variable.required ? 'true' : 'false'}"
+            placeholder="${variable.required ? 'Required' : 'Optional — leave blank to skip'}"
             autocomplete="off"
           />
         </label>
       `).join('')}
-    </form>
+    </div>
 
-    <p id="${ERROR_ID}" class="pn-fill-error"></p>
+    <p id="${ERROR_ID}" class="pn-fill-error" role="alert" aria-live="polite"></p>
 
     <div class="pn-fill-actions">
-      <button class="pn-fill-cancel" type="button">Cancel</button>
-      <button class="pn-fill-inject" type="button" disabled>Inject</button>
+      <button class="pn-fill-cancel" id="pn-fill-cancel" type="button">Cancel</button>
+      <button class="pn-fill-inject" id="pn-fill-inject" type="button" disabled>Inject →</button>
     </div>
   `;
 
   setPromptListVisibility(false);
 
-  const form = panel.querySelector(`#${FORM_ID}`);
   const inputs = Array.from(panel.querySelectorAll('.pn-fill-input'));
-  const cancelButton = panel.querySelector('.pn-fill-cancel');
-  const injectButton = panel.querySelector('.pn-fill-inject');
+  const injectButton = panel.querySelector('#pn-fill-inject');
+
+  const closePanel = () => {
+    document.removeEventListener('keydown', onPanelKeydown);
+    activeCloseHandler = null;
+    panel.innerHTML = '';
+    setPromptListVisibility(true);
+  };
+
+  const onPanelKeydown = (event) => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    closePanel();
+    if (typeof onCancel === 'function') onCancel();
+  };
+
+  activeCloseHandler = closePanel;
+  document.addEventListener('keydown', onPanelKeydown);
+
+  const doInject = () => {
+    if (hasMissingRequired(panel)) {
+      updatePreview(prompt.text, panel);
+      return;
+    }
+
+    const values = collectValues(panel);
+    const filled = fillTemplate(prompt.text, values);
+    closePanel();
+    if (typeof onInject === 'function') onInject(filled);
+  };
 
   inputs.forEach((input) => {
-    input.addEventListener('input', () => {
-      updatePreview(promptText, panel);
-    });
-  });
-
-  form?.addEventListener('submit', (event) => {
-    event.preventDefault();
-    if (injectButton instanceof HTMLButtonElement) {
-      injectButton.click();
-    }
+    input.addEventListener('input', () => updatePreview(prompt.text, panel));
   });
 
   const lastInput = inputs[inputs.length - 1];
   lastInput?.addEventListener('keydown', (event) => {
     if (event.key !== 'Enter') return;
     event.preventDefault();
-    if (!hasMissingRequired(panel) && injectButton instanceof HTMLButtonElement) {
-      injectButton.click();
-    }
+    if (!injectButton?.disabled) doInject();
   });
 
-  cancelButton?.addEventListener('click', () => {
-    panel.innerHTML = '';
-    setPromptListVisibility(true);
+  panel.querySelector('#pn-fill-back')?.addEventListener('click', () => {
+    closePanel();
     if (typeof onCancel === 'function') onCancel();
   });
 
-  injectButton?.addEventListener('click', () => {
-    if (hasMissingRequired(panel)) {
-      updatePreview(promptText, panel);
-      return;
-    }
-
-    const values = collectValues(panel);
-    const filled = fillTemplate(promptText, values);
-    panel.innerHTML = '';
-    setPromptListVisibility(true);
-    if (typeof onInject === 'function') onInject(filled);
+  panel.querySelector('#pn-fill-cancel')?.addEventListener('click', () => {
+    closePanel();
+    if (typeof onCancel === 'function') onCancel();
   });
 
+  injectButton?.addEventListener('click', doInject);
+
   inputs[0]?.focus();
-  updatePreview(promptText, panel);
+  updatePreview(prompt.text, panel);
+};
+
+const closeActiveForm = () => {
+  if (typeof activeCloseHandler === 'function') {
+    activeCloseHandler();
+  }
+};
+
+const isOpen = () => {
+  const panel = document.getElementById(PANEL_ID);
+  if (!panel) return false;
+  return !panel.classList.contains('pn-hidden') && panel.childElementCount > 0;
 };
 
 const TemplateFill = {
   parseVariables,
   hasVariables,
   fillTemplate,
-  showFillForm
+  showFillForm,
+  closeActiveForm,
+  isOpen
 };
 
 if (typeof window !== 'undefined') {

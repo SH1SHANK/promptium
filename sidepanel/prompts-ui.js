@@ -11,6 +11,26 @@ const callbacks = {
   onPromptsMutated: null
 };
 
+const TEMPLATE_FILTER_DEFAULT = 'all';
+let activeTemplateFilter = TEMPLATE_FILTER_DEFAULT;
+let templateFiltersBound = false;
+let curatedExpanded = false;
+
+const normalizePromptText = (text) => {
+  if (window.TemplateParser?.normalizeLegacy) {
+    return window.TemplateParser.normalizeLegacy(text);
+  }
+  return String(text || '');
+};
+
+const getTemplateVars = (text) => {
+  const normalized = normalizePromptText(text);
+  if (window.TemplateParser?.parse) {
+    return window.TemplateParser.parse(normalized);
+  }
+  return [];
+};
+
 const sidepanelKeywordFilter = async (query, prompts) => {
   const normalized = String(query || '').trim().toLowerCase();
 
@@ -20,7 +40,7 @@ const sidepanelKeywordFilter = async (query, prompts) => {
 
   return prompts.filter((prompt) => {
     const titleMatch = String(prompt.title || '').toLowerCase().includes(normalized);
-    const textMatch = String(prompt.text || '').toLowerCase().includes(normalized);
+    const textMatch = normalizePromptText(prompt.text).toLowerCase().includes(normalized);
     const tagsMatch = (prompt.tags || []).join(' ').toLowerCase().includes(normalized);
     return titleMatch || textMatch || tagsMatch;
   });
@@ -70,10 +90,84 @@ const filterPrompts = async (filter, prompts) => {
   return keywordResults;
 };
 
-const createPromptCard = async (prompt, activeFilter, canInject) => {
+const buildInjectActions = async ({ actions, canInject, prompt, hasVars, doInject }) => {
+  const useButton = document.createElement('button');
+  useButton.className = 'pn-btn pn-btn--ghost';
+  useButton.type = 'button';
+  useButton.innerHTML = hasVars
+    ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="pn-btn-icon" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M13 5l7 7-7 7"></path></svg>Use →'
+    : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="pn-btn-icon" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3a4 4 0 0 0 4-4V4a2 2 0 0 1 4 0v5h3.6a2 2 0 0 1 1.93 2.5l-2 7a2 2 0 0 1-1.93 1.5H8"></path></svg>Use Prompt';
+
+  if (!canInject) {
+    useButton.disabled = true;
+    useButton.title = 'Open a supported LLM tab to inject.';
+  } else {
+    useButton.addEventListener('click', () => {
+      void (async () => {
+        if (!hasVars) {
+          await doInject(prompt.text, false);
+          return;
+        }
+
+        if (!window.TemplateFill?.showFillForm) {
+          await doInject(prompt.text, false);
+          return;
+        }
+
+        window.TemplateFill.showFillForm(
+          { title: prompt.title, text: prompt.text },
+          (filledText) => {
+            void doInject(filledText, false);
+          },
+          () => {}
+        );
+      })();
+    });
+  }
+
+  actions.appendChild(useButton);
+
+  if (!hasVars) {
+    return;
+  }
+
+  const asIsButton = document.createElement('button');
+  asIsButton.className = 'pn-btn pn-btn--ghost';
+  asIsButton.type = 'button';
+  asIsButton.textContent = 'Inject as-is';
+  asIsButton.title = 'Inject now and fill [brackets] directly in chat.';
+
+  if (!canInject) {
+    asIsButton.disabled = true;
+  } else {
+    asIsButton.addEventListener('click', () => {
+      void (async () => {
+        const asIs = window.TemplateParser?.fill
+          ? window.TemplateParser.fill(prompt.text, {})
+          : prompt.text;
+        await doInject(asIs, true);
+      })();
+    });
+  }
+
+  actions.appendChild(asIsButton);
+};
+
+const createPromptCard = async (rawPrompt, activeFilter, canInject, options = {}) => {
+  const prompt = {
+    ...rawPrompt,
+    text: normalizePromptText(rawPrompt.text)
+  };
+
   const card = document.createElement('article');
   card.className = 'pn-prompt-card';
-  const hasTemplateVars = Boolean(window.TemplateFill?.hasVariables?.(prompt.text));
+  if (options.isCurated) {
+    card.classList.add('pn-template-card');
+    card.dataset.templateCategory = String(prompt.category || 'general');
+  }
+
+  const vars = getTemplateVars(prompt.text);
+  const hasTemplateVars = vars.length > 0;
 
   const title = document.createElement('h3');
   title.className = 'pn-card-title';
@@ -89,8 +183,8 @@ const createPromptCard = async (prompt, activeFilter, canInject) => {
   if (hasTemplateVars) {
     const varsBadge = document.createElement('span');
     varsBadge.className = 'pn-template-var-badge';
-    varsBadge.textContent = '{{}}';
-    varsBadge.title = 'Template variables: use {{name}} for required and {{name?}} for optional.';
+    varsBadge.textContent = 'Fill-in';
+    varsBadge.title = `${vars.length} fill-in blank${vars.length === 1 ? '' : 's'}. Use [name] required, [name?] optional.`;
     title.appendChild(varsBadge);
   }
 
@@ -118,99 +212,29 @@ const createPromptCard = async (prompt, activeFilter, canInject) => {
   const actions = document.createElement('div');
   actions.className = 'pn-card-actions';
 
-  const injectButton = document.createElement('button');
-  injectButton.className = 'pn-btn pn-btn--ghost';
-  injectButton.type = 'button';
-  injectButton.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="pn-btn-icon" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3a4 4 0 0 0 4-4V4a2 2 0 0 1 4 0v5h3.6a2 2 0 0 1 1.93 2.5l-2 7a2 2 0 0 1-1.93 1.5H8"></path></svg>Use Prompt';
+  const doInject = async (textToInject, asIsMode) => {
+    const response = await sendToActiveTab({ action: 'injectPrompt', text: textToInject });
 
-  if (!canInject) {
-    injectButton.disabled = true;
-    injectButton.title = 'Open a supported LLM tab to inject.';
-  } else {
-    const doInject = async (text) => {
-      const response = await sendToActiveTab({ action: 'injectPrompt', text });
-
-      if (!response?.ok) {
-        await showToast(response?.error || 'Inject failed.');
-        return;
-      }
-      await showToast('Injected. Undo in chat.');
-    };
-
-    injectButton.addEventListener('click', () => {
-      void (async () => {
-        if (!hasTemplateVars) {
-          await doInject(prompt.text);
-          return;
-        }
-
-        if (!window.TemplateFill?.showFillForm) {
-          await doInject(prompt.text);
-          return;
-        }
-
-        window.TemplateFill.showFillForm(
-          prompt.text,
-          prompt.title,
-          (filledText) => {
-            void doInject(filledText);
-          },
-          () => {}
-        );
-      })();
-    });
-  }
-
-  const improveButton = document.createElement('button');
-  improveButton.className = 'pn-btn pn-btn--ghost';
-  improveButton.type = 'button';
-  improveButton.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="pn-btn-icon pn-btn-icon--accent" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v19"></path><path d="M5 10l7-7 7 7"></path></svg>Improve';
-  improveButton.title = 'Improve prompt with AI';
-  improveButton.addEventListener('click', () => {
-    if (typeof callbacks.onOpenImprove === 'function') {
-      void callbacks.onOpenImprove(prompt.id, prompt.text, prompt.tags || []);
+    if (!response?.ok) {
+      await showToast(response?.error || 'Inject failed.');
+      return;
     }
+
+    if (asIsMode) {
+      await showToast('Injected — fill in the [brackets] in the chat');
+      return;
+    }
+
+    await showToast('Injected. Undo in chat.');
+  };
+
+  await buildInjectActions({
+    actions,
+    canInject,
+    prompt,
+    hasVars: hasTemplateVars,
+    doInject
   });
-
-  const deleteButton = document.createElement('button');
-  deleteButton.className = 'pn-btn pn-btn-danger';
-  deleteButton.type = 'button';
-  deleteButton.textContent = 'Remove';
-
-  deleteButton.addEventListener('click', () => {
-    void (async () => {
-      const deleted = await window.Store.deletePrompt(prompt.id);
-
-      if (!deleted) {
-        showToast('Delete failed.');
-        return;
-      }
-
-      if (state.aiReady) {
-        void window.AIBridge.cacheRemove(prompt.id);
-      }
-
-      await render(activeFilter);
-      if (typeof callbacks.onPromptsMutated === 'function') {
-        await callbacks.onPromptsMutated(activeFilter);
-      }
-    })();
-  });
-
-  if (typeof prompt._semanticScore === 'number') {
-    const relevance = document.createElement('p');
-    relevance.className = 'pn-relevance';
-    relevance.textContent = `Relevance: ${(prompt._semanticScore * 100).toFixed(0)}%`;
-    card.appendChild(relevance);
-  }
-
-  if (state.semanticResults?.get(prompt.id)?.semanticOnly) {
-    const spark = document.createElement('span');
-    spark.className = 'pn-spark';
-    spark.title = 'Found by meaning';
-    spark.textContent = '✦';
-    title.appendChild(spark);
-  }
 
   if (prompt.isTemplate) {
     const saveButton = document.createElement('button');
@@ -232,18 +256,129 @@ const createPromptCard = async (prompt, activeFilter, canInject) => {
         }
       })();
     });
-    actions.appendChild(injectButton);
     actions.appendChild(saveButton);
   } else {
-    actions.appendChild(injectButton);
+    const improveButton = document.createElement('button');
+    improveButton.className = 'pn-btn pn-btn--ghost';
+    improveButton.type = 'button';
+    improveButton.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="pn-btn-icon pn-btn-icon--accent" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v19"></path><path d="M5 10l7-7 7 7"></path></svg>Improve';
+    improveButton.title = 'Improve prompt with AI';
+    improveButton.addEventListener('click', () => {
+      if (typeof callbacks.onOpenImprove === 'function') {
+        void callbacks.onOpenImprove(prompt.id, prompt.text, prompt.tags || []);
+      }
+    });
+
+    const deleteButton = document.createElement('button');
+    deleteButton.className = 'pn-btn pn-btn-danger';
+    deleteButton.type = 'button';
+    deleteButton.textContent = 'Remove';
+
+    deleteButton.addEventListener('click', () => {
+      void (async () => {
+        const deleted = await window.Store.deletePrompt(prompt.id);
+
+        if (!deleted) {
+          showToast('Delete failed.');
+          return;
+        }
+
+        if (state.aiReady) {
+          void window.AIBridge.cacheRemove(prompt.id);
+        }
+
+        await render(activeFilter);
+        if (typeof callbacks.onPromptsMutated === 'function') {
+          await callbacks.onPromptsMutated(activeFilter);
+        }
+      })();
+    });
+
     actions.appendChild(improveButton);
     actions.appendChild(deleteButton);
   }
+
+  if (typeof prompt._semanticScore === 'number') {
+    const relevance = document.createElement('p');
+    relevance.className = 'pn-relevance';
+    relevance.textContent = `Relevance: ${(prompt._semanticScore * 100).toFixed(0)}%`;
+    card.appendChild(relevance);
+  }
+
+  if (state.semanticResults?.get(prompt.id)?.semanticOnly) {
+    const spark = document.createElement('span');
+    spark.className = 'pn-spark';
+    spark.title = 'Found by meaning';
+    spark.textContent = '✦';
+    title.appendChild(spark);
+  }
+
   card.appendChild(title);
   card.appendChild(text);
   card.appendChild(tagsWrap);
   card.appendChild(actions);
   return card;
+};
+
+const updateTemplateFilterVisibility = (show) => {
+  const filterBar = document.getElementById('pn-template-filters');
+  if (!filterBar) return;
+  filterBar.classList.toggle('pn-hidden', !show);
+};
+
+const setActiveFilter = (filter) => {
+  const targetFilter = String(filter || TEMPLATE_FILTER_DEFAULT).trim() || TEMPLATE_FILTER_DEFAULT;
+  activeTemplateFilter = targetFilter;
+
+  document.querySelectorAll('.pn-filter-chip').forEach((chip) => {
+    const active = chip.dataset.filter === targetFilter;
+    chip.classList.toggle('active', active);
+    chip.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+
+  const cards = document.querySelectorAll('.pn-template-card[data-template-category]');
+  let visibleCount = 0;
+
+  cards.forEach((card) => {
+    const match = targetFilter === TEMPLATE_FILTER_DEFAULT || card.dataset.templateCategory === targetFilter;
+    card.style.display = match ? '' : 'none';
+    if (match) visibleCount += 1;
+  });
+
+  const countEl = document.getElementById('pn-template-count');
+  if (countEl) {
+    countEl.textContent = targetFilter === TEMPLATE_FILTER_DEFAULT
+      ? ''
+      : `${visibleCount} template${visibleCount === 1 ? '' : 's'}`;
+  }
+};
+
+const resetTemplateFilter = () => {
+  activeTemplateFilter = TEMPLATE_FILTER_DEFAULT;
+  setActiveFilter(TEMPLATE_FILTER_DEFAULT);
+};
+
+const bindTemplateFilters = () => {
+  if (templateFiltersBound) return;
+  templateFiltersBound = true;
+
+  const filterBar = document.getElementById('pn-template-filters');
+  if (!filterBar) return;
+
+  filterBar.addEventListener('click', (event) => {
+    const chip = event.target.closest('.pn-filter-chip');
+    if (!chip) return;
+
+    const filter = chip.dataset.filter;
+    if (!filter) return;
+
+    if (chip.classList.contains('active') && filter !== TEMPLATE_FILTER_DEFAULT) {
+      setActiveFilter(TEMPLATE_FILTER_DEFAULT);
+      return;
+    }
+
+    setActiveFilter(filter);
+  });
 };
 
 const render = async (filter = '') => {
@@ -253,13 +388,24 @@ const render = async (filter = '') => {
     return;
   }
 
-  const prompts = await window.Store.getPrompts();
+  bindTemplateFilters();
+
+  const promptsRaw = await window.Store.getPrompts();
+  const prompts = promptsRaw.map((prompt) => ({
+    ...prompt,
+    text: normalizePromptText(prompt.text)
+  }));
+
   const filtered = await filterPrompts(filter, prompts);
   const tabContext = await getActiveTabContext();
   let templates = window.PromptTemplates ? window.PromptTemplates.getTemplates(filter) : [];
+  templates = templates.map((template) => ({
+    ...template,
+    text: normalizePromptText(template.text)
+  }));
 
-  const savedSignatures = new Set(prompts.map((p) => `${p.title.trim()}|${p.text.trim()}`));
-  templates = templates.filter((t) => !savedSignatures.has(`${t.title.trim()}|${t.text.trim()}`));
+  const savedSignatures = new Set(prompts.map((p) => `${String(p.title || '').trim()}|${String(p.text || '').trim()}`));
+  templates = templates.filter((t) => !savedSignatures.has(`${String(t.title || '').trim()}|${String(t.text || '').trim()}`));
   const hasUserPrompts = prompts.length > 0;
 
   container.innerHTML = '';
@@ -279,6 +425,7 @@ const render = async (filter = '') => {
       }
     }));
     if (!templates.length) {
+      updateTemplateFilterVisibility(false);
       return;
     }
   }
@@ -296,6 +443,7 @@ const render = async (filter = '') => {
         void render('');
       }
     }));
+    updateTemplateFilterVisibility(false);
     return;
   }
 
@@ -311,8 +459,9 @@ const render = async (filter = '') => {
 
     const header = document.createElement('button');
     header.className = 'pn-template-header';
+    header.type = 'button';
     header.innerHTML = `
-      <span>Curated Templates (${templates.length})</span>
+      <span>Curated Templates (${templates.length}) <span id="pn-template-count" class="pn-template-count"></span></span>
       <svg class="pn-template-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <polyline points="6 9 12 15 18 9"></polyline>
       </svg>
@@ -320,28 +469,41 @@ const render = async (filter = '') => {
 
     const tempsContainer = document.createElement('div');
     tempsContainer.className = 'pn-template-grid';
-    const isFiltered = filter.trim().length > 0;
+    const isFiltered = String(filter || '').trim().length > 0;
     if (!isFiltered) {
       tempsContainer.dataset.collapsed = 'true';
       header.classList.add('collapsed');
+      curatedExpanded = false;
+    } else {
+      curatedExpanded = true;
     }
 
     header.addEventListener('click', () => {
       const isCollapsed = tempsContainer.dataset.collapsed === 'true';
       tempsContainer.dataset.collapsed = isCollapsed ? 'false' : 'true';
       header.classList.toggle('collapsed', !isCollapsed);
+      curatedExpanded = !isCollapsed;
+      updateTemplateFilterVisibility(curatedExpanded && templates.length > 0);
+      if (curatedExpanded) {
+        setActiveFilter(activeTemplateFilter);
+      }
     });
 
     divider.appendChild(header);
     divider.appendChild(tempsContainer);
 
     for (const tpl of templates) {
-      tempsContainer.appendChild(await createPromptCard(tpl, String(filter || '').trim(), tabContext.supported));
+      tempsContainer.appendChild(await createPromptCard(tpl, String(filter || '').trim(), tabContext.supported, { isCurated: true }));
     }
 
     container.appendChild(divider);
+    updateTemplateFilterVisibility(curatedExpanded);
+    if (curatedExpanded) {
+      setActiveFilter(activeTemplateFilter);
+    }
+  } else {
+    updateTemplateFilterVisibility(false);
   }
-
 };
 
 const getSearchInput = () => document.getElementById('prompt-search');
@@ -426,7 +588,7 @@ const loadSmartSuggestions = async () => {
       chip.type = 'button';
       chip.className = 'pn-smart-chip';
       chip.textContent = prompt.title;
-      chip.title = prompt.text.slice(0, 100);
+      chip.title = String(prompt.text || '').slice(0, 100);
       chip.addEventListener('click', () => {
         const search = document.getElementById('prompt-search');
         if (search) search.value = prompt.title;
@@ -555,6 +717,9 @@ window.PromptsUI = {
   setCallbacks,
   focusSearch,
   getSearchInput,
-  getSearchWrap
+  getSearchWrap,
+  bindTemplateFilters,
+  setActiveFilter,
+  resetTemplateFilter
 };
 })();

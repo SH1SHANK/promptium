@@ -1,7 +1,7 @@
 (() => {
 /**
  * File: sidepanel/prompt-form.js
- * Purpose: Add prompt modal lifecycle, tag badges, duplicate checks, and persistence.
+ * Purpose: Add prompt modal lifecycle, mode switching, duplicate checks, and persistence.
  */
 
 const { state } = window.SidepanelState;
@@ -11,46 +11,107 @@ const callbacks = {
   onOpenImprove: null
 };
 
-const open = async () => {
-  const modal = byId('add-modal');
-  const title = byId('prompt-title');
-  const text = byId('prompt-text');
-  const tags = byId('prompt-tags');
-  const confirmDuplicate = byId('confirm-duplicate');
+let activeMode = 'selector';
 
-  state.pendingDuplicatePayload = null;
+const modeViews = {
+  selector: 'pn-add-mode-selector',
+  plain: 'pn-add-plain-form',
+  template: 'pn-add-template-form'
+};
 
-  if (title) title.value = '';
-  if (text) text.value = '';
-  if (tags) tags.value = '';
+const normalizeTemplateText = (text) => {
+  if (window.TemplateParser?.normalizeLegacy) {
+    return window.TemplateParser.normalizeLegacy(text);
+  }
+  return String(text || '');
+};
 
+const clearChildren = (node) => {
+  if (!node) return;
+  node.replaceChildren();
+};
+
+const setMode = (mode) => {
+  activeMode = mode;
+  Object.entries(modeViews).forEach(([key, id]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.toggle('pn-hidden', key !== mode);
+  });
+
+  if (mode === 'plain') {
+    byId('prompt-title')?.focus();
+  } else if (mode === 'template') {
+    byId('pn-template-title')?.focus();
+  }
+};
+
+const clearTagBadges = () => {
   const badgeWrap = document.getElementById('tag-badges-wrap');
   if (badgeWrap) {
     badgeWrap.querySelectorAll('.pn-tag-badge').forEach((badge) => badge.remove());
   }
+
   const tagInput = document.getElementById('prompt-tags-input');
   if (tagInput) tagInput.value = '';
 
+  const tagsHidden = byId('prompt-tags');
+  if (tagsHidden) tagsHidden.value = '';
+};
+
+const resetPlainForm = () => {
+  const title = byId('prompt-title');
+  const text = byId('prompt-text');
+
+  if (title) title.value = '';
+  if (text) text.value = '';
+
+  clearTagBadges();
+
   const suggestionsEl = document.getElementById('pn-tag-suggestions');
-  if (suggestionsEl) suggestionsEl.innerHTML = '';
+  clearChildren(suggestionsEl);
+
   const dupWarnEl = document.getElementById('pn-duplicate-warning');
   if (dupWarnEl) {
-    dupWarnEl.innerHTML = '';
+    clearChildren(dupWarnEl);
     dupWarnEl.classList.add('pn-hidden');
   }
 
-  confirmDuplicate?.classList.add('hidden');
+  byId('confirm-duplicate')?.classList.add('hidden');
+};
+
+const resetTemplateForm = () => {
+  const title = byId('pn-template-title');
+  const text = byId('pn-template-text');
+  const tags = byId('pn-template-tags');
+  const detected = byId('pn-detected-vars');
+
+  if (title) title.value = '';
+  if (text) text.value = '';
+  if (tags) tags.value = '';
+  if (detected) {
+    clearChildren(detected);
+    detected.style.display = 'none';
+  }
+};
+
+const open = async () => {
+  const modal = byId('add-modal');
+
+  state.pendingDuplicatePayload = null;
+  resetPlainForm();
+  resetTemplateForm();
+
   modal?.classList.remove('pn-hidden');
-  title?.focus();
+  setMode('selector');
 };
 
 const close = async () => {
   const modal = byId('add-modal');
-  const confirmDuplicate = byId('confirm-duplicate');
-
   state.pendingDuplicatePayload = null;
-  confirmDuplicate?.classList.add('hidden');
+  byId('confirm-duplicate')?.classList.add('hidden');
   modal?.classList.add('pn-hidden');
+  setMode('selector');
 };
 
 const prefillSuggestedTags = async () => {
@@ -73,7 +134,12 @@ const prefillSuggestedTags = async () => {
     const tags = response?.tags ?? [];
     if (!tags.length || !suggestionsEl) return;
 
-    suggestionsEl.innerHTML = '<span class="pn-tag-suggestions__label">Suggested</span>';
+    clearChildren(suggestionsEl);
+    const label = document.createElement('span');
+    label.className = 'pn-tag-suggestions__label';
+    label.textContent = 'Suggested';
+    suggestionsEl.appendChild(label);
+
     for (const tag of tags) {
       const chip = document.createElement('button');
       chip.type = 'button';
@@ -83,7 +149,7 @@ const prefillSuggestedTags = async () => {
         addTagBadge(tag);
         chip.remove();
         if (!suggestionsEl.querySelector('.pn-tag-chip--suggestion')) {
-          suggestionsEl.innerHTML = '';
+          clearChildren(suggestionsEl);
         }
       });
       suggestionsEl.appendChild(chip);
@@ -134,7 +200,7 @@ const saveDuplicateAnyway = async () => {
   await persistPrompt(state.pendingDuplicatePayload);
 };
 
-const saveFromModal = async () => {
+const savePlainFromModal = async () => {
   const titleInput = byId('prompt-title');
   const textInput = byId('prompt-text');
   const tagsHidden = byId('prompt-tags');
@@ -142,7 +208,7 @@ const saveFromModal = async () => {
   if (!titleInput || !textInput || !tagsHidden) return;
 
   const titleValue = String(titleInput.value || '').trim();
-  const textValue = String(textInput.value || '').trim();
+  const textValue = normalizeTemplateText(textInput.value || '').trim();
 
   if (!titleValue || !textValue) {
     await showToast('Title and prompt text are required.');
@@ -163,16 +229,27 @@ const saveFromModal = async () => {
         const dupWarn = document.getElementById('pn-duplicate-warning');
         if (dupWarn) {
           dupWarn.classList.remove('pn-hidden');
-          dupWarn.innerHTML = `
-            <strong>Looks similar to: "${escapeHtml(response.match.prompt?.title || 'Untitled')}"</strong>
-            <div class="pn-duplicate-actions">
-              <button class="pn-btn-ignore" id="pn-dup-save-anyway" type="button">Save anyway</button>
-            </div>
-          `;
-          document.getElementById('pn-dup-save-anyway')?.addEventListener('click', () => {
+          clearChildren(dupWarn);
+
+          const title = response?.match?.prompt?.title || 'Untitled';
+          const warning = document.createElement('strong');
+          warning.textContent = `Looks similar to: "${title}"`;
+
+          const actions = document.createElement('div');
+          actions.className = 'pn-duplicate-actions';
+
+          const saveAnywayButton = document.createElement('button');
+          saveAnywayButton.className = 'pn-btn-ignore';
+          saveAnywayButton.type = 'button';
+          saveAnywayButton.textContent = 'Save anyway';
+          saveAnywayButton.addEventListener('click', () => {
             dupWarn.classList.add('pn-hidden');
             void persistPrompt(payload);
           });
+
+          actions.appendChild(saveAnywayButton);
+          dupWarn.appendChild(warning);
+          dupWarn.appendChild(actions);
           return;
         }
       }
@@ -184,9 +261,105 @@ const saveFromModal = async () => {
   await persistPrompt(payload);
 };
 
+const saveTemplateFromModal = async () => {
+  const titleInput = byId('pn-template-title');
+  const textInput = byId('pn-template-text');
+  const tagsInput = byId('pn-template-tags');
+
+  if (!titleInput || !textInput || !tagsInput) return;
+
+  const titleValue = String(titleInput.value || '').trim();
+  const textValue = normalizeTemplateText(textInput.value || '').trim();
+
+  if (!titleValue || !textValue) {
+    await showToast('Title and template text are required.');
+    return;
+  }
+
+  const payload = {
+    title: titleValue,
+    text: textValue,
+    tags: parseTags(tagsInput.value || ''),
+    category: null
+  };
+
+  await persistPrompt(payload);
+};
+
+const updateDetectedVars = () => {
+  const textarea = document.getElementById('pn-template-text');
+  const container = document.getElementById('pn-detected-vars');
+  if (!textarea || !container || !window.TemplateParser?.parse) return;
+
+  const vars = window.TemplateParser.parse(normalizeTemplateText(textarea.value));
+
+  if (!vars.length) {
+    clearChildren(container);
+    container.style.display = 'none';
+    return;
+  }
+
+  container.style.display = 'flex';
+  clearChildren(container);
+
+  const heading = document.createElement('span');
+  heading.className = 'pn-detected-label';
+  heading.textContent = 'Blanks detected:';
+  container.appendChild(heading);
+
+  vars.forEach((variable) => {
+    const chip = document.createElement('span');
+    chip.className = `pn-detected-var ${variable.required ? 'required' : 'optional'}`;
+    chip.textContent = window.TemplateParser.toDisplayLabel(variable);
+    container.appendChild(chip);
+  });
+};
+
+const bindVariableToolbar = () => {
+  const toolbar = document.getElementById('pn-var-toolbar');
+  const textarea = document.getElementById('pn-template-text');
+  if (!toolbar || !textarea) return;
+
+  toolbar.querySelectorAll('.pn-var-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const snippet = String(btn.dataset.snippet || '');
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const before = textarea.value.slice(0, start);
+      const after = textarea.value.slice(end);
+
+      textarea.value = `${before}${snippet}${after}`;
+      const cursorStart = start + 1;
+      const cursorEnd = start + 6;
+      textarea.setSelectionRange(cursorStart, cursorEnd);
+      textarea.focus();
+      updateDetectedVars();
+    });
+  });
+
+  textarea.addEventListener('input', updateDetectedVars);
+};
+
 const bindEvents = () => {
+  byId('pn-mode-plain')?.addEventListener('click', () => setMode('plain'));
+  byId('pn-mode-template')?.addEventListener('click', () => {
+    setMode('template');
+    updateDetectedVars();
+  });
+
+  byId('pn-mode-cancel')?.addEventListener('click', () => {
+    void close();
+  });
+
+  byId('pn-plain-back')?.addEventListener('click', () => setMode('selector'));
+  byId('pn-template-back')?.addEventListener('click', () => setMode('selector'));
+
   byId('save-new-prompt')?.addEventListener('click', () => {
-    void saveFromModal();
+    void savePlainFromModal();
+  });
+
+  byId('pn-template-save')?.addEventListener('click', () => {
+    void saveTemplateFromModal();
   });
 
   byId('confirm-duplicate')?.addEventListener('click', () => {
@@ -194,6 +367,10 @@ const bindEvents = () => {
   });
 
   byId('cancel-modal')?.addEventListener('click', () => {
+    void close();
+  });
+
+  byId('pn-template-cancel')?.addEventListener('click', () => {
     void close();
   });
 
@@ -205,7 +382,7 @@ const bindEvents = () => {
     const textInput = byId('prompt-text');
     const tagsHidden = byId('prompt-tags');
 
-    if (!textInput || !textInput.value.trim()) {
+    if (!textInput || !String(textInput.value || '').trim()) {
       await showToast('Enter a prompt to optimize.');
       return;
     }
@@ -256,6 +433,8 @@ const bindEvents = () => {
       if (event.target === badgeWrap) tagBadgeInput.focus();
     });
   }
+
+  bindVariableToolbar();
 };
 
 const setCallbacks = (nextCallbacks = {}) => {
@@ -266,10 +445,12 @@ const setCallbacks = (nextCallbacks = {}) => {
 window.PromptForm = {
   open,
   close,
-  saveFromModal,
+  saveFromModal: savePlainFromModal,
   saveDuplicateAnyway,
   prefillSuggestedTags,
   bindEvents,
-  setCallbacks
+  setCallbacks,
+  setMode,
+  updateDetectedVars
 };
 })();

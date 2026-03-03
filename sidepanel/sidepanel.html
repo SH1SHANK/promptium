@@ -114,6 +114,16 @@
           <span class="pn-bridge-label">Continue on</span>
           <div id="pn-bridge-targets" class="pn-bridge-targets"></div>
         </div>
+        <div id="pn-template-filters" class="pn-template-filters pn-hidden" role="tablist" aria-label="Filter templates by category">
+          <button class="pn-filter-chip active" data-filter="all" role="tab" aria-selected="true" type="button">All</button>
+          <button class="pn-filter-chip" data-filter="writing" role="tab" aria-selected="false" type="button">Writing</button>
+          <button class="pn-filter-chip" data-filter="coding" role="tab" aria-selected="false" type="button">Coding</button>
+          <button class="pn-filter-chip" data-filter="study" role="tab" aria-selected="false" type="button">Study</button>
+          <button class="pn-filter-chip" data-filter="research" role="tab" aria-selected="false" type="button">Research</button>
+          <button class="pn-filter-chip" data-filter="creative" role="tab" aria-selected="false" type="button">Creative</button>
+          <button class="pn-filter-chip" data-filter="work" role="tab" aria-selected="false" type="button">Work</button>
+          <button class="pn-filter-chip" data-filter="general" role="tab" aria-selected="false" type="button">General</button>
+        </div>
         <div id="pn-template-fill-panel" class="pn-template-fill-panel pn-hidden"></div>
         <div id="prompt-list" class="pn-list"></div>
       </section>
@@ -457,79 +467,122 @@
       <div class="pn-modal__backdrop" data-close-modal></div>
       <div class="pn-modal__panel pn-add-modal__panel">
         <h2 id="pn-add-modal-title" class="pn-modal__title">Add Prompt</h2>
-        <p id="pn-add-modal-desc" class="pn-card-meta pn-add-modal__desc">
-          Save a reusable prompt with optional AI polish and tag suggestions.
-        </p>
+        <p id="pn-add-modal-desc" class="pn-card-meta pn-add-modal__desc">Choose plain or fill-in template mode.</p>
 
-        <div class="pn-add-modal__section">
-          <label class="pn-field">
-            <span>Title</span>
-            <input id="prompt-title" type="text" placeholder="Prompt title" />
-          </label>
+        <div id="pn-add-mode-selector" class="pn-add-mode-selector">
+          <p class="pn-mode-question">What kind of prompt do you want to save?</p>
+          <button class="pn-mode-card" id="pn-mode-plain" type="button">
+            <span class="pn-mode-icon">✏️</span>
+            <span class="pn-mode-text">
+              <span class="pn-mode-title">Plain Prompt</span>
+              <span class="pn-mode-desc">Type your prompt once and reuse it as-is.</span>
+            </span>
+          </button>
+          <button class="pn-mode-card" id="pn-mode-template" type="button">
+            <span class="pn-mode-icon">🧩</span>
+            <span class="pn-mode-text">
+              <span class="pn-mode-title">Fill-in Template</span>
+              <span class="pn-mode-desc">Use [blanks] you can fill each time before injecting.</span>
+            </span>
+          </button>
+          <button class="pn-mode-cancel" id="pn-mode-cancel" type="button">Cancel</button>
         </div>
 
-        <div class="pn-add-modal__section">
-          <label class="pn-field">
-            <span>Prompt Text</span>
-            <textarea
-              id="prompt-text"
-              rows="6"
-              placeholder="Write your prompt here..."
-            ></textarea>
-          </label>
-        </div>
+        <div id="pn-add-plain-form" class="pn-add-form pn-hidden">
+          <div class="pn-form-header">
+            <button class="pn-back-btn" id="pn-plain-back" type="button">← Back</button>
+            <span class="pn-form-title">New Prompt</span>
+          </div>
 
-        <div class="pn-add-modal__section">
-          <label class="pn-field">
-            <span>Tags</span>
-            <div class="pn-tag-badges" id="tag-badges-wrap">
-              <input
-                id="prompt-tags-input"
-                class="pn-tag-badges__input"
-                type="text"
-                placeholder="Type a tag and press Space"
-              />
+          <div class="pn-add-modal__section">
+            <label class="pn-field">
+              <span>Title</span>
+              <input id="prompt-title" type="text" placeholder="Prompt title" maxlength="80" />
+            </label>
+          </div>
+
+          <div class="pn-add-modal__section">
+            <label class="pn-field">
+              <span>Prompt Text</span>
+              <textarea id="prompt-text" rows="6" placeholder="Write your prompt here..."></textarea>
+            </label>
+          </div>
+
+          <div class="pn-add-modal__section">
+            <label class="pn-field">
+              <span>Tags</span>
+              <div class="pn-tag-badges" id="tag-badges-wrap">
+                <input id="prompt-tags-input" class="pn-tag-badges__input" type="text" placeholder="Type a tag and press Space" />
+              </div>
+              <input id="prompt-tags" type="hidden" />
+            </label>
+            <div id="pn-tag-suggestions" class="pn-tag-suggestions"></div>
+            <div id="pn-duplicate-warning" class="pn-duplicate-warning pn-hidden"></div>
+          </div>
+
+          <div class="pn-add-modal__section pn-add-modal__section--ai">
+            <div class="pn-add-ai-actions">
+              <select id="pn-improve-style" class="pn-sv-select pn-add-improve-style">
+                <option value="general">General Polish</option>
+                <option value="coding">Coding / Tech</option>
+                <option value="study">Study / Summarize</option>
+                <option value="creative">Creative Writing</option>
+              </select>
+              <button id="pn-improve-prompt-btn" class="pn-btn pn-btn--ghost pn-add-improve-btn" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v19"></path><path d="M5 10l7-7 7 7"></path></svg>
+                Improve Text
+              </button>
             </div>
-            <input id="prompt-tags" type="hidden" />
-          </label>
+          </div>
 
-          <div id="pn-tag-suggestions" class="pn-tag-suggestions"></div>
-          <div id="pn-duplicate-warning" class="pn-duplicate-warning pn-hidden"></div>
-        </div>
-
-        <div class="pn-add-modal__section pn-add-modal__section--ai">
-          <div class="pn-add-ai-actions">
-            <select id="pn-improve-style" class="pn-sv-select pn-add-improve-style">
-              <option value="general">General Polish</option>
-              <option value="coding">Coding / Tech</option>
-              <option value="study">Study / Summarize</option>
-              <option value="creative">Creative Writing</option>
-            </select>
-            <button id="pn-improve-prompt-btn" class="pn-btn pn-btn--ghost pn-add-improve-btn" type="button">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v19"></path><path d="M5 10l7-7 7 7"></path></svg>
-              Improve Text
-            </button>
+          <div class="pn-modal__actions pn-add-modal__actions">
+            <button id="cancel-modal" class="pn-btn pn-btn--ghost" type="button">Cancel</button>
+            <button id="confirm-duplicate" class="pn-btn pn-btn-warn hidden" type="button">Save Anyway</button>
+            <button id="save-new-prompt" class="pn-btn pn-btn--primary" type="button">Save Prompt</button>
           </div>
         </div>
 
-        <div class="pn-modal__actions pn-add-modal__actions">
-          <button id="cancel-modal" class="pn-btn pn-btn--ghost" type="button">
-            Cancel
-          </button>
-          <button
-            id="confirm-duplicate"
-            class="pn-btn pn-btn-warn hidden"
-            type="button"
-          >
-            Save Anyway
-          </button>
-          <button
-            id="save-new-prompt"
-            class="pn-btn pn-btn--primary"
-            type="button"
-          >
-            Save
-          </button>
+        <div id="pn-add-template-form" class="pn-add-form pn-hidden">
+          <div class="pn-form-header">
+            <button class="pn-back-btn" id="pn-template-back" type="button">← Back</button>
+            <span class="pn-form-title">New Template</span>
+          </div>
+
+          <label class="pn-field">
+            <span>Title</span>
+            <input id="pn-template-title" type="text" placeholder="Template name" maxlength="80" />
+          </label>
+
+          <p class="pn-template-hint">
+            Use <strong>[brackets]</strong> for blanks, like <em>[topic]</em>.
+            Add <strong>?</strong> for optional blanks, like <em>[tone?]</em>.
+          </p>
+
+          <label class="pn-field">
+            <span>Template Text</span>
+            <div class="pn-textarea-wrap">
+              <textarea id="pn-template-text" class="pn-form-textarea" rows="6" placeholder="Write your template here..."></textarea>
+              <div class="pn-var-toolbar" id="pn-var-toolbar">
+                <span class="pn-var-toolbar-label">Add a blank:</span>
+                <button class="pn-var-btn" data-snippet="[label]" type="button" title="Required blank">[blank]</button>
+                <button class="pn-var-btn" data-snippet="[label?]" type="button" title="Optional blank">[optional?]</button>
+                <span class="pn-var-toolbar-divider"></span>
+                <span class="pn-var-toolbar-tip">Inserts at cursor</span>
+              </div>
+            </div>
+          </label>
+
+          <div class="pn-detected-vars" id="pn-detected-vars" aria-live="polite"></div>
+
+          <label class="pn-field">
+            <span>Tags</span>
+            <input id="pn-template-tags" type="text" placeholder="Comma separated (optional)" />
+          </label>
+
+          <div class="pn-modal__actions pn-add-modal__actions">
+            <button id="pn-template-cancel" class="pn-btn pn-btn--ghost" type="button">Cancel</button>
+            <button id="pn-template-save" class="pn-btn pn-btn--primary" type="button">Save Template</button>
+          </div>
         </div>
       </div>
     </div>
@@ -603,6 +656,7 @@
     <script src="../utils/dom-helpers.js"></script>
     <script src="../utils/tags.js"></script>
     <script src="../utils/storage.js"></script>
+    <script src="../utils/template-parser.js"></script>
     <script src="../utils/smart-name.js"></script>
     <script src="../utils/exporter.js"></script>
     <script src="../utils/bridge.js"></script>

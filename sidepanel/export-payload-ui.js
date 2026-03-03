@@ -44,6 +44,62 @@ const stripInlineStylesFromHtml = (rawHtml) => String(rawHtml || '')
   .replace(/\sstyle\s*=\s*[^\s>]+/gi, '')
   .trim();
 
+const URL_LIKE_ATTRS = new Set(['href', 'src', 'xlink:href', 'formaction']);
+const URL_PROTOCOL_ALLOWLIST = new Set(['http:', 'https:', 'mailto:', 'tel:']);
+
+const isSafeUrlValue = (rawValue) => {
+  const value = String(rawValue || '').trim();
+  if (!value) return false;
+
+  // Keep internal/relative references.
+  if (value.startsWith('#') || value.startsWith('/') || value.startsWith('./') || value.startsWith('../')) {
+    return true;
+  }
+
+  if (value.startsWith('//')) {
+    try {
+      const parsed = new URL(`https:${value}`);
+      return URL_PROTOCOL_ALLOWLIST.has(parsed.protocol);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(value)) {
+    try {
+      const parsed = new URL(value);
+      return URL_PROTOCOL_ALLOWLIST.has(parsed.protocol);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+const sanitizeFragmentAttributes = (root) => {
+  root.querySelectorAll('*').forEach((element) => {
+    Array.from(element.attributes).forEach((attribute) => {
+      const attrName = String(attribute.name || '').toLowerCase();
+      const attrValue = String(attribute.value || '').trim();
+
+      if (attrName.startsWith('on') || attrName === 'style') {
+        element.removeAttribute(attribute.name);
+        return;
+      }
+
+      if (URL_LIKE_ATTRS.has(attrName) && !isSafeUrlValue(attrValue)) {
+        element.removeAttribute(attribute.name);
+        return;
+      }
+
+      if (attrName === 'target' && attrValue.toLowerCase() === '_blank') {
+        element.setAttribute('rel', 'noopener noreferrer');
+      }
+    });
+  });
+};
+
 const sanitizeConversationUrl = (value) => {
   try {
     const parsed = new URL(String(value || '').trim());
@@ -295,8 +351,9 @@ const toMessageContentMarkdown = async (message) => {
   const template = document.createElement('template');
   template.innerHTML = safeHtml;
   template.content.querySelectorAll(
-    'script, style, img, svg, figure, nav, header, footer, aside, button, input, textarea, select, [hidden], [aria-hidden="true"]'
+    'script, style, iframe, object, embed, link, meta, img, svg, figure, picture, source, video, audio, canvas, nav, header, footer, aside, button, input, textarea, select, [hidden], [aria-hidden="true"]'
   ).forEach((node) => node.remove());
+  sanitizeFragmentAttributes(template.content);
   const exportHtml = template.innerHTML.trim();
 
   if (service && exportHtml) {

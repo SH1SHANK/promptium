@@ -363,11 +363,23 @@ const accept = async (mode = 'primary') => {
 
     const toast = document.createElement('div');
     toast.className = 'pn-toast pn-toast--undo';
-    toast.innerHTML = 'Prompt optimized. <button class="pn-toast-undo-btn" type="button">Undo</button>';
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
+
+    const message = document.createElement('span');
+    message.textContent = 'Prompt optimized.';
+
+    const undoBtn = document.createElement('button');
+    undoBtn.className = 'pn-toast-undo-btn';
+    undoBtn.type = 'button';
+    undoBtn.textContent = 'Undo';
+
+    toast.appendChild(message);
+    toast.appendChild(document.createTextNode(' '));
+    toast.appendChild(undoBtn);
     document.body.appendChild(toast);
 
-    const undoBtn = toast.querySelector('.pn-toast-undo-btn');
-    undoBtn?.addEventListener('click', async () => {
+    undoBtn.addEventListener('click', async () => {
       await window.Store.updatePrompt(promptId, { text: originalText });
       if (typeof callbacks.onLibraryChanged === 'function') {
         await callbacks.onLibraryChanged();
