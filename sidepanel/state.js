@@ -9,6 +9,7 @@ const KEYS = Object.freeze({
   SETTINGS_KEY: 'promptiumSettings',
   GEMINI_KEY: 'promptiumGeminiKey',
   IMPROVE_PAYLOAD_KEY: 'promptiumImprovePayload',
+  PENDING_SNIPPET_KEY: 'pendingSnippet',
   ONBOARDING_KEY: 'onboardingComplete'
 });
 
@@ -17,9 +18,39 @@ const DEFAULT_SETTINGS = Object.freeze({
   semanticSearch: true,
   autoSuggestTags: true,
   duplicateCheck: true,
+  polishWithGemini: true,
+  enabledPlatforms: {
+    chatgpt: true,
+    claude: true,
+    gemini: true,
+    perplexity: true,
+    copilot: true
+  },
+  customPlatforms: [],
+  fabPosition: 'right',
+  fabStyle: 'circle',
+  fabActions: {
+    savePrompt: true,
+    exportChat: true,
+    continueChat: true,
+    promptLibrary: true
+  },
+  visibleTabs: {
+    prompts: true,
+    export: true,
+    history: true,
+    tags: true
+  },
+  promptCardDensity: 'comfortable',
   defaultExportFormat: 'markdown',
+  defaultExportNaming: 'smart',
+  autoSaveExportsToHistory: true,
   defaultIncludeDate: true,
   defaultIncludePlatform: true,
+  bookmarkShortcut: 'Alt+Shift+B',
+  hoverPreviewEnabled: true,
+  hoverPreviewDelay: 400,
+  continueDefaultMode: 'FULL_SUMMARY',
   userContext: ''
 });
 
@@ -66,7 +97,7 @@ const ONBOARDING_CARDS = [
     iconClass: 'pn-card-icon--amber',
     subheadline: 'Precision Export',
     headline: 'Select only what matters.',
-    body: 'Select exact message ranges, keep key responses starred, and export Markdown, TXT, JSON, PDF, Notion, or Obsidian with smart filenames.',
+    body: 'Select exact message ranges, keep key responses starred, and export Markdown, TXT, JSON, PDF, PNG, JPEG, Notion, or Obsidian with smart filenames.',
     isPersonalize: false
   },
   {

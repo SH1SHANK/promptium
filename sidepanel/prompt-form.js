@@ -106,6 +106,29 @@ const open = async () => {
   setMode('selector');
 };
 
+const openPlainPrefilled = async (text, sourceUrl = '') => {
+  await open();
+  setMode('plain');
+
+  const textInput = byId('prompt-text');
+  const titleInput = byId('prompt-title');
+  if (textInput) {
+    textInput.value = String(text || '').trim();
+  }
+
+  if (titleInput && !String(titleInput.value || '').trim()) {
+    const seed = String(text || '').trim().split(/\s+/).slice(0, 6).join(' ');
+    titleInput.value = seed ? `${seed.slice(0, 48)}` : 'Saved Snippet';
+  }
+
+  if (sourceUrl) {
+    const tagsHidden = byId('prompt-tags');
+    if (tagsHidden && !String(tagsHidden.value || '').trim()) {
+      tagsHidden.value = '';
+    }
+  }
+};
+
 const close = async () => {
   const modal = byId('add-modal');
   state.pendingDuplicatePayload = null;
@@ -379,6 +402,11 @@ const bindEvents = () => {
   });
 
   byId('pn-improve-prompt-btn')?.addEventListener('click', async () => {
+    if (state.settings?.polishWithGemini === false) {
+      await showToast('Enable \"Polish button\" in Settings to use this.');
+      return;
+    }
+
     const textInput = byId('prompt-text');
     const tagsHidden = byId('prompt-tags');
 
@@ -444,6 +472,7 @@ const setCallbacks = (nextCallbacks = {}) => {
 
 window.PromptForm = {
   open,
+  openPlainPrefilled,
   close,
   saveFromModal: savePlainFromModal,
   saveDuplicateAnyway,

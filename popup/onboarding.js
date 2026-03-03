@@ -38,7 +38,7 @@
       icon: '↑',
       headline: 'Export with intention',
       subheadline: 'Your conversations, your format.',
-      body: 'Export chats as Markdown, TXT, JSON, PDF, Notion, or Obsidian. Smart filenames and starred bookmarks carry through exports.',
+      body: 'Export chats as Markdown, TXT, JSON, PDF, PNG, JPEG, Notion, or Obsidian. Smart filenames and starred bookmarks carry through exports.',
       accent: '#fbbf24'
     },
     {

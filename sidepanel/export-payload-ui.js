@@ -12,6 +12,32 @@ const callbacks = {
   onSelectMessages: null
 };
 
+const EXPORT_FORMAT_ALIASES = Object.freeze({
+  text: 'txt',
+  jpg: 'jpeg',
+  image: 'png'
+});
+
+const SUPPORTED_EXPORT_FORMATS = new Set([
+  'markdown',
+  'txt',
+  'json',
+  'pdf',
+  'png',
+  'jpeg',
+  'notion',
+  'obsidian'
+]);
+
+const normalizeExportFormat = (value, fallback = 'markdown') => {
+  const raw = String(value || '').toLowerCase().trim();
+  const aliased = EXPORT_FORMAT_ALIASES[raw] || raw;
+  if (SUPPORTED_EXPORT_FORMATS.has(aliased)) {
+    return aliased;
+  }
+  return fallback;
+};
+
 // Safety guard: sidepanel export must never use html2pdf/html2canvas due MV3 CSP.
 if (typeof window !== 'undefined' && typeof window.html2pdf === 'function') {
   try {
@@ -586,8 +612,8 @@ const buildTextPreviewMarkup = async (format) => {
 };
 
 const buildFormatAwarePreviewMarkup = async () => {
-  const format = String(state.exportPrefs.format || 'markdown').toLowerCase();
-  if (format === 'pdf') {
+  const format = normalizeExportFormat(state.exportPrefs.format);
+  if (format === 'pdf' || format === 'png' || format === 'jpeg') {
     return buildVisualPreviewMarkup();
   }
   if (format === 'txt' || format === 'text') {
@@ -665,7 +691,7 @@ const syncPrefsFromControls = async () => {
   if (fontSizeNumber) fontSizeNumber.value = String(normalizedSize);
 
   state.exportPrefs = {
-    format: String(format?.value || state.exportPrefs.format || 'markdown'),
+    format: normalizeExportFormat(format?.value || state.exportPrefs.format || 'markdown'),
     contentMode: String(contentMode?.value || state.exportPrefs.contentMode || 'structured'),
     includeDate: Boolean(includeDate?.checked),
     includePlatform: Boolean(includePlatform?.checked),
@@ -696,13 +722,15 @@ const renderMeta = async () => {
   const countsEl = byId('export-counts');
   const msgCountEl = byId('export-msg-count');
   const wordCountEl = byId('export-word-count');
-  const fmt = state.exportPrefs.format;
+  const fmt = normalizeExportFormat(state.exportPrefs.format);
 
   const formatLabels = {
     markdown: 'Markdown',
     txt: 'Plain Text',
     json: 'JSON',
     pdf: 'PDF',
+    png: 'PNG Image',
+    jpeg: 'JPEG Image',
     notion: 'Notion',
     obsidian: 'Obsidian'
   };
@@ -780,7 +808,7 @@ const renderPreview = async () => {
 const applyDefaultsFromSettings = (settings) => {
   const input = settings || state.settings || {};
   state.exportPrefs = {
-    format: String(input.defaultExportFormat || 'markdown'),
+    format: normalizeExportFormat(input.defaultExportFormat || 'markdown'),
     includeDate: Boolean(input.defaultIncludeDate),
     includePlatform: Boolean(input.defaultIncludePlatform),
     includeMessageNumbers: false,
@@ -803,7 +831,12 @@ const applyDefaultsFromSettings = (settings) => {
   const customBgNode = byId('export-bg-custom');
   const customWrapNode = byId('export-bg-custom-wrap');
 
-  if (formatNode) formatNode.value = state.exportPrefs.format;
+  if (formatNode) {
+    const nextFormat = normalizeExportFormat(state.exportPrefs.format);
+    const hasOption = Array.from(formatNode.options).some((option) => option.value === nextFormat);
+    formatNode.value = hasOption ? nextFormat : 'markdown';
+    state.exportPrefs.format = formatNode.value;
+  }
   if (contentModeNode) contentModeNode.value = state.exportPrefs.contentMode;
   if (includeDateNode) includeDateNode.checked = state.exportPrefs.includeDate;
   if (includePlatformNode) includePlatformNode.checked = state.exportPrefs.includePlatform;

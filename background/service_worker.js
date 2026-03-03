@@ -24,12 +24,15 @@ const AI = {
 const BRAND_KEYS = {
   geminiKey: 'promptiumGeminiKey',
   sidePanelPayload: 'promptiumSidePanelPayload',
-  improvePayload: 'promptiumImprovePayload'
+  improvePayload: 'promptiumImprovePayload',
+  pendingSnippet: 'pendingSnippet'
 };
 
 const GEMINI_API_ROOT = 'https://generativelanguage.googleapis.com/v1beta';
 const GEMINI_MODEL = 'gemini-2.0-flash-lite';
 const GEMINI_TIMEOUT_MS = 15000;
+const CONTINUATION_WORD_LIMIT = 300;
+const CONTEXT_MENU_SAVE_ID = 'promptium-save-selection';
 
 /** Executes fetch with strict defaults to reduce accidental data leakage and hangs. */
 const safeFetch = async (url, options = {}, timeoutMs = GEMINI_TIMEOUT_MS) => {
@@ -65,6 +68,42 @@ const redactSensitiveText = (value) => String(value || '')
   .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[redacted-email]')
   .replace(/\b(?:sk|ghp_|AIzaSy)[A-Za-z0-9_\-]{12,}\b/g, '[redacted-token]')
   .replace(/\b\d{3}[-.\s]?\d{2}[-.\s]?\d{4}\b/g, '[redacted-ssn]');
+
+const normalizeContinuationRole = (role) => {
+  const value = String(role || '').trim().toLowerCase();
+  if (['user', 'you', 'human'].includes(value)) return 'Human';
+  if (['assistant', 'model', 'bot', 'ai'].includes(value)) return 'Assistant';
+  return value.includes('user') ? 'Human' : 'Assistant';
+};
+
+const limitWords = (value, maxWords) => {
+  const words = String(value || '').trim().split(/\s+/).filter(Boolean);
+  if (words.length <= maxWords) {
+    return words.join(' ').trim();
+  }
+  return `${words.slice(0, maxWords).join(' ').trim()}…`;
+};
+
+const buildContinuationPrompt = (messages, mode, userNote = '') => {
+  const transcript = (Array.isArray(messages) ? messages : [])
+    .slice(-24)
+    .map((message) => `${normalizeContinuationRole(message?.role)}: ${redactSensitiveText(message?.text || '')}`.trim())
+    .filter(Boolean)
+    .join('\n\n');
+
+  return [
+    'You are helping a user continue a conversation in a new chat window.',
+    'Summarize the following conversation as a clear handoff context.',
+    `Mode: ${String(mode || 'FULL_SUMMARY')}`,
+    `Additional note from user: ${String(userNote || '').trim() || 'none'}`,
+    '',
+    'Write in second person. Start with "We were working on...".',
+    `Keep it under ${CONTINUATION_WORD_LIMIT} words. End with "Continue from here:".`,
+    '',
+    'Conversation:',
+    transcript
+  ].join('\n');
+};
 
 /** Returns the configured Promptium Gemini API key. */
 const getGeminiApiKey = async () => {
@@ -441,6 +480,45 @@ ONLY return the improved prompt text. Do not add quotes, do not explain your cha
   }
 }
 
+async function buildContinuationHandoffViaGemini(messages, mode = 'FULL_SUMMARY', userNote = '', explicitKey = '') {
+  const safeMessages = Array.isArray(messages) ? messages : [];
+  if (!safeMessages.length) {
+    return { ok: false, error: 'No messages to summarize.' };
+  }
+
+  const promptiumGeminiKey = String(explicitKey || '').trim() || await getGeminiApiKey();
+  if (!promptiumGeminiKey) {
+    return { ok: false, error: 'Missing Gemini key.' };
+  }
+
+  const prompt = buildContinuationPrompt(safeMessages, mode, userNote);
+
+  try {
+    const response = await callGeminiGenerateContent(promptiumGeminiKey, {
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.3,
+        maxOutputTokens: 520
+      }
+    });
+
+    if (!response.ok) {
+      return { ok: false, error: `Gemini API request failed (${response.status}).` };
+    }
+
+    const data = await response.json();
+    const raw = String(data?.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
+    if (!raw) {
+      return { ok: false, error: 'Gemini returned empty continuation context.' };
+    }
+
+    return { ok: true, text: limitWords(raw, CONTINUATION_WORD_LIMIT) };
+  } catch (error) {
+    const fallback = error?.name === 'AbortError' ? 'Gemini request timed out.' : 'Failed to generate continuation handoff.';
+    return { ok: false, error: fallback };
+  }
+}
+
 async function generatePromptTitleViaGemini(text) {
   const source = String(text || '').trim();
   if (!source) {
@@ -534,6 +612,11 @@ const handleAIMessage = async (message, sendResponse) => {
         generatePromptTitleViaGemini(message.text).then(result => sendResponse(result));
         return true;
 
+      case 'AI_CONTINUE_SUMMARY':
+        buildContinuationHandoffViaGemini(message.messages, message.mode, message.userNote, message.key)
+          .then((result) => sendResponse(result));
+        return true;
+
       case 'AI_STATUS_CHECK':
         sendResponse({ status: AI.status });
         return true;
@@ -552,6 +635,13 @@ loadModel();
 
 const SIDE_PANEL_PATH = 'sidepanel/sidepanel.html';
 const SIDEPANEL_SESSION_KEY = BRAND_KEYS.sidePanelPayload;
+const SUPPORTED_DOC_PATTERNS = [
+  '*://*.chatgpt.com/*',
+  '*://*.claude.ai/*',
+  '*://gemini.google.com/*',
+  '*://*.perplexity.ai/*',
+  '*://copilot.microsoft.com/*'
+];
 const ALLOWED_LLM_HOSTS = new Set([
   'chatgpt.com',
   'claude.ai',
@@ -578,6 +668,30 @@ const initializeStorageKeys = async () => {
   }
 };
 
+const detectPlatformFromUrl = (value) => {
+  const url = String(value || '').toLowerCase();
+  if (url.includes('chatgpt.com')) return 'chatgpt';
+  if (url.includes('claude.ai')) return 'claude';
+  if (url.includes('gemini.google.com')) return 'gemini';
+  if (url.includes('perplexity.ai')) return 'perplexity';
+  if (url.includes('copilot.microsoft.com')) return 'copilot';
+  return 'unknown';
+};
+
+const registerContextMenus = async () => {
+  try {
+    await chrome.contextMenus.removeAll();
+    chrome.contextMenus.create({
+      id: CONTEXT_MENU_SAVE_ID,
+      title: 'Save to Promptium',
+      contexts: ['selection'],
+      documentUrlPatterns: SUPPORTED_DOC_PATTERNS
+    });
+  } catch (error) {
+    console.warn('[Promptium][ServiceWorker] Failed to register context menu.', error);
+  }
+};
+
 // Manually open the side panel when the user clicks the extension action icon.
 // This often works more reliably than the declarative setPanelBehavior API.
 chrome.action.onClicked.addListener((tab) => {
@@ -592,8 +706,22 @@ chrome.action.onClicked.addListener((tab) => {
 const onInstalled = async () => {
   try {
     await initializeStorageKeys();
+    await registerContextMenus();
   } catch (error) {
     console.error('[Promptium][ServiceWorker] Initialization failed.', error);
+  }
+};
+
+const openSidePanelForActiveTab = async () => {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id || !tab.windowId) {
+      return { ok: false, error: 'No active tab available.' };
+    }
+    await chrome.sidePanel.open({ tabId: tab.id, windowId: tab.windowId });
+    return { ok: true, tab };
+  } catch (error) {
+    return { ok: false, error: error?.message || 'Failed to open side panel.' };
   }
 };
 
@@ -648,6 +776,31 @@ const handleOpenSidePanel = async (_sender, payload = null) => {
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error?.message || 'Unable to handle payload.' };
+  }
+};
+
+const handleOpenContinuationPanel = async (sender) => {
+  const tabId = sender?.tab?.id;
+  const windowId = sender?.tab?.windowId;
+  if (!tabId || !windowId) {
+    const opened = await openSidePanelForActiveTab();
+    if (!opened.ok) {
+      return { ok: false, error: opened.error };
+    }
+    setTimeout(() => {
+      void chrome.runtime.sendMessage({ action: 'showContinuation' }).catch(() => {});
+    }, 360);
+    return { ok: true };
+  }
+
+  try {
+    await chrome.sidePanel.open({ tabId, windowId });
+    setTimeout(() => {
+      void chrome.runtime.sendMessage({ action: 'showContinuation' }).catch(() => {});
+    }, 360);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error?.message || 'Failed to open side panel.' };
   }
 };
 
@@ -740,6 +893,11 @@ const onRuntimeMessage = (message, sender, sendResponse) => {
         return;
       }
 
+      if (message?.action === 'openContinuationPanel') {
+        respond(await handleOpenContinuationPanel(sender));
+        return;
+      }
+
       if (message?.action === 'OPEN_SIDEPANEL') {
         const payloadResult = await handleOpenSidePanel(sender, message.payload || null);
         
@@ -782,6 +940,46 @@ const onRuntimeMessage = (message, sender, sendResponse) => {
 
 chrome.runtime.onInstalled.addListener(() => {
   void onInstalled();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  void registerContextMenus();
+});
+
+chrome.commands.onCommand.addListener((command) => {
+  if (command !== 'open-side-panel') {
+    return;
+  }
+  void openSidePanelForActiveTab();
+});
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId !== CONTEXT_MENU_SAVE_ID) {
+    return;
+  }
+
+  const selectedText = String(info.selectionText || '').trim();
+  if (!selectedText || !tab?.id || !tab.windowId) {
+    return;
+  }
+
+  void (async () => {
+    const sourceUrl = String(tab.url || '');
+    await chrome.storage.local.set({
+      [BRAND_KEYS.pendingSnippet]: {
+        text: selectedText,
+        sourceUrl,
+        platform: detectPlatformFromUrl(sourceUrl),
+        savedAt: Date.now()
+      }
+    });
+
+    await chrome.sidePanel.open({ tabId: tab.id, windowId: tab.windowId }).catch(() => {});
+    await chrome.tabs.sendMessage(tab.id, {
+      action: 'notifyPromptium',
+      text: 'Saved to Promptium'
+    }).catch(() => {});
+  })();
 });
 
 chrome.runtime.onMessage.addListener(onRuntimeMessage);

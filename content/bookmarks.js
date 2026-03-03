@@ -5,6 +5,7 @@
  */
 
 const STORAGE_KEY = 'bookmarks';
+const SETTINGS_KEY = 'promptiumSettings';
 const URL_WATCH_INTERVAL_MS = 900;
 
 let currentPlatform = null;
@@ -12,6 +13,13 @@ let observer = null;
 let urlWatchTimer = null;
 let activeUrlKey = '';
 let currentBookmarks = [];
+let shortcutConfig = {
+  alt: true,
+  shift: true,
+  ctrl: false,
+  meta: false,
+  key: 'b'
+};
 
 const sanitizeConversationUrl = (value = window.location.href) => {
   try {
@@ -48,6 +56,51 @@ const notify = async (message) => {
     return;
   }
   console.info('[Promptium][Bookmarks]', text);
+};
+
+const parseShortcutConfig = (raw) => {
+  const value = String(raw || 'Alt+Shift+B').trim();
+  const parts = value.split('+').map((part) => part.trim().toLowerCase()).filter(Boolean);
+  const config = {
+    alt: false,
+    shift: false,
+    ctrl: false,
+    meta: false,
+    key: ''
+  };
+
+  parts.forEach((part) => {
+    if (part === 'alt' || part === 'option') config.alt = true;
+    if (part === 'shift') config.shift = true;
+    if (part === 'ctrl' || part === 'control') config.ctrl = true;
+    if (part === 'cmd' || part === 'command' || part === 'meta') config.meta = true;
+    if (!['alt', 'option', 'shift', 'ctrl', 'control', 'cmd', 'command', 'meta'].includes(part) && !config.key) {
+      config.key = part;
+    }
+  });
+
+  if (!config.key) config.key = 'b';
+  return config;
+};
+
+const loadShortcutConfig = async () => {
+  try {
+    const snapshot = await chrome.storage.local.get([SETTINGS_KEY]);
+    shortcutConfig = parseShortcutConfig(snapshot?.[SETTINGS_KEY]?.bookmarkShortcut || 'Alt+Shift+B');
+  } catch (_error) {
+    shortcutConfig = parseShortcutConfig('Alt+Shift+B');
+  }
+};
+
+const shortcutMatches = (event) => {
+  const key = String(event.key || '').toLowerCase();
+  return (
+    event.altKey === shortcutConfig.alt &&
+    event.shiftKey === shortcutConfig.shift &&
+    event.ctrlKey === shortcutConfig.ctrl &&
+    event.metaKey === shortcutConfig.meta &&
+    key === shortcutConfig.key
+  );
 };
 
 const sortNodesByDomOrder = (nodes) => {
@@ -211,7 +264,7 @@ const initShortcut = () => {
 
     if (isEditable) return;
 
-    if (!(event.altKey && event.shiftKey && String(event.key || '').toLowerCase() === 'b')) {
+    if (!shortcutMatches(event)) {
       return;
     }
 
@@ -250,6 +303,11 @@ const startWatchers = () => {
 
 const init = async (platform) => {
   currentPlatform = platform;
+  await loadShortcutConfig();
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== 'local' || !changes[SETTINGS_KEY]) return;
+    shortcutConfig = parseShortcutConfig(changes[SETTINGS_KEY].newValue?.bookmarkShortcut || 'Alt+Shift+B');
+  });
   await loadBookmarks();
   await injectBookmarkIcons();
   initShortcut();

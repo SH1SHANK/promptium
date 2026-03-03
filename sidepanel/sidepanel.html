@@ -146,6 +146,9 @@
               <span class="pn-bridge-label">Continue on</span>
               <div id="pn-bridge-targets-export" class="pn-bridge-targets"></div>
             </div>
+            <button id="pn-open-continue-chat" type="button" class="pn-btn pn-btn--ghost pn-btn--block">
+              Continue Chat
+            </button>
 
             <label class="pn-field">
               <span>Export Format</span>
@@ -154,6 +157,8 @@
                 <option value="txt">Plain Text (.txt)</option>
                 <option value="json">JSON (.json)</option>
                 <option value="pdf">PDF (.pdf)</option>
+                <option value="png">PNG Image (.png)</option>
+                <option value="jpeg">JPEG Image (.jpg)</option>
                 <option value="notion">Notion Markdown (.md)</option>
                 <option value="obsidian">Obsidian Markdown (.md)</option>
               </select>
@@ -254,6 +259,16 @@
                 Obsidian
               </button>
             </div>
+            <div class="pn-export-actions-row pn-export-actions-row--tools">
+              <button id="pn-export-png-btn" type="button" class="pn-btn pn-btn--ghost pn-export-image-btn">
+                <span class="pn-export-icon">PNG</span>
+                Image
+              </button>
+              <button id="pn-export-jpeg-btn" type="button" class="pn-btn pn-btn--ghost pn-export-image-btn">
+                <span class="pn-export-icon">JPG</span>
+                Image
+              </button>
+            </div>
             <div id="export-status" class="pn-card-meta"></div>
           </aside>
 
@@ -269,6 +284,41 @@
             </div>
             <div id="preview" class="pn-export-preview-body"></div>
           </section>
+        </div>
+      </section>
+
+      <section class="tab-content pn-tab-content" data-tab="continue">
+        <div class="pn-continue-view">
+          <div class="pn-continue-head">
+            <h3 class="pn-sv-hero__title">Continue Chat</h3>
+            <p class="pn-sv-hero__sub">Carry context into a new chat window on the same or another LLM.</p>
+          </div>
+
+          <div id="pn-continue-summary" class="pn-continue-summary">No conversation loaded yet.</div>
+
+          <label class="pn-field">
+            <span>Target LLM</span>
+            <select id="pn-continue-target"></select>
+          </label>
+
+          <label class="pn-field">
+            <span>What to carry over</span>
+            <select id="pn-continue-mode">
+              <option value="FULL_SUMMARY">Full Summary</option>
+              <option value="KEY_POINTS">Key Points Only</option>
+              <option value="RECENT_ONLY">Last N Messages</option>
+            </select>
+          </label>
+
+          <label class="pn-field">
+            <span>Also tell it that... <small class="pn-field-hint">(optional)</small></span>
+            <textarea id="pn-continue-note" rows="4" placeholder="Any extra context or instruction for the next chat"></textarea>
+          </label>
+
+          <div class="pn-continue-actions">
+            <button id="pn-continue-cancel" class="pn-btn pn-btn--ghost" type="button">Cancel</button>
+            <button id="pn-continue-run" class="pn-btn pn-btn--primary" type="button">Continue →</button>
+          </div>
         </div>
       </section>
 
@@ -304,6 +354,16 @@
             <h3 class="pn-sv-hero__title">Settings</h3>
             <p class="pn-sv-hero__sub">Tune intelligence, exports, and personalization.</p>
           </div>
+
+          <div id="pn-settings-tabs" class="pn-settings-tabs" role="tablist" aria-label="Settings sections">
+            <button type="button" class="pn-settings-tab active" data-settings-tab="ai" role="tab" aria-selected="true">◇ AI & API</button>
+            <button type="button" class="pn-settings-tab" data-settings-tab="platforms" role="tab" aria-selected="false">◎ LLM Platforms</button>
+            <button type="button" class="pn-settings-tab" data-settings-tab="interface" role="tab" aria-selected="false">◌ FAB & Interface</button>
+            <button type="button" class="pn-settings-tab" data-settings-tab="prefs" role="tab" aria-selected="false">◈ Preferences</button>
+            <button type="button" class="pn-settings-tab" data-settings-tab="about" role="tab" aria-selected="false">◍ About & Data</button>
+          </div>
+
+          <div class="pn-settings-pane" data-settings-pane="ai">
 
           <!-- ── Intelligence ─────────────────────────── -->
           <div class="pn-sv-section">
@@ -365,6 +425,17 @@
                 <span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span>
               </label>
             </div>
+
+            <div class="pn-sv-row">
+              <div class="pn-sv-row__copy">
+                <span class="pn-sv-row__label">Polish button</span>
+                <span class="pn-sv-row__desc">Enable Gemini prompt cleanup actions.</span>
+              </div>
+              <label class="pn-toggle">
+                <input id="setting-polish-toggle" type="checkbox" checked />
+                <span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span>
+              </label>
+            </div>
           </div>
 
           <hr class="pn-sv-divider" />
@@ -377,7 +448,13 @@
               <span class="pn-sv-field__label">Default format</span>
               <select id="setting-export-format" class="pn-sv-select">
                 <option value="markdown">Markdown (.md)</option>
+                <option value="txt">Plain Text (.txt)</option>
+                <option value="json">JSON (.json)</option>
                 <option value="pdf">PDF (.pdf)</option>
+                <option value="png">PNG Image (.png)</option>
+                <option value="jpeg">JPEG Image (.jpg)</option>
+                <option value="notion">Notion (.md)</option>
+                <option value="obsidian">Obsidian (.md)</option>
               </select>
             </label>
 
@@ -450,6 +527,160 @@
             <div class="pn-sv-actions__right">
               <p id="settings-status" class="pn-sv-status"></p>
               <button id="save-settings-btn" class="pn-btn pn-btn--primary" type="button" disabled>Save</button>
+            </div>
+          </div>
+
+          </div>
+
+          <div class="pn-settings-pane pn-hidden" data-settings-pane="platforms">
+            <div class="pn-sv-section">
+              <h4 class="pn-sv-heading">LLM Platforms</h4>
+              <div id="pn-platform-list" class="pn-settings-list"></div>
+              <p id="pn-platform-warning" class="pn-sv-api-hint pn-hidden">At least one platform should stay enabled.</p>
+            </div>
+
+            <hr class="pn-sv-divider" />
+
+            <div class="pn-sv-section">
+              <h4 class="pn-sv-heading">Add Custom LLM</h4>
+              <label class="pn-sv-field">
+                <span class="pn-sv-field__label">Name</span>
+                <input id="setting-custom-name" type="text" class="pn-sv-textarea" placeholder="My LLM" />
+              </label>
+              <label class="pn-sv-field">
+                <span class="pn-sv-field__label">URL Pattern</span>
+                <input id="setting-custom-url" type="text" class="pn-sv-textarea" placeholder="https://myllm.com/*" />
+              </label>
+              <label class="pn-sv-field">
+                <span class="pn-sv-field__label">Input selector</span>
+                <input id="setting-custom-input" type="text" class="pn-sv-textarea" placeholder="textarea, div[contenteditable='true']" />
+              </label>
+              <label class="pn-sv-field">
+                <span class="pn-sv-field__label">User message selector</span>
+                <input id="setting-custom-user" type="text" class="pn-sv-textarea" placeholder="[data-role='user']" />
+              </label>
+              <label class="pn-sv-field">
+                <span class="pn-sv-field__label">Bot message selector</span>
+                <input id="setting-custom-bot" type="text" class="pn-sv-textarea" placeholder="[data-role='assistant']" />
+              </label>
+              <button id="pn-add-custom-platform" class="pn-btn pn-btn--ghost" type="button">Add Custom LLM</button>
+            </div>
+
+            <div id="pn-custom-platforms" class="pn-settings-list"></div>
+          </div>
+
+          <div class="pn-settings-pane pn-hidden" data-settings-pane="interface">
+            <div class="pn-sv-section">
+              <h4 class="pn-sv-heading">FAB</h4>
+              <label class="pn-sv-field">
+                <span class="pn-sv-field__label">Position</span>
+                <select id="setting-fab-position" class="pn-sv-select">
+                  <option value="right">Bottom-right</option>
+                  <option value="left">Bottom-left</option>
+                </select>
+              </label>
+              <label class="pn-sv-field">
+                <span class="pn-sv-field__label">Style</span>
+                <select id="setting-fab-style" class="pn-sv-select">
+                  <option value="circle">Circle</option>
+                  <option value="pill">Pill</option>
+                  <option value="icon-only">Icon-only</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="pn-sv-section">
+              <h4 class="pn-sv-heading">FAB Buttons</h4>
+              <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Save Prompt</span><label class="pn-toggle pn-toggle--sm"><input id="setting-fab-save" type="checkbox" checked /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+              <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Export Chat</span><label class="pn-toggle pn-toggle--sm"><input id="setting-fab-export" type="checkbox" checked /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+              <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Continue Chat</span><label class="pn-toggle pn-toggle--sm"><input id="setting-fab-continue" type="checkbox" checked /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+              <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Prompt Library</span><label class="pn-toggle pn-toggle--sm"><input id="setting-fab-library" type="checkbox" checked /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+            </div>
+
+            <div class="pn-sv-section">
+              <h4 class="pn-sv-heading">Side Panel Tabs</h4>
+              <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Prompts</span><label class="pn-toggle pn-toggle--sm"><input id="setting-tab-prompts" type="checkbox" checked /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+              <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Export</span><label class="pn-toggle pn-toggle--sm"><input id="setting-tab-export" type="checkbox" checked /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+              <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">History</span><label class="pn-toggle pn-toggle--sm"><input id="setting-tab-history" type="checkbox" checked /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+              <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Tags</span><label class="pn-toggle pn-toggle--sm"><input id="setting-tab-tags" type="checkbox" checked /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+              <p id="pn-tab-warning" class="pn-sv-api-hint pn-hidden">At least one tab must stay enabled.</p>
+            </div>
+
+            <label class="pn-sv-field">
+              <span class="pn-sv-field__label">Prompt card density</span>
+              <select id="setting-density" class="pn-sv-select">
+                <option value="comfortable">Comfortable</option>
+                <option value="compact">Compact</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="pn-settings-pane pn-hidden" data-settings-pane="prefs">
+            <div class="pn-sv-section">
+              <h4 class="pn-sv-heading">Export Defaults</h4>
+              <label class="pn-sv-field">
+                <span class="pn-sv-field__label">Default naming</span>
+                <select id="setting-export-naming" class="pn-sv-select">
+                  <option value="smart">Smart (auto)</option>
+                  <option value="manual">Manual</option>
+                </select>
+              </label>
+              <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Auto-save exports to history</span><label class="pn-toggle pn-toggle--sm"><input id="setting-auto-save-history" type="checkbox" checked /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+            </div>
+
+            <div class="pn-sv-section">
+              <h4 class="pn-sv-heading">Shortcuts & Hover</h4>
+              <label class="pn-sv-field">
+                <span class="pn-sv-field__label">Bookmark shortcut</span>
+                <input id="setting-bookmark-shortcut" type="text" class="pn-sv-textarea" placeholder="Alt+Shift+B" />
+              </label>
+              <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Prompt preview on hover</span><label class="pn-toggle pn-toggle--sm"><input id="setting-hover-preview" type="checkbox" checked /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+              <label class="pn-sv-field">
+                <span class="pn-sv-field__label">Hover delay</span>
+                <input id="setting-hover-delay" type="range" min="200" max="800" step="50" value="400" />
+              </label>
+              <label class="pn-sv-field">
+                <span class="pn-sv-field__label">Continue Chat default mode</span>
+                <select id="setting-continue-mode" class="pn-sv-select">
+                  <option value="FULL_SUMMARY">Full Summary</option>
+                  <option value="KEY_POINTS">Key Points</option>
+                  <option value="RECENT_ONLY">Last 6 Messages</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="pn-settings-pane pn-hidden" data-settings-pane="about">
+            <div class="pn-sv-section">
+              <h4 class="pn-sv-heading">About</h4>
+              <p class="pn-sv-api-hint">Version <span id="pn-version-label">0.1.0</span></p>
+            </div>
+
+            <div class="pn-sv-section">
+              <h4 class="pn-sv-heading">Data</h4>
+              <div class="pn-settings-actions">
+                <button id="pn-export-all-data" class="pn-btn pn-btn--ghost" type="button">Export All Data</button>
+                <label class="pn-btn pn-btn--ghost pn-inline-file">
+                  Import Data
+                  <input id="pn-import-all-data" type="file" accept="application/json" />
+                </label>
+              </div>
+            </div>
+
+            <div class="pn-sv-section">
+              <h4 class="pn-sv-heading">Danger Zone</h4>
+              <div class="pn-settings-danger-row">
+                <button id="pn-clear-prompts" class="pn-btn pn-btn-danger" type="button">Clear All Prompts</button>
+                <button id="pn-confirm-clear-prompts" class="pn-btn pn-btn--ghost pn-hidden" type="button">Confirm</button>
+              </div>
+              <div class="pn-settings-danger-row">
+                <button id="pn-clear-history" class="pn-btn pn-btn-danger" type="button">Clear History</button>
+                <button id="pn-confirm-clear-history" class="pn-btn pn-btn--ghost pn-hidden" type="button">Confirm</button>
+              </div>
+              <div class="pn-settings-danger-row">
+                <button id="pn-reset-all-settings" class="pn-btn pn-btn-danger" type="button">Reset All Settings</button>
+                <button id="pn-confirm-reset-settings" class="pn-btn pn-btn--ghost pn-hidden" type="button">Confirm</button>
+              </div>
             </div>
           </div>
         </div>
@@ -660,6 +891,7 @@
     <script src="../utils/smart-name.js"></script>
     <script src="../utils/exporter.js"></script>
     <script src="../utils/bridge.js"></script>
+    <script src="../utils/continuation.js"></script>
     <script src="../utils/templates.js"></script>
     <script src="../utils/ai.js"></script>
     <script src="../utils/ai-bridge.js"></script>
@@ -672,6 +904,7 @@
     <script src="../sidepanel/tags-ui.js"></script>
     <script src="../sidepanel/history-ui.js"></script>
     <script src="../sidepanel/settings-ai-ui.js"></script>
+    <script src="../sidepanel/continuation-ui.js"></script>
     <script src="../sidepanel/export-payload-ui.js"></script>
     <script src="../sidepanel/export-actions-ui.js"></script>
     <script src="../sidepanel/improve-ui.js"></script>

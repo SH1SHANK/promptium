@@ -27,14 +27,22 @@ const buildFilename = async (extension, options = {}) => {
     || state.exportPayload?.messages
     || [];
   const platform = String(options.platform || payload?.platform || 'unknown');
+  const namingMode = String(state.settings?.defaultExportNaming || 'smart').toLowerCase();
 
-  if (window.SmartName?.getFilename) {
+  if (namingMode !== 'manual' && window.SmartName?.getFilename) {
     return window.SmartName.getFilename(selectedMessages, platform, extension, fallbackMessages);
   }
 
   const safePlatform = platform.toLowerCase().replace(/[^a-z0-9]+/g, '') || 'unknown';
   const date = new Date().toISOString().slice(0, 10);
   return `promptium_${safePlatform}_${date}.${extension}`;
+};
+
+const persistExportHistory = async (payload) => {
+  if (state.settings?.autoSaveExportsToHistory === false) {
+    return;
+  }
+  await window.Store.saveChatToHistory(payload);
 };
 
 const downloadSidepanelText = async (content, filename, mimeType) => {
@@ -77,6 +85,8 @@ const resolveExtensionForFormat = (format) => {
   if (normalized === 'markdown') return 'md';
   if (normalized === 'notion' || normalized === 'obsidian') return 'md';
   if (normalized === 'text') return 'txt';
+  if (normalized === 'jpeg') return 'jpg';
+  if (normalized === 'image') return 'png';
   return normalized;
 };
 
@@ -109,7 +119,7 @@ const runExport = async (forcedFormat = '') => {
       await buildFilename('md', { format, messages: payload.messages, platform: payload.platform }),
       'text/markdown;charset=utf-8'
     );
-    await window.Store.saveChatToHistory(payload);
+    await persistExportHistory(payload);
     await window.ExportPayloadUI.setStatus('Markdown export complete.');
     return;
   }
@@ -125,7 +135,7 @@ const runExport = async (forcedFormat = '') => {
         await buildFilename('txt', { format, messages: chat?.messages, platform: chat?.platform }),
         'text/plain;charset=utf-8'
       );
-      await window.Store.saveChatToHistory(payload);
+      await persistExportHistory(payload);
       await window.ExportPayloadUI.setStatus('Text export complete.');
     } catch (err) {
       await window.ExportPayloadUI.setStatus(err?.message || 'Text export failed.', true, {
@@ -144,7 +154,7 @@ const runExport = async (forcedFormat = '') => {
         await buildFilename('json', { format, messages: chat?.messages, platform: chat?.platform }),
         'application/json;charset=utf-8'
       );
-      await window.Store.saveChatToHistory(payload);
+      await persistExportHistory(payload);
       await window.ExportPayloadUI.setStatus('JSON export complete.');
     } catch (err) {
       await window.ExportPayloadUI.setStatus(err?.message || 'JSON export failed.', true, {
@@ -163,7 +173,7 @@ const runExport = async (forcedFormat = '') => {
         await buildFilename('md', { format, messages: chat?.messages, platform: chat?.platform }),
         'text/markdown;charset=utf-8'
       );
-      await window.Store.saveChatToHistory(payload);
+      await persistExportHistory(payload);
       await window.ExportPayloadUI.setStatus('Notion export complete.');
     } catch (err) {
       await window.ExportPayloadUI.setStatus(err?.message || 'Notion export failed.', true, {
@@ -182,12 +192,44 @@ const runExport = async (forcedFormat = '') => {
         await buildFilename('md', { format, messages: chat?.messages, platform: chat?.platform }),
         'text/markdown;charset=utf-8'
       );
-      await window.Store.saveChatToHistory(payload);
+      await persistExportHistory(payload);
       await window.ExportPayloadUI.setStatus('Obsidian export complete.');
     } catch (err) {
       await window.ExportPayloadUI.setStatus(err?.message || 'Obsidian export failed.', true, {
         showRetry: true,
         debugHint: 'Retry the export. If it fails again, refresh the workspace.'
+      });
+    }
+    return;
+  }
+
+  if (format === 'png' || format === 'jpg' || format === 'jpeg' || format === 'image') {
+    if (!window.Exporter?.toImage) {
+      await window.ExportPayloadUI.setStatus('Image exporter unavailable.', true, {
+        showRetry: true,
+        debugHint: 'Reload the sidepanel and retry.'
+      });
+      return;
+    }
+
+    await window.ExportPayloadUI.setStatus('Building image...');
+
+    try {
+      const imageFormat = format === 'jpg' ? 'jpeg' : (format === 'image' ? 'png' : format);
+      const imageBlob = await window.Exporter.toImage(chat, prefs, imageFormat);
+      const extension = imageFormat === 'jpeg' ? 'jpg' : imageFormat;
+      const mimeType = imageFormat === 'jpeg' ? 'image/jpeg' : 'image/png';
+      await downloadSidepanelText(
+        imageBlob,
+        await buildFilename(extension, { format, messages: chat?.messages, platform: chat?.platform }),
+        mimeType
+      );
+      await persistExportHistory(payload);
+      await window.ExportPayloadUI.setStatus('Image export complete.');
+    } catch (error) {
+      await window.ExportPayloadUI.setStatus(error?.message || 'Image export failed.', true, {
+        showRetry: true,
+        debugHint: 'Retry export. If it keeps failing, reduce selected content or switch to PDF.'
       });
     }
     return;
@@ -207,7 +249,7 @@ const runExport = async (forcedFormat = '') => {
     const pdfData = await window.Exporter.toPDF(chat, prefs);
     const filename = await buildFilename('pdf', { format, messages: chat?.messages, platform: chat?.platform });
     await downloadSidepanelText(pdfData, filename, 'application/pdf');
-    await window.Store.saveChatToHistory(payload);
+    await persistExportHistory(payload);
     await window.ExportPayloadUI.setStatus('PDF export complete.');
   } catch (error) {
     await window.ExportPayloadUI.setStatus(error?.message || 'PDF export failed.', true, {
@@ -230,6 +272,14 @@ const copyToClipboard = async () => {
 
   try {
     const format = String(state.exportPrefs.format || 'markdown').toLowerCase();
+    if (format === 'png' || format === 'jpg' || format === 'jpeg' || format === 'image') {
+      await window.ExportPayloadUI.setStatus('Image format cannot be copied as text. Use Export.', true, {
+        showRetry: false,
+        debugHint: 'Switch to Markdown/TXT/JSON for clipboard copy.'
+      });
+      return;
+    }
+
     const chat = window.ExportPayloadUI.buildExporterChatPayload();
     const prefs = window.ExportPayloadUI.buildExporterPrefs();
     let content = '';
@@ -312,6 +362,7 @@ const renderBridgeStrip = async () => {
 
   const targets = Object.keys(window.Bridge.LLM_URLS)
     .filter((platform) => platform !== currentPlatform)
+    .filter((platform) => state.settings?.enabledPlatforms?.[platform] !== false)
     .map((platform) => ({
       key: platform,
       label: PLATFORM_LABELS?.[platform] || platform
@@ -377,6 +428,14 @@ const bindEvents = () => {
 
   byId('pn-export-obsidian-btn')?.addEventListener('click', () => {
     void runExport('obsidian');
+  });
+
+  byId('pn-export-png-btn')?.addEventListener('click', () => {
+    void runExport('png');
+  });
+
+  byId('pn-export-jpeg-btn')?.addEventListener('click', () => {
+    void runExport('jpeg');
   });
 };
 

@@ -5,6 +5,8 @@
  * Communicates with: utils/platform.js, utils/storage.js, content/scraper.js, content/content.js, content/injector.js.
  */
 
+window.__PN = window.__PN || {};
+
 let toolbarInjected = false;
 let toolbarObserver = null;
 let urlWatchInterval = null;
@@ -19,6 +21,17 @@ const NOTIFICATION_DURATION_MS = 2200;
 const FAB_ACTION_STAGGER_MS = 36;
 const FAB_CLOSE_BASE_MS = 170;
 let fabMenuCloseTimer = null;
+const SETTINGS_KEY = 'promptiumSettings';
+const DEFAULT_FAB_SETTINGS = Object.freeze({
+  fabPosition: 'right',
+  fabStyle: 'circle',
+  fabActions: {
+    savePrompt: true,
+    exportChat: true,
+    continueChat: true,
+    promptLibrary: true
+  }
+});
 
 /** Returns the active input element for a platform based on selector config. */
 const getInputElement = async (platform) => {
@@ -47,6 +60,60 @@ const showNotification = async (message) => {
   setTimeout(() => {
     toast.remove();
   }, NOTIFICATION_DURATION_MS);
+};
+
+const normalizeFabSettings = (value) => {
+  const source = value && typeof value === 'object' ? value : {};
+  const incomingActions = source.fabActions && typeof source.fabActions === 'object' ? source.fabActions : {};
+  return {
+    fabPosition: source.fabPosition === 'left' ? 'left' : 'right',
+    fabStyle: ['circle', 'pill', 'icon-only'].includes(String(source.fabStyle || '')) ? source.fabStyle : 'circle',
+    fabActions: {
+      ...DEFAULT_FAB_SETTINGS.fabActions,
+      ...incomingActions
+    }
+  };
+};
+
+const loadFabSettings = async () => {
+  try {
+    const snapshot = await chrome.storage.local.get([SETTINGS_KEY]);
+    return normalizeFabSettings(snapshot?.[SETTINGS_KEY]);
+  } catch (_error) {
+    return normalizeFabSettings({});
+  }
+};
+
+const applyFabSettings = (root, settings) => {
+  if (!root) return;
+  const normalized = normalizeFabSettings(settings);
+  root.classList.toggle('pn-fab-left', normalized.fabPosition === 'left');
+  root.classList.toggle('pn-fab-right', normalized.fabPosition !== 'left');
+  root.classList.toggle('pn-fab-style-circle', normalized.fabStyle === 'circle');
+  root.classList.toggle('pn-fab-style-pill', normalized.fabStyle === 'pill');
+  root.classList.toggle('pn-fab-style-icon-only', normalized.fabStyle === 'icon-only');
+
+  const actionMap = {
+    'save-prompt': normalized.fabActions.savePrompt !== false,
+    export: normalized.fabActions.exportChat !== false,
+    'continue-chat': normalized.fabActions.continueChat !== false,
+    library: normalized.fabActions.promptLibrary !== false
+  };
+
+  root.querySelectorAll('.pn-fab-action').forEach((button) => {
+    const action = String(button.dataset.action || '');
+    if (action === 'improve-prompt') {
+      button.style.display = '';
+      return;
+    }
+    button.style.display = actionMap[action] === false ? 'none' : '';
+  });
+
+  const visibleActions = Array.from(root.querySelectorAll('.pn-fab-action')).filter((button) => {
+    const style = window.getComputedStyle(button);
+    return style.display !== 'none';
+  });
+  root.style.display = visibleActions.length ? 'flex' : 'none';
 };
 
 /** Syncs badge tags to the hidden pn-save-tags-hidden input. */
@@ -478,6 +545,20 @@ const onImprovePromptClick = async (platform) => {
   }
 };
 
+/** Opens sidepanel Continue Chat view seeded from the active conversation. */
+const onContinueChatClick = async () => {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'openContinuationPanel' }).catch(() => null);
+    if (!response?.ok) {
+      await showNotification(response?.error || 'Could not open Continue Chat.');
+      return;
+    }
+    await showNotification('Continue Chat opened.');
+  } catch (_error) {
+    await showNotification('Could not open Continue Chat.');
+  }
+};
+
 // Listen for the improved prompt coming back from the side panel
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.action === 'APPLY_IMPROVED_PROMPT' && msg.text) {
@@ -511,6 +592,11 @@ const handleFabAction = (platform, action) => {
     return;
   }
 
+  if (action === 'continue-chat') {
+    onContinueChatClick().catch(console.error);
+    return;
+  }
+
   if (action === 'improve-prompt') {
     onImprovePromptClick(platform).catch(console.error);
   }
@@ -534,6 +620,13 @@ const createToolbar = async () => {
         <span class="pn-fab-copy">
           <span class="pn-fab-label">Export Chat</span>
           <span class="pn-fab-sub">Select and export messages</span>
+        </span>
+      </button>
+      <button class="pn-fab-action" data-action="continue-chat" type="button" aria-label="Continue chat with context">
+        <span class="pn-fab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3.4-7"/><path d="M21 3v7h-7"/><path d="M8 12h8"/><path d="M12 8l4 4-4 4"/></svg></span>
+        <span class="pn-fab-copy">
+          <span class="pn-fab-label">Continue Chat</span>
+          <span class="pn-fab-sub">Carry context to a new chat</span>
         </span>
       </button>
       <button class="pn-fab-action" data-action="improve-prompt" type="button" aria-label="Improve current Prompt">
@@ -647,6 +740,8 @@ const injectToolbar = async (platform) => {
 
   const root = await createToolbar();
   document.body.appendChild(root);
+  const settings = await loadFabSettings();
+  applyFabSettings(root, settings);
   toolbarInjected = true;
   await attachHandlers(platform);
   return true;
@@ -668,6 +763,18 @@ const scheduleReinject = async (platform) => {
 const waitAndInject = async (platform) => {
   await bindSaveModalEvents();
   await injectToolbar(platform);
+
+  if (!window.__PN.__fabSettingsListenerBound) {
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName !== 'local' || !changes[SETTINGS_KEY]) {
+        return;
+      }
+      const root = document.getElementById('pn-fab-root');
+      if (!root) return;
+      applyFabSettings(root, changes[SETTINGS_KEY].newValue || {});
+    });
+    window.__PN.__fabSettingsListenerBound = true;
+  }
 
   if (!toolbarObserver) {
     toolbarObserver = new MutationObserver(() => {

@@ -154,6 +154,33 @@ const resolveBackgroundColors = (prefs) => {
   return { page: '#18181c', text: '#f5f5f5' };
 };
 
+const resolveImageColors = (prefs) => {
+  const base = resolveBackgroundColors(prefs);
+  const background = String(base.page || '#18181c');
+  const text = String(base.text || '#f5f5f5');
+  const rgb = hexToRgb(background);
+  const luminance = ((0.299 * rgb[0]) + (0.587 * rgb[1]) + (0.114 * rgb[2])) / 255;
+  const isLight = luminance > 0.6;
+
+  if (isLight) {
+    return {
+      page: background,
+      text,
+      muted: '#5b6474',
+      card: 'rgba(17, 17, 17, 0.05)',
+      border: 'rgba(17, 17, 17, 0.16)'
+    };
+  }
+
+  return {
+    page: background,
+    text,
+    muted: 'rgba(245, 245, 245, 0.78)',
+    card: 'rgba(255, 255, 255, 0.06)',
+    border: 'rgba(255, 255, 255, 0.18)'
+  };
+};
+
 /** Converts a hex color string into RGB tuple values for jsPDF drawing APIs. */
 const hexToRgb = (hexColor) => {
   const hex = String(hexColor || '#000000').replace('#', '');
@@ -383,6 +410,294 @@ const writePdfLine = async (doc, text, y, pageHeight, margin, maxWidth, lineHeig
   return nextY;
 };
 
+const resolveCanvasFontFamily = (fontStyle) => {
+  const normalized = String(fontStyle || '').toLowerCase();
+  if (normalized.includes('jetbrains')) return "'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace";
+  if (normalized.includes('georgia') || normalized.includes('merriweather')) return "Georgia, 'Times New Roman', serif";
+  if (normalized.includes('inter')) return "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+  return "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+};
+
+const wrapTextByWidth = (ctx, text, maxWidth) => {
+  const source = String(text || '').replace(/\r\n/g, '\n');
+  const paragraphs = source.split('\n');
+  const lines = [];
+
+  const splitLongWord = (word) => {
+    const chunks = [];
+    let current = '';
+    for (const ch of word) {
+      const test = `${current}${ch}`;
+      if (!current || ctx.measureText(test).width <= maxWidth) {
+        current = test;
+      } else {
+        chunks.push(current);
+        current = ch;
+      }
+    }
+    if (current) chunks.push(current);
+    return chunks;
+  };
+
+  paragraphs.forEach((paragraph, paragraphIndex) => {
+    const content = String(paragraph || '').trim();
+    if (!content) {
+      lines.push('');
+      return;
+    }
+
+    const words = content.split(/\s+/);
+    let current = '';
+
+    words.forEach((word) => {
+      const candidate = current ? `${current} ${word}` : word;
+      if (!current || ctx.measureText(candidate).width <= maxWidth) {
+        current = candidate;
+        return;
+      }
+
+      lines.push(current);
+      if (ctx.measureText(word).width <= maxWidth) {
+        current = word;
+        return;
+      }
+
+      const chunks = splitLongWord(word);
+      if (!chunks.length) {
+        current = '';
+        return;
+      }
+
+      lines.push(...chunks.slice(0, -1));
+      current = chunks[chunks.length - 1];
+    });
+
+    if (current) lines.push(current);
+    if (paragraphIndex < paragraphs.length - 1) lines.push('');
+  });
+
+  return lines;
+};
+
+const drawRoundedRect = (ctx, x, y, width, height, radius, fillStyle, strokeStyle) => {
+  const r = Math.max(0, Math.min(radius, Math.min(width, height) / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + width - r, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+  ctx.lineTo(x + width, y + height - r);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  ctx.lineTo(x + r, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+
+  if (fillStyle) {
+    ctx.fillStyle = fillStyle;
+    ctx.fill();
+  }
+  if (strokeStyle) {
+    ctx.strokeStyle = strokeStyle;
+    ctx.stroke();
+  }
+};
+
+const toImage = async (chat, prefs = {}, imageFormat = 'png') => {
+  if (typeof document === 'undefined') {
+    throw new Error('Image export requires a document context.');
+  }
+
+  const normalizedChat = normalizeChat(chat);
+  const options = normalizePrefs(prefs);
+  const imageKind = String(imageFormat || 'png').toLowerCase() === 'jpeg' ? 'jpeg' : 'png';
+  const mimeType = imageKind === 'jpeg' ? 'image/jpeg' : 'image/png';
+  const colors = resolveImageColors(options);
+  const fontFamily = resolveCanvasFontFamily(options.fontStyle);
+
+  const canvasWidth = 1365;
+  const horizontalPadding = 56;
+  const verticalPadding = 56;
+  const cardPadding = 20;
+  const messageGap = 16;
+  const titleSize = Math.max(28, Math.round(options.fontSize * 2.1));
+  const bodySize = Math.max(16, Math.round(options.fontSize * 1.2));
+  const metaSize = Math.max(13, Math.round(options.fontSize * 0.95));
+  const headingSize = Math.max(16, Math.round(options.fontSize * 1.15));
+  const maxCanvasHeight = 16384;
+  const maxTextWidth = canvasWidth - (horizontalPadding * 2) - (cardPadding * 2);
+
+  const measurementCanvas = document.createElement('canvas');
+  const measure = measurementCanvas.getContext('2d');
+  if (!measure) {
+    throw new Error('Canvas rendering context unavailable.');
+  }
+
+  const titleLineHeight = Math.round(titleSize * 1.3);
+  const bodyLineHeight = Math.round(bodySize * 1.5);
+  const headingLineHeight = Math.round(headingSize * 1.35);
+  const metaLineHeight = Math.round(metaSize * 1.4);
+
+  const cards = [];
+  let estimatedHeight = verticalPadding;
+
+  measure.font = `600 ${titleSize}px ${fontFamily}`;
+  const titleLines = wrapTextByWidth(measure, normalizedChat.title, canvasWidth - (horizontalPadding * 2));
+  estimatedHeight += Math.max(1, titleLines.length) * titleLineHeight;
+  estimatedHeight += 12;
+
+  const metaLines = [];
+  if (options.includePlatformLabel) metaLines.push(`Platform: ${normalizedChat.platform.toUpperCase()}`);
+  if (options.includeExportDate) metaLines.push(`Exported: ${new Date().toLocaleString()}`);
+  if (options.headerText) metaLines.push(options.headerText);
+  estimatedHeight += metaLines.length * metaLineHeight;
+  estimatedHeight += 22;
+
+  if (options.contentMode === 'combined') {
+    measure.font = `${bodySize}px ${fontFamily}`;
+    const bodyLines = wrapTextByWidth(measure, getCombinedText(normalizedChat, options), maxTextWidth);
+    const cardHeight = (cardPadding * 2) + (bodyLines.length * bodyLineHeight);
+    cards.push({
+      heading: '',
+      headingLines: [],
+      bodyLines,
+      cardHeight
+    });
+    estimatedHeight += cardHeight;
+  } else {
+    for (let index = 0; index < normalizedChat.messages.length; index += 1) {
+      const message = normalizedChat.messages[index];
+      const role = formatRole(message.role);
+      const prefix = buildTimestampPrefix(message, options);
+      const messageNumber = options.includeMessageNumbers ? `${index + 1}. ` : '';
+      const star = bookmarkTag(message, index, options);
+      const heading = `${messageNumber}${role}${star}: ${prefix}`.trim();
+
+      measure.font = `600 ${headingSize}px ${fontFamily}`;
+      const headingLines = wrapTextByWidth(measure, heading, maxTextWidth);
+      measure.font = `${bodySize}px ${fontFamily}`;
+      const bodyLines = wrapTextByWidth(measure, String(message.text || '').trim(), maxTextWidth);
+
+      const cardHeight = (cardPadding * 2)
+        + (Math.max(1, headingLines.length) * headingLineHeight)
+        + 8
+        + (Math.max(1, bodyLines.length) * bodyLineHeight);
+
+      cards.push({
+        heading,
+        headingLines,
+        bodyLines,
+        cardHeight
+      });
+      estimatedHeight += cardHeight + messageGap;
+    }
+  }
+
+  estimatedHeight += verticalPadding;
+  const canvasHeight = Math.max(720, Math.min(maxCanvasHeight, estimatedHeight));
+  const canvas = document.createElement('canvas');
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('Canvas rendering context unavailable.');
+  }
+
+  ctx.fillStyle = colors.page;
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = colors.text;
+
+  let y = verticalPadding;
+  ctx.font = `600 ${titleSize}px ${fontFamily}`;
+  titleLines.forEach((line) => {
+    ctx.fillText(line, horizontalPadding, y);
+    y += titleLineHeight;
+  });
+
+  y += 12;
+  ctx.font = `${metaSize}px ${fontFamily}`;
+  ctx.fillStyle = colors.muted;
+  metaLines.forEach((line) => {
+    ctx.fillText(line, horizontalPadding, y);
+    y += metaLineHeight;
+  });
+
+  y += 18;
+  let truncated = false;
+
+  for (let index = 0; index < cards.length; index += 1) {
+    const card = cards[index];
+    if (y + card.cardHeight + verticalPadding > canvasHeight) {
+      truncated = true;
+      break;
+    }
+
+    drawRoundedRect(
+      ctx,
+      horizontalPadding,
+      y,
+      canvasWidth - (horizontalPadding * 2),
+      card.cardHeight,
+      14,
+      colors.card,
+      colors.border
+    );
+
+    let innerY = y + cardPadding;
+    const innerX = horizontalPadding + cardPadding;
+
+    if (card.headingLines.length) {
+      ctx.font = `600 ${headingSize}px ${fontFamily}`;
+      ctx.fillStyle = colors.text;
+      card.headingLines.forEach((line) => {
+        ctx.fillText(line, innerX, innerY);
+        innerY += headingLineHeight;
+      });
+      innerY += 8;
+    }
+
+    ctx.font = `${bodySize}px ${fontFamily}`;
+    ctx.fillStyle = colors.text;
+    card.bodyLines.forEach((line) => {
+      if (line) {
+        ctx.fillText(line, innerX, innerY);
+      }
+      innerY += bodyLineHeight;
+    });
+
+    y += card.cardHeight + messageGap;
+  }
+
+  if (truncated) {
+    ctx.fillStyle = colors.muted;
+    ctx.font = `${metaSize}px ${fontFamily}`;
+    const note = `Conversation truncated for image height limit (${maxCanvasHeight}px). Use PDF/Markdown for full export.`;
+    const lines = wrapTextByWidth(ctx, note, canvasWidth - (horizontalPadding * 2));
+    lines.forEach((line) => {
+      if (y + metaLineHeight > canvasHeight - verticalPadding) return;
+      ctx.fillText(line, horizontalPadding, y);
+      y += metaLineHeight;
+    });
+  }
+
+  const blob = await new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (result) => {
+        if (result) {
+          resolve(result);
+          return;
+        }
+        reject(new Error('Failed to generate image export.'));
+      },
+      mimeType,
+      imageKind === 'jpeg' ? 0.92 : undefined
+    );
+  });
+
+  return blob;
+};
+
 /** Converts chat data into a paginated PDF ArrayBuffer using jsPDF with style prefs. */
 const toPDF = async (chat, prefs = {}) => {
   const normalizedChat = normalizeChat(chat);
@@ -465,7 +780,7 @@ const toPDF = async (chat, prefs = {}) => {
 
 /** Downloads content as a file via a Blob-backed temporary anchor. */
 const downloadBlob = (content, filename, mimeType) => {
-  const blob = new Blob([content], { type: mimeType });
+  const blob = content instanceof Blob ? content : new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -503,6 +818,15 @@ const exportChat = async (chat, format = 'md', prefs = {}) => {
     if (normalized === 'pdf') {
       const pdfData = await toPDF(chat, options);
       downloadBlob(pdfData, buildFilename(chat, 'pdf', options), 'application/pdf');
+      return { ok: true };
+    }
+
+    if (normalized === 'png' || normalized === 'jpeg' || normalized === 'jpg' || normalized === 'image') {
+      const target = normalized === 'jpg' ? 'jpeg' : (normalized === 'image' ? 'png' : normalized);
+      const image = await toImage(chat, options, target);
+      const extension = target === 'jpeg' ? 'jpg' : target;
+      const mime = target === 'jpeg' ? 'image/jpeg' : 'image/png';
+      downloadBlob(image, buildFilename(chat, extension, options), mime);
       return { ok: true };
     }
 
@@ -594,6 +918,7 @@ const Exporter = {
   toTXT,
   toJSON,
   toPDF,
+  toImage,
   toNotion,
   toObsidian,
   toClipboardText,

@@ -811,6 +811,12 @@ const handleScrapeForBridge = async (platform, sendResponse) => {
   sendResponse({ ok: true, platform, messages });
 };
 
+/** Handles continuation scrape requests by returning full normalized message rows. */
+const handleScrapeForContinuation = async (platform, sendResponse) => {
+  const messages = await window.Scraper.scrape(platform);
+  sendResponse({ ok: true, platform, messages });
+};
+
 /** Routes incoming runtime messages by action name and wraps execution errors. */
 const onRuntimeMessage = (msg, _sender, sendResponse) => {
   void (async () => {
@@ -861,6 +867,17 @@ const onRuntimeMessage = (msg, _sender, sendResponse) => {
 
       if (msg?.action === 'scrapeForBridge') {
         await handleScrapeForBridge(platform, respond);
+        return;
+      }
+
+      if (msg?.action === 'scrapeForContinuation') {
+        await handleScrapeForContinuation(platform, respond);
+        return;
+      }
+
+      if (msg?.action === 'notifyPromptium') {
+        await notify(msg?.text || 'Saved to Promptium');
+        respond({ ok: true });
         return;
       }
 
@@ -942,6 +959,41 @@ const hydratePendingBridge = async (platform) => {
   }
 };
 
+/** Reads pending continuation handoff and injects it once on target platform load. */
+const hydratePendingContinuation = async (platform) => {
+  try {
+    if (!window.Continuation?.checkPending) {
+      return;
+    }
+
+    const pending = await window.Continuation.checkPending(platform);
+    if (!pending) return;
+
+    if (pending.kind === 'expired') {
+      await notify('Continuation expired. Start Continue Chat again.');
+      return;
+    }
+
+    if (pending.kind !== 'ready' || !pending.text) return;
+
+    let success = false;
+
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      success = await window.Injector.inject(String(pending.text), platform);
+      if (success) break;
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+
+    if (success) {
+      await notify('Context loaded — continue your conversation');
+    } else {
+      await notify('Could not inject continuation context.');
+    }
+  } catch (error) {
+    console.error('[Promptium][Content] Failed continuation hydration.', error);
+  }
+};
+
 /** Disconnects observers and timers when the page unloads. */
 const cleanup = async () => {
   clearInjectionUndoState();
@@ -973,6 +1025,7 @@ const init = async () => {
 
   await window.Toolbar.waitAndInject(platform);
   await hydratePendingBridge(platform);
+  await hydratePendingContinuation(platform);
   if (window.Bookmarks?.init) {
     await window.Bookmarks.init(platform);
   }

@@ -15,6 +15,108 @@ const TEMPLATE_FILTER_DEFAULT = 'all';
 let activeTemplateFilter = TEMPLATE_FILTER_DEFAULT;
 let templateFiltersBound = false;
 let curatedExpanded = false;
+let hoverTooltipNode = null;
+let hoverTimer = null;
+let hoverAnchor = null;
+
+const getHoverDelay = () => {
+  const raw = Number(state.settings?.hoverPreviewDelay);
+  if (!Number.isFinite(raw)) return 400;
+  return Math.min(800, Math.max(200, raw));
+};
+
+const hoverPreviewEnabled = () => state.settings?.hoverPreviewEnabled !== false;
+
+const ensureHoverTooltip = () => {
+  if (hoverTooltipNode && hoverTooltipNode.isConnected) {
+    return hoverTooltipNode;
+  }
+
+  const node = document.createElement('div');
+  node.id = 'pn-prompt-hover-preview';
+  node.className = 'pn-prompt-hover-preview pn-hidden';
+  node.setAttribute('role', 'tooltip');
+  document.body.appendChild(node);
+  hoverTooltipNode = node;
+  return node;
+};
+
+const hideHoverPreview = () => {
+  if (hoverTimer) {
+    clearTimeout(hoverTimer);
+    hoverTimer = null;
+  }
+  hoverAnchor = null;
+  hoverTooltipNode?.classList.add('pn-hidden');
+};
+
+const highlightTemplateVars = (text) => escapeHtml(String(text || ''))
+  .replace(/\[([^\[\]]+)\]/g, '<span class="pn-preview-var">[$1]</span>');
+
+const positionHoverPreview = (anchor, tooltip) => {
+  const rect = anchor.getBoundingClientRect();
+  const tipRect = tooltip.getBoundingClientRect();
+  const margin = 12;
+
+  let top = rect.top + 6;
+  const shouldFlipUp = rect.top > (window.innerHeight / 2);
+  if (shouldFlipUp) {
+    top = rect.bottom - tipRect.height - 6;
+  }
+  top = Math.max(margin, Math.min(window.innerHeight - tipRect.height - margin, top));
+
+  let left = rect.left + 10;
+  if (left + tipRect.width > window.innerWidth - margin) {
+    left = window.innerWidth - tipRect.width - margin;
+  }
+  left = Math.max(margin, left);
+
+  tooltip.style.top = `${top}px`;
+  tooltip.style.left = `${left}px`;
+};
+
+const showHoverPreview = (anchor) => {
+  if (!hoverPreviewEnabled()) {
+    return;
+  }
+
+  const text = String(anchor?.dataset?.preview || '').trim();
+  if (!text) {
+    return;
+  }
+
+  const tooltip = ensureHoverTooltip();
+  tooltip.innerHTML = `
+    <div class="pn-preview-title">Prompt Preview</div>
+    <div class="pn-preview-body">${highlightTemplateVars(text)}</div>
+  `;
+  tooltip.classList.remove('pn-hidden');
+  positionHoverPreview(anchor, tooltip);
+};
+
+const bindHoverPreview = (card) => {
+  if (!(card instanceof HTMLElement)) return;
+
+  card.addEventListener('mouseenter', () => {
+    if (!hoverPreviewEnabled()) return;
+    hoverAnchor = card;
+    if (hoverTimer) clearTimeout(hoverTimer);
+    hoverTimer = setTimeout(() => {
+      if (hoverAnchor !== card) return;
+      showHoverPreview(card);
+    }, getHoverDelay());
+  });
+
+  card.addEventListener('mouseleave', () => {
+    hideHoverPreview();
+  });
+};
+
+if (typeof window !== 'undefined' && !window.__PN_PROMPT_PREVIEW_BOUND) {
+  window.addEventListener('scroll', hideHoverPreview, { passive: true });
+  document.addEventListener('scroll', hideHoverPreview, { passive: true, capture: true });
+  window.__PN_PROMPT_PREVIEW_BOUND = true;
+}
 
 const normalizePromptText = (text) => {
   if (window.TemplateParser?.normalizeLegacy) {
@@ -161,6 +263,7 @@ const createPromptCard = async (rawPrompt, activeFilter, canInject, options = {}
 
   const card = document.createElement('article');
   card.className = 'pn-prompt-card';
+  card.dataset.preview = prompt.text;
   if (options.isCurated) {
     card.classList.add('pn-template-card');
     card.dataset.templateCategory = String(prompt.category || 'general');
@@ -263,7 +366,15 @@ const createPromptCard = async (rawPrompt, activeFilter, canInject, options = {}
     improveButton.type = 'button';
     improveButton.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="pn-btn-icon pn-btn-icon--accent" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v19"></path><path d="M5 10l7-7 7 7"></path></svg>Improve';
     improveButton.title = 'Improve prompt with AI';
+    if (state.settings?.polishWithGemini === false) {
+      improveButton.disabled = true;
+      improveButton.title = 'Enable Polish button in Settings.';
+    }
     improveButton.addEventListener('click', () => {
+      if (state.settings?.polishWithGemini === false) {
+        void showToast('Enable \"Polish button\" in Settings to use this.');
+        return;
+      }
       if (typeof callbacks.onOpenImprove === 'function') {
         void callbacks.onOpenImprove(prompt.id, prompt.text, prompt.tags || []);
       }
@@ -317,6 +428,7 @@ const createPromptCard = async (rawPrompt, activeFilter, canInject, options = {}
   card.appendChild(text);
   card.appendChild(tagsWrap);
   card.appendChild(actions);
+  bindHoverPreview(card);
   return card;
 };
 
@@ -657,6 +769,7 @@ const renderBridgeStrip = async () => {
 
   const targets = Object.keys(window.Bridge.LLM_URLS)
     .filter((platform) => platform !== currentPlatform)
+    .filter((platform) => state.settings?.enabledPlatforms?.[platform] !== false)
     .map((platform) => ({ key: platform, label: PLATFORM_LABELS?.[platform] || platform }));
 
   if (!targets.length) {

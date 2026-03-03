@@ -29,8 +29,18 @@
     "activeTab",
     "scripting",
     "downloads",
-    "sidePanel"
+    "sidePanel",
+    "contextMenus"
   ],
+  "commands": {
+    "open-side-panel": {
+      "suggested_key": {
+        "default": "Alt+P",
+        "mac": "Alt+P"
+      },
+      "description": "Open Promptium side panel"
+    }
+  },
   "host_permissions": [
     "*://*.chatgpt.com/*",
     "*://*.claude.ai/*",
@@ -61,6 +71,7 @@
         "utils/smart-name.js",
         "utils/exporter.js",
         "utils/bridge.js",
+        "utils/continuation.js",
         "utils/templates.js",
         "content/scraper.js",
         "content/injector.js",

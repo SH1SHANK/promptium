@@ -139,19 +139,39 @@ const maybeRunOnboarding = async () => {
 const refreshHeaderControls = () => {
   const addPromptButton = byId('add-prompt-btn');
   const searchWrap = byId('search-wrap');
+  const historyBtn = byId('history-btn');
+  const visibleTabs = state.settings?.visibleTabs || {};
   const isPromptTab = state.activeTab === 'prompts';
-  if (addPromptButton) addPromptButton.classList.toggle('hidden', !isPromptTab);
+  if (addPromptButton) addPromptButton.classList.toggle('hidden', !isPromptTab || visibleTabs.prompts === false);
   if (searchWrap) {
-    const isPromptOrTagsTab = isPromptTab || state.activeTab === 'tags';
+    const isPromptOrTagsTab = (isPromptTab && visibleTabs.prompts !== false) || (state.activeTab === 'tags' && visibleTabs.tags !== false);
     searchWrap.classList.toggle('hidden', !isPromptOrTagsTab);
+  }
+  if (historyBtn) {
+    const standalone = ['history', 'settings', 'export', 'continue'].includes(state.activeTab);
+    historyBtn.classList.toggle('hidden', standalone || visibleTabs.history === false);
   }
 };
 
+const isTabEnabledBySettings = (tabName) => {
+  const tabs = state.settings?.visibleTabs || {};
+  if (tabName === 'prompts') return tabs.prompts !== false;
+  if (tabName === 'export') return tabs.export !== false;
+  if (tabName === 'history') return tabs.history !== false;
+  if (tabName === 'tags') return tabs.tags !== false;
+  return true;
+};
+
 const switchTab = async (tabName) => {
+  const requested = String(tabName || 'prompts');
+  if (!isTabEnabledBySettings(requested)) {
+    tabName = state.settings?.visibleTabs?.prompts !== false ? 'prompts' : 'settings';
+  }
+
   const tabs = Array.from(document.querySelectorAll('.tab'));
   const panes = Array.from(document.querySelectorAll('.tab-content'));
 
-  const isStandaloneView = ['history', 'settings', 'export'].includes(tabName);
+  const isStandaloneView = ['history', 'settings', 'export', 'continue'].includes(tabName);
 
   state.activeTab = String(tabName || 'prompts');
 
@@ -227,6 +247,19 @@ const bindSessionPayloadUpdates = async () => {
       await window.PromptsUI.render(window.PromptsUI.getSearchValue());
       await window.TagsUI.render();
     })();
+  });
+
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== 'local' || !changes[KEYS.PENDING_SNIPPET_KEY]) {
+      return;
+    }
+
+    if (!state.initialized) {
+      state.pendingActions.push({ type: 'pendingSnippet' });
+      return;
+    }
+
+    void consumePendingSnippet();
   });
 };
 
@@ -312,6 +345,35 @@ const handleShowExport = async () => {
   }
 };
 
+const handleShowContinuation = async () => {
+  if (!window.ContinuationUI?.openFromActiveTab) {
+    return;
+  }
+  const opened = await window.ContinuationUI.openFromActiveTab();
+  if (!opened) {
+    await switchTab('prompts');
+  }
+};
+
+const consumePendingSnippet = async () => {
+  try {
+    const snapshot = await chrome.storage.local.get([KEYS.PENDING_SNIPPET_KEY]);
+    const snippet = snapshot?.[KEYS.PENDING_SNIPPET_KEY];
+    const text = String(snippet?.text || '').trim();
+    if (!text) {
+      return false;
+    }
+
+    await chrome.storage.local.remove([KEYS.PENDING_SNIPPET_KEY]).catch(() => {});
+    await switchTab('prompts');
+    await window.PromptForm.openPlainPrefilled(text, snippet?.sourceUrl || '');
+    await showToast('Saved to Promptium');
+    return true;
+  } catch (_error) {
+    return false;
+  }
+};
+
 const handleImprovePayload = async (payload) => {
   const normalizedImprove = window.ImproveUI.normalizePayload(payload);
   chrome.storage.local.remove([KEYS.IMPROVE_PAYLOAD_KEY]).catch(() => {});
@@ -334,6 +396,21 @@ const registerEarlyListeners = () => {
 
     void handleShowExport().catch((err) => {
       console.warn('[Promptium] showExport handler error:', err);
+    });
+
+    return true;
+  });
+
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg?.action !== 'showContinuation') return;
+
+    if (!state.initialized) {
+      state.pendingActions.push({ type: 'showContinuation' });
+      return true;
+    }
+
+    void handleShowContinuation().catch((err) => {
+      console.warn('[Promptium] showContinuation handler error:', err);
     });
 
     return true;
@@ -365,6 +442,14 @@ const flushPendingActions = async () => {
     }
     if (action.type === 'improvePayload') {
       await handleImprovePayload(action.payload);
+      continue;
+    }
+    if (action.type === 'showContinuation') {
+      await handleShowContinuation();
+      continue;
+    }
+    if (action.type === 'pendingSnippet') {
+      await consumePendingSnippet();
     }
   }
 };
@@ -421,6 +506,7 @@ const init = async () => {
   window.SettingsAI.bindEvents();
   window.ExportPayloadUI.bindEvents();
   window.ExportActionsUI.bindEvents();
+  window.ContinuationUI?.bindEvents?.();
   window.ImproveUI.bindEvents();
 
   await window.SettingsAI.load();
@@ -457,7 +543,7 @@ const init = async () => {
 
   const hasSelectionPayload = Boolean(state.exportPayload?.messages?.length);
   const route = String(window.location.hash || '').replace(/^#/, '').trim().toLowerCase();
-  const routableTabs = new Set(['prompts', 'history', 'export', 'tags', 'settings']);
+  const routableTabs = new Set(['prompts', 'history', 'export', 'tags', 'settings', 'continue']);
   const initialTab = routableTabs.has(route) ? route : (hasSelectionPayload ? 'export' : 'prompts');
   await switchTab(initialTab);
 
@@ -465,6 +551,7 @@ const init = async () => {
   await window.HistoryUI.render();
   await window.TagsUI.render();
   await window.ExportPayloadUI.renderPreview();
+  await consumePendingSnippet();
 
   const onboardingInitializedAi = await maybeRunOnboarding();
 
@@ -484,6 +571,10 @@ const init = async () => {
 
   state.initialized = true;
   await flushPendingActions();
+
+  window.addEventListener('focus', () => {
+    void consumePendingSnippet();
+  });
 };
 
 window.AppShell = {
