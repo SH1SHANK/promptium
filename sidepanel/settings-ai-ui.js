@@ -84,6 +84,27 @@ const DEFAULT_LOCAL_FEATURE_FLAGS = Object.freeze({
   smartExportTitle: false
 });
 
+const LEGACY_PROVIDER_MODEL_MAP = Object.freeze({
+  gemini: {
+    'gemini-3.1-flash-lite': 'gemini-3.0-flash-preview',
+    'gemini-3-pro': 'gemini-3.1-pro-preview'
+  },
+  openai: {
+    'gpt-5.2-spark': 'gpt-5.2-mini',
+    'gpt-4-turbo': 'gpt-4.1'
+  },
+  anthropic: {
+    'claude-sonnet-4-6': 'claude-sonnet-4-5'
+  },
+  openrouter: {
+    'meta-llama/llama-3.1-8b-instruct:free': 'openrouter/auto',
+    'mistralai/mistral-7b-instruct:free': 'openrouter/auto',
+    'anthropic/claude-haiku': 'anthropic/claude-sonnet-4.5',
+    'google/gemini-flash-1.5': 'google/gemini-3-pro-preview',
+    'openai/gpt-4o-mini': 'openai/gpt-5.2'
+  }
+});
+
 const localModelStatuses = {
   smollm2_1_7b: { status: 'not_downloaded', progress: 0, backend: 'webgpu', error: '', cpuMode: false },
   phi35_mini: { status: 'not_downloaded', progress: 0, backend: 'webgpu', error: '', cpuMode: false },
@@ -107,6 +128,7 @@ let autoSaveTimer = null;
 let statusResetTimer = null;
 let autoSaveSourceId = '';
 let inlineSavedResetTimer = null;
+let semanticSetupPromise = null;
 
 const loadModelRegistryRuntime = async () => {
   if (MODEL_REGISTRY_RUNTIME && EMBEDDING_MODELS_RUNTIME) {
@@ -126,7 +148,7 @@ const loadModelRegistryRuntime = async () => {
           keyLabel: 'Gemini API Key',
           keyPlaceholder: 'AIza...',
           docsUrl: 'https://aistudio.google.com/apikey',
-          models: [{ id: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash Lite', default: true, speed: 'fast', note: 'Best balance' }]
+          models: [{ id: 'gemini-3.0-flash-preview', label: 'Gemini 3.0 Flash (Preview)', default: true, speed: 'fast', note: 'Latest balanced model' }]
         }
       }
     };
@@ -272,11 +294,17 @@ const normalizeSettings = (raw) => {
   const providerModelsSource = source.providerModels && typeof source.providerModels === 'object'
     ? source.providerModels
     : {};
+  const normalizeProviderModelId = (providerId, modelId, fallbackId) => {
+    const raw = String(modelId || fallbackId || '').trim();
+    if (!raw) return String(fallbackId || '').trim();
+    const providerMap = LEGACY_PROVIDER_MODEL_MAP[providerId] || {};
+    return String(providerMap[raw] || raw).trim() || String(fallbackId || '').trim();
+  };
   const providerModels = {
-    gemini: String(providerModelsSource.gemini || DEFAULT_SETTINGS.providerModels.gemini).trim() || DEFAULT_SETTINGS.providerModels.gemini,
-    openai: String(providerModelsSource.openai || DEFAULT_SETTINGS.providerModels.openai).trim() || DEFAULT_SETTINGS.providerModels.openai,
-    anthropic: String(providerModelsSource.anthropic || DEFAULT_SETTINGS.providerModels.anthropic).trim() || DEFAULT_SETTINGS.providerModels.anthropic,
-    openrouter: String(providerModelsSource.openrouter || DEFAULT_SETTINGS.providerModels.openrouter).trim() || DEFAULT_SETTINGS.providerModels.openrouter
+    gemini: normalizeProviderModelId('gemini', providerModelsSource.gemini, DEFAULT_SETTINGS.providerModels.gemini),
+    openai: normalizeProviderModelId('openai', providerModelsSource.openai, DEFAULT_SETTINGS.providerModels.openai),
+    anthropic: normalizeProviderModelId('anthropic', providerModelsSource.anthropic, DEFAULT_SETTINGS.providerModels.anthropic),
+    openrouter: normalizeProviderModelId('openrouter', providerModelsSource.openrouter, DEFAULT_SETTINGS.providerModels.openrouter)
   };
   const activeProviderRaw = String(source.activeProvider || DEFAULT_SETTINGS.activeProvider || 'gemini').trim().toLowerCase();
   const activeProvider = ['gemini', 'openai', 'anthropic', 'openrouter'].includes(activeProviderRaw)
@@ -473,6 +501,10 @@ const getControls = () => ({
   continueMode: byId('setting-continue-mode'),
 
   platformWarning: byId('pn-platform-warning'),
+  platformEnabledCount: byId('pn-platform-enabled-count'),
+  platformFilter: byId('pn-platform-filter'),
+  platformEnableAll: byId('pn-platform-enable-all'),
+  platformDisableAll: byId('pn-platform-disable-all'),
   platformList: byId('pn-platform-list'),
   customPlatforms: byId('pn-custom-platforms'),
   platformLabelKey: byId('setting-platform-label-key'),
@@ -481,8 +513,16 @@ const getControls = () => ({
   localModelProgressWrap: byId('pn-local-model-progress-wrap'),
   localModelProgress: byId('pn-local-model-progress'),
   localModelProgressText: byId('pn-local-model-progress-text'),
-  aiRoutingNote: byId('pn-ai-routing-note')
-  ,
+  localModelLibrary: byId('pn-local-model-library'),
+  aiRoutingNote: byId('pn-ai-routing-note'),
+  aiSetupHeadline: byId('pn-ai-setup-headline'),
+  aiSetupProgress: byId('pn-ai-setup-progress'),
+  aiSetupPercent: byId('pn-ai-setup-percent'),
+  aiSetupDetail: byId('pn-ai-setup-detail'),
+  aiSetupActionBtn: byId('pn-ai-setup-action-btn'),
+  quickProviderStatus: byId('pn-quick-provider-status'),
+  quickLocalStatus: byId('pn-quick-local-status'),
+  quickSemanticStatus: byId('pn-quick-semantic-status'),
   providerTabs: byId('pn-provider-tabs'),
   providerKey: byId('pn-provider-key'),
   providerKeyToggle: byId('pn-provider-key-toggle'),
@@ -523,6 +563,251 @@ const flashAutoSaveStatus = (message, tone = 'ok') => {
     setSettingsStatus('');
     statusResetTimer = null;
   }, 1800);
+};
+
+const getConfiguredEmbeddingModelId = () => {
+  const fromSettings = String(state.settings?.embeddingModelId || '').trim();
+  if (fromSettings) return fromSettings;
+  return String(providerUiState.embeddingStatus?.activeModelId || 'all-minilm-l6-v2').trim() || 'all-minilm-l6-v2';
+};
+
+const setAiSetupState = ({
+  headline = 'Checking runtime state…',
+  detail = '',
+  progress = null,
+  mode = 'idle'
+} = {}) => {
+  const controls = getControls();
+  if (controls.aiSetupHeadline) controls.aiSetupHeadline.textContent = String(headline || '').trim() || 'Checking runtime state…';
+  if (controls.aiSetupDetail) controls.aiSetupDetail.textContent = String(detail || '').trim();
+  if (controls.aiSetupProgress instanceof HTMLProgressElement) {
+    const safe = Number.isFinite(Number(progress)) ? Math.max(0, Math.min(100, Math.round(Number(progress)))) : 0;
+    controls.aiSetupProgress.value = safe;
+    controls.aiSetupProgress.dataset.mode = String(mode || 'idle').trim().toLowerCase();
+    if (controls.aiSetupPercent) controls.aiSetupPercent.textContent = `${safe}%`;
+  }
+  if (controls.aiSetupActionBtn) {
+    const normalizedMode = String(mode || 'idle').trim().toLowerCase();
+    controls.aiSetupActionBtn.disabled = normalizedMode === 'busy';
+    controls.aiSetupActionBtn.textContent = normalizedMode === 'ready'
+      ? 'Rebuild Semantic Search'
+      : normalizedMode === 'busy'
+        ? 'Preparing...'
+        : 'Prepare Semantic Search';
+  }
+};
+
+const updateQuickProviderHealth = async () => {
+  const controls = getControls();
+  if (!controls.quickProviderStatus) return;
+
+  if (!state.settings?.enableAI) {
+    controls.quickProviderStatus.textContent = 'Disabled';
+    return;
+  }
+
+  if (state.settings?.preferLocal === true) {
+    controls.quickProviderStatus.textContent = 'Local Priority';
+    return;
+  }
+
+  const activeProvider = String(state.settings?.activeProvider || 'gemini').trim().toLowerCase();
+  const providerLabel = ({
+    gemini: 'Gemini',
+    openai: 'OpenAI',
+    anthropic: 'Claude',
+    openrouter: 'OpenRouter'
+  })[activeProvider] || 'Cloud';
+  const typedKey = String(getControls().providerKey?.value || '').trim();
+  const storedKey = String(
+    window.SessionStorage?.getStoredProviderKey
+      ? await window.SessionStorage.getStoredProviderKey(activeProvider).catch(() => '')
+      : await window.SessionStorage.getStoredGeminiKey().catch(() => '')
+  ).trim();
+  const hasKey = Boolean(typedKey || storedKey);
+  controls.quickProviderStatus.textContent = hasKey ? `${providerLabel} Ready` : `${providerLabel} Key Needed`;
+};
+
+const updateQuickLocalHealth = () => {
+  const controls = getControls();
+  if (!controls.quickLocalStatus) return;
+  const selected = selectedModelStatus();
+  const label = LOCAL_MODEL_META[selected.id]?.label || selected.id;
+  const statusText = formatModelStatusText(selected.status);
+  controls.quickLocalStatus.textContent = `${label} • ${statusText}`;
+};
+
+const updateQuickSemanticHealth = (embeddingStatus = null) => {
+  const controls = getControls();
+  if (!controls.quickSemanticStatus) return;
+  const status = embeddingStatus && typeof embeddingStatus === 'object'
+    ? embeddingStatus
+    : providerUiState.embeddingStatus || {};
+  const semanticReady = String(status.searchMode || '').toLowerCase() === 'semantic'
+    && String(status.status || '').toLowerCase() === 'ready';
+  if (!state.settings?.enableAI) {
+    controls.quickSemanticStatus.textContent = 'Disabled';
+    return;
+  }
+  if (semanticReady) {
+    controls.quickSemanticStatus.textContent = 'Semantic Ready';
+    return;
+  }
+  if (Boolean(status?.reindex?.running)) {
+    controls.quickSemanticStatus.textContent = 'Indexing';
+    return;
+  }
+  const raw = String(status.status || '').toLowerCase();
+  if (raw === 'downloading' || raw === 'loading') {
+    controls.quickSemanticStatus.textContent = 'Preparing';
+    return;
+  }
+  if (raw === 'error') {
+    controls.quickSemanticStatus.textContent = 'Setup Error';
+    return;
+  }
+  controls.quickSemanticStatus.textContent = 'Not Ready';
+};
+
+const emitPromptsModelFeedback = async () => {
+  if (typeof window.PromptsUI?.renderModelFeedback !== 'function') return;
+
+  const { registry } = await loadModelRegistryRuntime();
+  const activeProviderId = String(state.settings?.activeProvider || 'gemini').trim().toLowerCase();
+  const provider = registry?.providers?.[activeProviderId] || null;
+  const providerModels = Array.isArray(provider?.models) ? provider.models : [];
+  const providerLabel = String(provider?.label || activeProviderId || 'Cloud').trim();
+  const selectedCloudModelId = String(
+    state.settings?.providerModels?.[activeProviderId]
+    || providerModels.find((entry) => entry?.default)?.id
+    || ''
+  ).trim();
+  const selectedCloudModel = providerModels.find((entry) => String(entry?.id || '') === selectedCloudModelId);
+
+  const localModelId = String(state.settings?.localModelId || 'smollm2_1_7b').trim().toLowerCase();
+  const localModelMeta = LOCAL_MODEL_META[localModelId] || LOCAL_MODEL_META.smollm2_1_7b;
+  const localModelStatus = localModelStatuses[localModelId] || {};
+
+  const status = providerUiState.embeddingStatus || {};
+  const semanticReady = String(status.searchMode || '').toLowerCase() === 'semantic'
+    && String(status.status || '').toLowerCase() === 'ready';
+  const isBusy = ['downloading', 'loading'].includes(String(status.status || '').toLowerCase())
+    || Boolean(status?.reindex?.running);
+  const hasError = String(status.status || '').toLowerCase() === 'error';
+
+  const semanticPhase = semanticReady
+    ? 'ready'
+    : hasError
+      ? 'error'
+      : isBusy
+        ? 'busy'
+        : 'idle';
+
+  window.PromptsUI.renderModelFeedback({
+    enabled: state.settings?.enableAI !== false,
+    preferLocal: state.settings?.preferLocal === true,
+    providerLabel,
+    providerId: activeProviderId,
+    cloudModelId: selectedCloudModelId,
+    cloudModelLabel: String(selectedCloudModel?.label || selectedCloudModelId || '').trim(),
+    localModelId,
+    localModelLabel: String(localModelMeta?.label || localModelId || 'Local model').trim(),
+    localModelStatus: String(localModelStatus?.status || '').trim().toLowerCase(),
+    semanticPhase
+  });
+};
+
+const updateAiSetupFromEmbeddingStatus = (embeddingStatus = null) => {
+  const status = embeddingStatus && typeof embeddingStatus === 'object'
+    ? embeddingStatus
+    : providerUiState.embeddingStatus || {};
+  const reindex = status?.reindex || {};
+  const modelId = String(status.activeModelId || getConfiguredEmbeddingModelId()).trim();
+  const modelName = modelId || 'default model';
+  const normalizedStatus = String(status.status || '').trim().toLowerCase();
+  const semanticReady = String(status.searchMode || '').toLowerCase() === 'semantic'
+    && normalizedStatus === 'ready';
+
+  if (!state.settings?.enableAI) {
+    setAiSetupState({
+      headline: 'AI is disabled',
+      detail: 'Enable AI to prepare semantic search.',
+      progress: 0,
+      mode: 'disabled'
+    });
+    updateQuickSemanticHealth(status);
+    return;
+  }
+
+  if (state.settings?.semanticSearch === false) {
+    setAiSetupState({
+      headline: 'Semantic search is turned off',
+      detail: 'Turn on semantic search to prepare embeddings.',
+      progress: 0,
+      mode: 'disabled'
+    });
+    updateQuickSemanticHealth(status);
+    return;
+  }
+
+  if (Boolean(reindex.running)) {
+    setAiSetupState({
+      headline: 'Indexing prompts for semantic search',
+      detail: `Indexing ${Number(reindex.done || 0)} / ${Number(reindex.total || 0)} prompts with ${modelName}.`,
+      progress: Number(reindex.progress || 0),
+      mode: 'busy'
+    });
+    updateQuickSemanticHealth(status);
+    return;
+  }
+
+  if (semanticReady) {
+    setAiSetupState({
+      headline: 'Semantic search is ready',
+      detail: `Search model ${modelName} is downloaded and active.`,
+      progress: 100,
+      mode: 'ready'
+    });
+    updateQuickSemanticHealth(status);
+    return;
+  }
+
+  if (normalizedStatus === 'downloading' || normalizedStatus === 'loading') {
+    setAiSetupState({
+      headline: 'Downloading search model',
+      detail: `Preparing ${modelName} for semantic search.`,
+      progress: Number(status.progress || 0),
+      mode: 'busy'
+    });
+    updateQuickSemanticHealth(status);
+    return;
+  }
+
+  if (normalizedStatus === 'error') {
+    setAiSetupState({
+      headline: 'Setup needs attention',
+      detail: String(status.error || 'Failed to prepare semantic search model.'),
+      progress: Number(status.progress || 0),
+      mode: 'error'
+    });
+    updateQuickSemanticHealth(status);
+    return;
+  }
+
+  setAiSetupState({
+    headline: 'Semantic search not prepared yet',
+    detail: 'Promptium auto-prepares this on startup. Use setup to rebuild manually.',
+    progress: Number(status.progress || 0),
+    mode: 'idle'
+  });
+  updateQuickSemanticHealth(status);
+};
+
+const refreshAiControlCenter = async ({ includeProvider = true } = {}) => {
+  if (includeProvider) await updateQuickProviderHealth();
+  updateQuickLocalHealth();
+  updateQuickSemanticHealth(providerUiState.embeddingStatus);
+  await emitPromptsModelFeedback();
 };
 
 const clearInlineSavedBadge = () => {
@@ -590,14 +875,29 @@ const renderPlatformRows = () => {
   const normalizedSettings = normalizeSettings(state.settings);
   const enabled = normalizedSettings.enabledPlatforms || {};
   const knownPlatforms = getKnownPlatforms(normalizedSettings);
+  const query = String(controls.platformFilter?.value || '').trim().toLowerCase();
+  const visiblePlatforms = !query
+    ? knownPlatforms
+    : knownPlatforms.filter((platform) => {
+      const key = String(platform.key || '').toLowerCase();
+      const label = String(platform.label || '').toLowerCase();
+      return key.includes(query) || label.includes(query);
+    });
 
-  knownPlatforms.forEach((platform) => {
+  const enabledCount = Object.values(enabled).filter(Boolean).length;
+  if (controls.platformEnabledCount) {
+    controls.platformEnabledCount.textContent = `${enabledCount} / ${knownPlatforms.length} enabled`;
+  }
+
+  visiblePlatforms.forEach((platform) => {
+    const platformEnabled = enabled[platform.key] === true;
     const row = document.createElement('div');
-    row.className = 'pn-platform-row';
+    row.className = `pn-platform-card${platformEnabled ? '' : ' is-disabled'}`;
     row.innerHTML = `
-      <div class="pn-platform-row__meta">
-        <div class="pn-platform-row__head">
-          <span class="pn-platform-key">${platform.key}</span>
+      <div class="pn-platform-card__meta">
+        <div class="pn-platform-card__head">
+          <strong class="pn-platform-card__title">${escapeHtml(platform.label)}</strong>
+          <span class="pn-platform-key">${escapeHtml(platform.key)}</span>
         </div>
         <label class="pn-platform-label-wrap">
           <span class="pn-platform-label-caption">Display label</span>
@@ -606,19 +906,25 @@ const renderPlatformRows = () => {
             class="pn-platform-label-input"
             data-platform-label="${platform.key}"
             value="${escapeHtml(platform.label)}"
-            placeholder="Label"
+            placeholder="Display name"
           />
         </label>
       </div>
       <label class="pn-toggle pn-toggle--sm">
-        <input type="checkbox" data-platform-toggle="${platform.key}" ${enabled[platform.key] !== false ? 'checked' : ''} />
+        <input type="checkbox" data-platform-toggle="${platform.key}" ${platformEnabled ? 'checked' : ''} />
         <span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span>
       </label>
     `;
     controls.platformList.appendChild(row);
   });
 
-  const enabledCount = Object.values(enabled).filter(Boolean).length;
+  if (!visiblePlatforms.length) {
+    const empty = document.createElement('p');
+    empty.className = 'pn-sv-api-hint';
+    empty.textContent = 'No platforms matched your filter.';
+    controls.platformList.appendChild(empty);
+  }
+
   controls.platformWarning?.classList.toggle('pn-hidden', enabledCount > 0);
 };
 
@@ -738,6 +1044,7 @@ const renderControls = (settingsInput = state.settings) => {
   renderLocalModelStatus();
   updateLocalModelProgressUI();
   void refreshAiRoutingNote();
+  void refreshAiControlCenter();
   void renderProviderEditor();
   void renderEmbeddingRows();
 
@@ -941,6 +1248,8 @@ const setAiDisabledBadge = async () => {
     searchMode: 'keyword'
   };
   renderEmbeddingIndicator(providerUiState.embeddingStatus);
+  updateAiSetupFromEmbeddingStatus(providerUiState.embeddingStatus);
+  await refreshAiControlCenter();
 };
 
 const updateLocalModelProgressUI = (payload = {}, backendOverride = '') => {
@@ -1016,6 +1325,67 @@ const formatModelStatusText = (entry = {}) => {
   return 'Not downloaded';
 };
 
+const getLocalModelActionDescriptor = (entry = {}, modelId = '') => {
+  const status = String(entry.status || '').trim().toLowerCase();
+  const meta = LOCAL_MODEL_META[modelId] || LOCAL_MODEL_META.smollm2_1_7b;
+  if (status === 'downloading') {
+    return { label: 'Cancel Download', intent: 'cancel', toneClass: 'pn-btn--ghost' };
+  }
+  if (status === 'cached' || status === 'ready') {
+    return { label: 'Clear Cache', intent: 'clear', toneClass: 'pn-btn-danger' };
+  }
+  if (status === 'error') {
+    return { label: 'Retry Download', intent: 'download', toneClass: 'pn-btn--ghost' };
+  }
+  return { label: `Download (${meta.sizeLabel})`, intent: 'download', toneClass: 'pn-btn--primary' };
+};
+
+const renderLocalModelLibrary = () => {
+  const controls = getControls();
+  if (!controls.localModelLibrary) return;
+
+  const selectedModelId = getSelectedLocalModelId();
+  controls.localModelLibrary.innerHTML = '';
+
+  Object.entries(LOCAL_MODEL_META).forEach(([modelId, meta]) => {
+    const entry = localModelStatuses[modelId] || { status: 'not_downloaded', progress: 0, backend: 'webgpu', error: '' };
+    const status = String(entry.status || '').trim().toLowerCase();
+    const card = document.createElement('article');
+    card.className = `pn-local-model-card${modelId === selectedModelId ? ' is-selected' : ''}`;
+    const statusClass = status === 'ready' || status === 'cached'
+      ? 'is-ready'
+      : status === 'error'
+        ? 'is-error'
+        : status === 'downloading' || status === 'loading'
+          ? 'is-loading'
+          : '';
+    const action = getLocalModelActionDescriptor(entry, modelId);
+    const description = entry.cpuMode
+      ? 'Running with CPU fallback (slower).'
+      : status === 'error'
+        ? String(entry.error || 'Model setup failed.')
+        : status === 'cached'
+          ? 'Cached locally and ready to initialize.'
+          : status === 'ready'
+            ? 'Ready for local AI tasks.'
+            : 'Download to use this model offline.';
+
+    card.innerHTML = `
+      <div class="pn-local-model-card__head">
+        <h5 class="pn-local-model-card__title">${escapeHtml(meta.label)}</h5>
+        <span class="pn-local-model-card__size">${escapeHtml(meta.sizeLabel)}</span>
+      </div>
+      <span class="pn-local-model-card__status ${statusClass}">${escapeHtml(formatModelStatusText(entry))}</span>
+      <p class="pn-local-model-card__desc">${escapeHtml(description)}</p>
+      <div class="pn-local-model-card__actions">
+        <button type="button" class="pn-btn ${modelId === selectedModelId ? 'pn-btn--ghost' : 'pn-btn--primary'}" data-local-model-select="${escapeHtml(modelId)}">${modelId === selectedModelId ? 'Selected' : 'Use Model'}</button>
+        <button type="button" class="pn-btn ${action.toneClass}" data-local-model-action="${escapeHtml(modelId)}">${escapeHtml(action.label)}</button>
+      </div>
+    `;
+    controls.localModelLibrary.appendChild(card);
+  });
+};
+
 const renderLocalModelStatus = () => {
   const controls = getControls();
   const pairs = [
@@ -1043,22 +1413,12 @@ const renderLocalModelStatus = () => {
   controls.geminiPrimaryNote?.classList.toggle('pn-hidden', !(geminiPrimaryEnabled && localReady));
 
   if (controls.localModelActionBtn) {
-    const status = String(selected.status?.status || 'not_downloaded').toLowerCase();
+      const status = String(selected.status?.status || 'not_downloaded').toLowerCase();
     const meta = LOCAL_MODEL_META[selected.id] || LOCAL_MODEL_META.smollm2_1_7b;
+    const action = getLocalModelActionDescriptor(selected.status, selected.id);
     controls.localModelActionBtn.classList.remove('pn-btn--primary', 'pn-btn--ghost', 'pn-btn-danger');
-    if (status === 'downloading') {
-      controls.localModelActionBtn.textContent = 'Cancel Download';
-      controls.localModelActionBtn.classList.add('pn-btn--ghost');
-    } else if (status === 'cached' || status === 'ready') {
-      controls.localModelActionBtn.textContent = 'Clear cached model data';
-      controls.localModelActionBtn.classList.add('pn-btn-danger');
-    } else if (status === 'error') {
-      controls.localModelActionBtn.textContent = 'Retry';
-      controls.localModelActionBtn.classList.add('pn-btn--ghost');
-    } else {
-      controls.localModelActionBtn.textContent = `Download (${meta.sizeLabel})`;
-      controls.localModelActionBtn.classList.add('pn-btn--primary');
-    }
+    controls.localModelActionBtn.textContent = action.intent === 'clear' ? 'Clear cached model data' : action.label;
+    controls.localModelActionBtn.classList.add(action.toneClass);
 
     if (controls.localModelActionMeta) {
       if (selected.status?.cpuMode) {
@@ -1074,6 +1434,9 @@ const renderLocalModelStatus = () => {
       }
     }
   }
+
+  renderLocalModelLibrary();
+  updateQuickLocalHealth();
 };
 
 const getProviderEntries = async () => {
@@ -1110,7 +1473,12 @@ const renderProviderTabs = async () => {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'pn-provider-tab';
-    button.textContent = provider.label.replace('Google ', '').replace('Anthropic ', '');
+    const validationState = String(providerUiState.providerValidation?.[provider.id]?.state || 'idle').trim().toLowerCase();
+    const shortLabel = provider.label.replace('Google ', '').replace('Anthropic ', '');
+    button.innerHTML = `
+      <span class="pn-provider-tab__name">${escapeHtml(shortLabel)}</span>
+      <span class="pn-provider-tab__state is-${escapeHtml(validationState)}"></span>
+    `;
     if (provider.id === providerUiState.editingProviderId) button.classList.add('is-editing');
     if (provider.id === state.settings.activeProvider) button.classList.add('is-primary');
     button.dataset.providerTab = provider.id;
@@ -1134,19 +1502,23 @@ const setProviderValidationStatus = (status = 'idle', detail = '') => {
   if (status === 'checking') {
     controls.providerStatus.textContent = 'Status: checking connection...';
     controls.providerStatus.classList.add('pn-status-info');
+    void updateQuickProviderHealth();
     return;
   }
   if (status === 'connected') {
     controls.providerStatus.textContent = 'Status: connected';
     controls.providerStatus.classList.add('pn-status-ok');
+    void updateQuickProviderHealth();
     return;
   }
   if (status === 'invalid') {
     controls.providerStatus.textContent = `Status: ${label || 'invalid key'}`;
     controls.providerStatus.classList.add('pn-status-error');
+    void updateQuickProviderHealth();
     return;
   }
   controls.providerStatus.textContent = 'Status: idle';
+  void updateQuickProviderHealth();
 };
 
 const renderProviderModels = async (provider) => {
@@ -1215,6 +1587,7 @@ const renderProviderEditor = async () => {
   }
 
   await renderProviderModels(provider);
+  await updateQuickProviderHealth();
 };
 
 const renderEmbeddingIndicator = (embeddingStatus = null) => {
@@ -1230,6 +1603,7 @@ const renderEmbeddingIndicator = (embeddingStatus = null) => {
 
   const semanticReady = String(current.searchMode || '').toLowerCase() === 'semantic'
     && String(current.status || '').toLowerCase() === 'ready';
+  controls.searchModeBadge.textContent = semanticReady ? 'Semantic search' : 'Keyword search';
   controls.searchModeBadge.classList.toggle('pn-hidden', semanticReady);
 };
 
@@ -1286,6 +1660,8 @@ const renderEmbeddingRows = async () => {
   }
 
   renderEmbeddingIndicator(status);
+  updateAiSetupFromEmbeddingStatus(status);
+  updateQuickSemanticHealth(status);
 };
 
 const refreshAiRoutingNote = async () => {
@@ -1331,6 +1707,75 @@ const refreshAiRoutingNote = async () => {
     : `${providerLabel} selected without API key. Add key or switch to Local Model.`;
 };
 
+const ensureSemanticSearchReady = async ({ force = false } = {}) => {
+  if (!state.settings?.enableAI || state.settings?.semanticSearch === false) {
+    updateAiSetupFromEmbeddingStatus(providerUiState.embeddingStatus);
+    return { ok: false, skipped: true };
+  }
+
+  if (semanticSetupPromise && !force) {
+    return semanticSetupPromise;
+  }
+
+  semanticSetupPromise = (async () => {
+    const targetModelId = getConfiguredEmbeddingModelId();
+    const currentStatus = await window.AIBridge.getEmbeddingStatus().catch(() => providerUiState.embeddingStatus || {});
+    if (currentStatus && typeof currentStatus === 'object') {
+      providerUiState.embeddingStatus = {
+        ...currentStatus,
+        reindex: currentStatus?.reindex || providerUiState.embeddingStatus?.reindex
+      };
+      updateAiSetupFromEmbeddingStatus(providerUiState.embeddingStatus);
+    }
+
+    const semanticReady = String(providerUiState.embeddingStatus?.searchMode || '').toLowerCase() === 'semantic'
+      && String(providerUiState.embeddingStatus?.status || '').toLowerCase() === 'ready'
+      && String(providerUiState.embeddingStatus?.activeModelId || '').trim() === targetModelId;
+    if (semanticReady && !force) {
+      return { ok: true, alreadyReady: true, status: providerUiState.embeddingStatus };
+    }
+
+    const currentPhase = String(providerUiState.embeddingStatus?.status || '').toLowerCase();
+    const reindexRunning = Boolean(providerUiState.embeddingStatus?.reindex?.running);
+    if (!force && (currentPhase === 'downloading' || currentPhase === 'loading' || reindexRunning)) {
+      updateAiSetupFromEmbeddingStatus(providerUiState.embeddingStatus);
+      return { ok: true, pending: true, status: providerUiState.embeddingStatus };
+    }
+
+    setAiSetupState({
+      headline: 'Preparing semantic search',
+      detail: `Downloading and indexing ${targetModelId}.`,
+      progress: Number(providerUiState.embeddingStatus?.progress || 0),
+      mode: 'busy'
+    });
+
+    const switched = await window.AIBridge.switchEmbeddingModel(targetModelId).catch(() => null);
+    if (!switched?.ok) {
+      const error = String(switched?.error || 'Failed to prepare semantic search.').trim();
+      setAiSetupState({
+        headline: 'Setup failed',
+        detail: error,
+        progress: Number(providerUiState.embeddingStatus?.progress || 0),
+        mode: 'error'
+      });
+      byId('pn-ai-retry-btn')?.classList.remove('pn-hidden');
+      return { ok: false, error };
+    }
+
+    providerUiState.embeddingStatus = switched;
+    await renderEmbeddingRows();
+    byId('pn-ai-retry-btn')?.classList.add('pn-hidden');
+    return { ok: true, status: switched };
+  })();
+
+  try {
+    return await semanticSetupPromise;
+  } finally {
+    semanticSetupPromise = null;
+    await refreshAiControlCenter();
+  }
+};
+
 const syncAiState = async () => {
   if (!state.settings.enableAI) {
     await setAiDisabledBadge();
@@ -1345,6 +1790,20 @@ const syncAiState = async () => {
     aiBar.classList.add('pn-ai-bar--loading');
   }
   retryButton?.classList.add('pn-hidden');
+  setAiSetupState({
+    headline: 'Initializing AI runtime',
+    detail: 'Checking model and provider status.',
+    progress: 0,
+    mode: 'busy'
+  });
+
+  const initResponse = await window.AIBridge.init().catch(() => null);
+  if (initResponse?.embedding && typeof initResponse.embedding === 'object') {
+    providerUiState.embeddingStatus = {
+      ...initResponse.embedding,
+      reindex: initResponse.embedding?.reindex || providerUiState.embeddingStatus?.reindex
+    };
+  }
 
   if (aiStatusHandler) chrome.runtime.onMessage.removeListener(aiStatusHandler);
   aiStatusHandler = (msg) => {
@@ -1362,6 +1821,7 @@ const syncAiState = async () => {
       }
       updateLocalModelProgressUI(localModelStatuses[modelId] || {});
       renderLocalModelStatus();
+      void refreshAiControlCenter({ includeProvider: false });
       return;
     }
 
@@ -1371,6 +1831,7 @@ const syncAiState = async () => {
         ...msg
       };
       void renderEmbeddingRows();
+      void refreshAiControlCenter({ includeProvider: false });
       return;
     }
 
@@ -1383,6 +1844,7 @@ const syncAiState = async () => {
         }
       };
       void renderEmbeddingRows();
+      void refreshAiControlCenter({ includeProvider: false });
       return;
     }
 
@@ -1392,6 +1854,8 @@ const syncAiState = async () => {
         searchMode: String(msg.mode || 'keyword')
       };
       renderEmbeddingIndicator(providerUiState.embeddingStatus);
+      updateAiSetupFromEmbeddingStatus(providerUiState.embeddingStatus);
+      void refreshAiControlCenter({ includeProvider: false });
       const spark = byId('pn-search-spark');
       spark?.classList.toggle('pn-hidden', String(msg.mode || '').toLowerCase() !== 'semantic');
     }
@@ -1424,6 +1888,11 @@ const syncAiState = async () => {
     };
   }
   await renderEmbeddingRows();
+  if (state.settings?.semanticSearch) {
+    await ensureSemanticSearchReady();
+  } else {
+    updateAiSetupFromEmbeddingStatus(providerUiState.embeddingStatus);
+  }
 
   state.aiReady = true;
   if (aiBar) {
@@ -1449,6 +1918,7 @@ const syncAiState = async () => {
   }
 
   void refreshAiRoutingNote();
+  await refreshAiControlCenter();
   renderLocalModelStatus();
 
   return state.aiReady;
@@ -1499,6 +1969,9 @@ const persistRuntimeAfterSave = async () => {
 
   if (window.PromptsUI?.render) {
     await window.PromptsUI.render(window.PromptsUI.getSearchValue());
+  }
+  if (typeof window.ContinuationUI?.refreshTargets === 'function') {
+    window.ContinuationUI.refreshTargets();
   }
 };
 
@@ -1840,16 +2313,24 @@ const bindInlineDanger = (triggerId, confirmId, action) => {
   });
 };
 
-const runSelectedLocalModelAction = async () => {
+const runSelectedLocalModelAction = async (requestedModelId = '') => {
   const controls = getControls();
-  const selected = selectedModelStatus();
+  const normalizedRequested = String(requestedModelId || '').trim().toLowerCase();
+  const selected = normalizedRequested && Object.prototype.hasOwnProperty.call(localModelStatuses, normalizedRequested)
+    ? {
+      id: normalizedRequested,
+      status: localModelStatuses[normalizedRequested] || { status: 'not_downloaded', progress: 0, backend: 'webgpu', error: '' }
+    }
+    : selectedModelStatus();
   const status = String(selected.status?.status || 'not_downloaded').toLowerCase();
 
-  if (!controls.localModelActionBtn) return;
+  const primaryActionButton = controls.localModelActionBtn;
+  if (!primaryActionButton && !normalizedRequested) return;
 
-  controls.localModelActionBtn.disabled = true;
-  const previousText = controls.localModelActionBtn.textContent;
-  controls.localModelActionBtn.textContent = 'Working...';
+  if (primaryActionButton) {
+    primaryActionButton.disabled = true;
+    primaryActionButton.textContent = 'Working...';
+  }
 
   try {
     if (status === 'downloading') {
@@ -1865,8 +2346,9 @@ const runSelectedLocalModelAction = async () => {
   } catch (_error) {
     flashAutoSaveStatus('Model action failed. Retry.', 'error');
   } finally {
-    controls.localModelActionBtn.disabled = false;
-    controls.localModelActionBtn.textContent = previousText;
+    if (primaryActionButton) {
+      primaryActionButton.disabled = false;
+    }
     const refreshed = await window.AIBridge.getLocalModelStatus();
     if (refreshed?.modelId && Object.prototype.hasOwnProperty.call(localModelStatuses, refreshed.modelId)) {
       localModelStatuses[refreshed.modelId] = {
@@ -1875,8 +2357,23 @@ const runSelectedLocalModelAction = async () => {
       };
     }
     renderLocalModelStatus();
+    await refreshAiControlCenter();
     void syncSaveState();
   }
+};
+
+const setSelectedLocalModel = (modelId = '') => {
+  const controls = getControls();
+  const normalized = String(modelId || '').trim().toLowerCase();
+  if (!Object.prototype.hasOwnProperty.call(LOCAL_MODEL_META, normalized)) return;
+  if (controls.localModelSmollm2) controls.localModelSmollm2.checked = normalized === 'smollm2_1_7b';
+  if (controls.localModelPhi35) controls.localModelPhi35.checked = normalized === 'phi35_mini';
+  if (controls.localModelQwen3) controls.localModelQwen3.checked = normalized === 'qwen3_0_6b';
+  state.settings.localModelId = normalized;
+  renderLocalModelStatus();
+  void refreshAiRoutingNote();
+  void refreshAiControlCenter({ includeProvider: false });
+  void syncSaveState();
 };
 
 const formatShortcutFromEvent = (event) => {
@@ -1912,6 +2409,7 @@ const bindEvents = () => {
     await save();
     await renderProviderEditor();
     await refreshAiRoutingNote();
+    await refreshAiControlCenter();
     flashAutoSaveStatus('Primary provider updated.', 'ok');
     await syncSaveState();
   });
@@ -1929,6 +2427,7 @@ const bindEvents = () => {
       providerUiState.providerValidation[provider.id] = { state: 'invalid', message: 'missing key' };
       setProviderValidationStatus('invalid', 'missing key');
       await persistProviderValidationState();
+      await refreshAiControlCenter();
       return;
     }
 
@@ -1959,15 +2458,35 @@ const bindEvents = () => {
       await persistProviderValidationState();
     } finally {
       btn.disabled = false;
+      await refreshAiControlCenter();
     }
   });
 
   byId('pn-ai-retry-btn')?.addEventListener('click', () => {
-    void syncAiState();
+    void ensureSemanticSearchReady({ force: true });
+  });
+
+  byId('pn-ai-setup-action-btn')?.addEventListener('click', () => {
+    void ensureSemanticSearchReady({ force: true });
   });
 
   byId('pn-local-model-action-btn')?.addEventListener('click', () => {
     void runSelectedLocalModelAction();
+  });
+
+  byId('pn-local-model-library')?.addEventListener('click', (event) => {
+    const selectButton = event.target?.closest?.('[data-local-model-select]');
+    if (selectButton) {
+      const modelId = String(selectButton.getAttribute('data-local-model-select') || '').trim().toLowerCase();
+      if (modelId) setSelectedLocalModel(modelId);
+      return;
+    }
+
+    const actionButton = event.target?.closest?.('[data-local-model-action]');
+    if (!actionButton) return;
+    const modelId = String(actionButton.getAttribute('data-local-model-action') || '').trim().toLowerCase();
+    if (!modelId) return;
+    void runSelectedLocalModelAction(modelId);
   });
 
   byId('save-settings-btn')?.addEventListener('click', () => {
@@ -2075,6 +2594,7 @@ const bindEvents = () => {
   getControls().providerKey?.addEventListener('input', () => {
     const providerId = String(providerUiState.editingProviderId || 'gemini').trim().toLowerCase();
     providerUiState.providerKeys[providerId] = String(getControls().providerKey?.value || '').trim();
+    void updateQuickProviderHealth();
     void syncSaveState();
   });
 
@@ -2118,6 +2638,7 @@ const bindEvents = () => {
       }
       providerUiState.embeddingStatus = await window.AIBridge.getEmbeddingStatus().catch(() => providerUiState.embeddingStatus);
       await renderEmbeddingRows();
+      await refreshAiControlCenter();
       await syncSaveState();
     } finally {
       getControls().embeddingConfirmYes.disabled = false;
@@ -2175,8 +2696,12 @@ const bindEvents = () => {
           controls.geminiPrimary.checked = !(controls.preferLocal?.checked);
         }
       }
+      if (id === 'setting-semantic-search') {
+        updateAiSetupFromEmbeddingStatus(providerUiState.embeddingStatus);
+      }
       renderLocalModelStatus();
       void refreshAiRoutingNote();
+      void refreshAiControlCenter({ includeProvider: false });
       void syncSaveState();
     });
   });
@@ -2223,6 +2748,7 @@ const bindEvents = () => {
         .filter((input) => input instanceof HTMLInputElement && input.checked)
         .length;
       byId('pn-platform-warning')?.classList.toggle('pn-hidden', checkedCount > 0);
+      event.target.closest('.pn-platform-card')?.classList.toggle('is-disabled', !event.target.checked);
       scheduleAutoSaveNonAi();
       return;
     }
@@ -2234,6 +2760,30 @@ const bindEvents = () => {
 
   byId('pn-platform-list')?.addEventListener('change', onPlatformRowChange);
   byId('pn-platform-list')?.addEventListener('input', onPlatformRowChange);
+
+  byId('pn-platform-filter')?.addEventListener('input', () => {
+    renderPlatformRows();
+  });
+
+  const applyPlatformBulkToggle = (nextEnabled) => {
+    const next = normalizeSettings(state.settings);
+    getKnownPlatforms(next).forEach((platform) => {
+      next.enabledPlatforms[platform.key] = Boolean(nextEnabled);
+    });
+    state.settings = next;
+    renderPlatformRows();
+    const checkedCount = Object.values(next.enabledPlatforms || {}).filter(Boolean).length;
+    byId('pn-platform-warning')?.classList.toggle('pn-hidden', checkedCount > 0);
+    scheduleAutoSaveNonAi();
+  };
+
+  byId('pn-platform-enable-all')?.addEventListener('click', () => {
+    applyPlatformBulkToggle(true);
+  });
+
+  byId('pn-platform-disable-all')?.addEventListener('click', () => {
+    applyPlatformBulkToggle(false);
+  });
 };
 
 const setCallbacks = (nextCallbacks = {}) => {

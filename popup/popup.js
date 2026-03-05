@@ -10,10 +10,12 @@ let _searchTimer = null;
 const TEXT_CLAMP_LENGTH = 180;
 const SEARCH_DEBOUNCE_MS = 150;
 const VAR_DETECT_DEBOUNCE_MS = 150;
+const MODAL_SCROLL_LOCK_CLASS = 'pn-modal-open';
 const ADD_MODE_SELECTOR = 'selector';
 const ADD_MODE_PLAIN = 'plain';
 const ADD_MODE_TEMPLATE = 'template';
 let _varDetectTimer = null;
+let modalScrollObserver = null;
 
 const normalizePromptText = (text) => {
   if (window.TemplateParser?.normalizeLegacy) {
@@ -88,6 +90,35 @@ const setAddMode = (mode) => {
   } else if (mode === ADD_MODE_TEMPLATE) {
     document.getElementById('pn-template-title')?.focus();
   }
+};
+
+const syncModalScrollLock = () => {
+  const hasOpenModal = Array.from(document.querySelectorAll('.pn-modal'))
+    .some((node) => !node.classList.contains('pn-hidden'));
+  document.body.classList.toggle(MODAL_SCROLL_LOCK_CLASS, hasOpenModal);
+};
+
+const bindModalScrollLock = () => {
+  if (modalScrollObserver) return;
+
+  const modals = Array.from(document.querySelectorAll('.pn-modal'));
+  if (!modals.length) {
+    syncModalScrollLock();
+    return;
+  }
+
+  modalScrollObserver = new MutationObserver(() => {
+    syncModalScrollLock();
+  });
+
+  modals.forEach((modal) => {
+    modalScrollObserver.observe(modal, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
+  });
+
+  syncModalScrollLock();
 };
 
 const updateDetectedVars = () => {
@@ -1455,6 +1486,7 @@ const bootstrapMainUi = async ({ skipAiInit = false } = {}) => {
   }
 
   popupBootstrapped = true;
+  bindModalScrollLock();
 
   if (!skipAiInit) {
     await window.AI.initModel();

@@ -25,27 +25,18 @@
       .filter((message) => message.text.length > 0);
 
   const getEnabledPlatformMap = () => {
-    const defaults = {
-      chatgpt: true,
-      claude: true,
-      gemini: true,
-      perplexity: true,
-      copilot: true,
-    };
     const source =
       state.settings?.enabledPlatforms &&
       typeof state.settings.enabledPlatforms === "object"
         ? state.settings.enabledPlatforms
         : {};
-    return { ...defaults, ...source };
+    return source;
   };
 
   const getEligibleTargets = (sourcePlatform = "") => {
     const bridgeUrls = window.Bridge?.LLM_URLS || {};
     const enabledMap = getEnabledPlatformMap();
-    const all = Object.keys(bridgeUrls).filter(
-      (platform) => enabledMap[platform] !== false,
-    );
+    const all = Object.keys(bridgeUrls).filter((platform) => enabledMap[platform] === true);
 
     if (!all.length) {
       return [];
@@ -163,6 +154,7 @@
 
   const renderTargetOptions = () => {
     const select = byId("pn-continue-target");
+    const meta = byId("pn-continue-target-meta");
     if (!select) return;
 
     const sourcePlatform = String(
@@ -177,6 +169,7 @@
       option.textContent = "No enabled targets";
       select.appendChild(option);
       select.disabled = true;
+      if (meta) meta.textContent = "Enable at least one platform in Settings → LLM Platforms.";
       return;
     }
 
@@ -189,6 +182,7 @@
 
     select.disabled = false;
     select.value = targets[0];
+    if (meta) meta.textContent = `${targets.length} enabled target${targets.length === 1 ? "" : "s"}`;
   };
 
   const syncDefaults = () => {
@@ -446,6 +440,7 @@
     openFromPayload,
     openFromActiveTab,
     openFromExportSelection,
+    refreshTargets: renderTargetOptions,
     bindEvents,
     runContinuation,
   };

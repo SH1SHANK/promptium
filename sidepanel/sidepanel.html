@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="../popup/popup.css" />
     <link rel="stylesheet" href="../popup/onboarding.css" />
     <link rel="stylesheet" href="tailwind.css" />
+    <link rel="stylesheet" href="settings-overhaul.css" />
   </head>
   <body class="pn-popup pn-sidepanel">
     <header class="pn-header pn-sidepanel-header">
@@ -93,6 +94,10 @@
       </div>
       <span id="pn-search-mode-badge" class="pn-search-mode-badge pn-hidden">Keyword search</span>
       <span id="pn-search-spark" class="pn-search-spark pn-hidden">✦</span>
+      <div id="pn-model-feedback" class="pn-model-feedback pn-hidden" aria-live="polite">
+        <span id="pn-model-feedback-dot" class="pn-model-feedback__dot"></span>
+        <span id="pn-model-feedback-text">Checking AI model state…</span>
+      </div>
       <div id="pn-ai-bar" class="pn-ai-bar pn-ai-bar--hidden">
         <div class="pn-ai-bar__line"></div>
       </div>
@@ -303,6 +308,7 @@
             <span>Target LLM</span>
             <select id="pn-continue-target"></select>
           </label>
+          <p id="pn-continue-target-meta" class="pn-sv-api-hint">Checking enabled platforms…</p>
 
           <label class="pn-field">
             <span>What to carry over</span>
@@ -369,8 +375,8 @@
         <div class="pn-sv">
           <!-- Hero -->
           <div class="pn-sv-hero" id="pn-settings-main-hero">
-            <h3 class="pn-sv-hero__title">Settings & Support</h3>
-            <p class="pn-sv-hero__sub">Configure your AI extension</p>
+            <h3 class="pn-sv-hero__title">Settings Control Center</h3>
+            <p class="pn-sv-hero__sub">Manage providers, local models, and semantic search readiness in one place.</p>
           </div>
 
           <div id="pn-settings-root-menu" class="pn-settings-root-menu">
@@ -433,6 +439,41 @@
             </div>
 
             <div class="pn-settings-pane" data-settings-pane="ai">
+          <div class="pn-ai-control-center">
+            <article class="pn-ai-control-card pn-ai-control-card--setup">
+              <p class="pn-ai-control-card__eyebrow">Initialization</p>
+              <h4 class="pn-ai-control-card__title">Semantic Search Setup</h4>
+              <p id="pn-ai-setup-headline" class="pn-ai-setup-headline">Checking runtime state…</p>
+              <div class="pn-ai-setup-progress-row">
+                <progress id="pn-ai-setup-progress" max="100" value="0"></progress>
+                <span id="pn-ai-setup-percent">0%</span>
+              </div>
+              <p id="pn-ai-setup-detail" class="pn-ai-setup-detail">Promptium will prepare embeddings so semantic search is ready.</p>
+              <div class="pn-ai-setup-actions">
+                <button id="pn-ai-setup-action-btn" class="pn-btn pn-btn--primary" type="button">Prepare Semantic Search</button>
+                <button id="pn-ai-retry-btn" class="pn-btn pn-btn--ghost pn-hidden" type="button">Retry</button>
+              </div>
+            </article>
+
+            <article class="pn-ai-control-card pn-ai-control-card--health">
+              <p class="pn-ai-control-card__eyebrow">Quick Health</p>
+              <h4 class="pn-ai-control-card__title">Runtime Overview</h4>
+              <ul class="pn-ai-health-list">
+                <li>
+                  <span>Provider</span>
+                  <strong id="pn-quick-provider-status">Checking…</strong>
+                </li>
+                <li>
+                  <span>Local model</span>
+                  <strong id="pn-quick-local-status">Checking…</strong>
+                </li>
+                <li>
+                  <span>Search mode</span>
+                  <strong id="pn-quick-semantic-status">Checking…</strong>
+                </li>
+              </ul>
+            </article>
+          </div>
 
           <!-- ── Intelligence ─────────────────────────── -->
           <div class="pn-sv-section">
@@ -489,7 +530,6 @@
               <span class="pn-sv-model-pill__dot"></span>
               <span id="ai-progress-text">Initializing…</span>
             </div>
-            <button id="pn-ai-retry-btn" class="pn-btn pn-btn--ghost pn-hidden" type="button">Retry Embedding Setup</button>
           </div>
 
           <hr class="pn-sv-divider" />
@@ -650,6 +690,14 @@
 
           <div class="pn-settings-pane pn-hidden" data-settings-pane="ai-models">
             <div class="pn-sv-section">
+              <h4 class="pn-sv-heading">Local Model Library</h4>
+              <p class="pn-sv-api-hint">Choose your default local model and manage downloads per model.</p>
+              <div id="pn-local-model-library" class="pn-local-model-library"></div>
+            </div>
+
+            <hr class="pn-sv-divider" />
+
+            <div class="pn-sv-section">
               <h4 class="pn-sv-heading">Active Model</h4>
               <label class="pn-sv-row">
                 <span class="pn-sv-row__copy">
@@ -732,6 +780,17 @@
             <div class="pn-sv-section">
               <h4 class="pn-sv-heading">LLM Platforms</h4>
               <p class="pn-sv-api-hint pn-sv-api-hint--platform-intro">Toggle provider support and set the display label used across Promptium.</p>
+              <div class="pn-platform-toolbar">
+                <span id="pn-platform-enabled-count" class="pn-platform-enabled-count">0 enabled</span>
+                <div class="pn-platform-toolbar__actions">
+                  <button id="pn-platform-enable-all" class="pn-btn pn-btn--ghost" type="button">Enable all</button>
+                  <button id="pn-platform-disable-all" class="pn-btn pn-btn--ghost" type="button">Disable all</button>
+                </div>
+              </div>
+              <label class="pn-sv-field pn-sv-field--compact">
+                <span class="pn-sv-field__label">Find platform</span>
+                <input id="pn-platform-filter" type="text" class="pn-sv-textarea" placeholder="Search by platform key or label" />
+              </label>
               <div id="pn-platform-list" class="pn-settings-list"></div>
               <p id="pn-platform-warning" class="pn-sv-api-hint pn-hidden">At least one platform should stay enabled.</p>
 

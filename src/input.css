@@ -18,8 +18,16 @@
     scrollbar-width: thin;
     scrollbar-color: var(--border-default) transparent;
     background:
-      radial-gradient(circle at 86% -14%, rgba(54, 214, 195, 0.16), transparent 38%),
-      radial-gradient(circle at 10% -28%, rgba(99, 102, 241, 0.14), transparent 40%),
+      radial-gradient(
+        circle at 86% -14%,
+        rgba(54, 214, 195, 0.16),
+        transparent 38%
+      ),
+      radial-gradient(
+        circle at 10% -28%,
+        rgba(99, 102, 241, 0.14),
+        transparent 40%
+      ),
       #0d1017;
   }
 
@@ -116,7 +124,9 @@
     background: #101520;
     color: #f0f0f4;
     font: inherit;
-    transition: border-color 0.15s ease, background 0.15s ease;
+    transition:
+      border-color 0.15s ease,
+      background 0.15s ease;
   }
 
   .pn-export-controls .pn-field select:focus,
@@ -135,7 +145,7 @@
     font-size: 11px;
   }
 
-  .pn-check-row input[type='checkbox'] {
+  .pn-check-row input[type="checkbox"] {
     accent-color: var(--accent);
   }
 
@@ -179,7 +189,7 @@
     padding: 12px;
     font-size: 13px;
     line-height: 1.45;
-    font-family: 'JetBrains Mono', monospace;
+    font-family: "JetBrains Mono", monospace;
   }
 
   .pn-export-sheet {
@@ -253,7 +263,11 @@
 
   .pn-settings-hero {
     background:
-      radial-gradient(circle at 100% -20%, rgba(139, 124, 246, 0.18), transparent 44%),
+      radial-gradient(
+        circle at 100% -20%,
+        rgba(139, 124, 246, 0.18),
+        transparent 44%
+      ),
       #18181c;
   }
 
@@ -318,7 +332,7 @@
     padding: 7px 0;
   }
 
-  .pn-check-row--stacked input[type='checkbox'] {
+  .pn-check-row--stacked input[type="checkbox"] {
     margin-top: 1px;
   }
 
@@ -419,7 +433,9 @@
     color: #f0f0f4;
     font-weight: 500;
     font-size: 13px;
-    transition: background 0.15s ease, border-color 0.15s ease;
+    transition:
+      background 0.15s ease,
+      border-color 0.15s ease;
   }
 
   .pn-template-header:hover {
@@ -465,6 +481,209 @@
 
     .pn-settings-grid {
       grid-template-columns: 1fr;
+    }
+  }
+}
+
+/* -- OVERHAUL SETTINGS UI -- */
+@layer components {
+  .pn-settings-root-menu {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    padding: 16px !important;
+  }
+  .pn-settings-group {
+    background: linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.03),
+      rgba(255, 255, 255, 0.01)
+    ) !important;
+    border: 1px solid rgba(255, 255, 255, 0.05) !important;
+    border-radius: 16px !important;
+    padding: 12px !important;
+    box-shadow: 0 4px 24px -8px rgba(0, 0, 0, 0.4) !important;
+    backdrop-filter: blur(10px) !important;
+  }
+  .pn-settings-group-title {
+    color: #a0aec0 !important;
+    font-size: 0.75rem !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    margin-bottom: 8px !important;
+    padding-left: 8px !important;
+  }
+  .pn-settings-item {
+    background: transparent !important;
+    border: 1px solid transparent !important;
+    border-radius: 12px !important;
+    transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+    padding: 12px 14px !important;
+    margin-bottom: 4px !important;
+  }
+  .pn-settings-item:hover {
+    background: rgba(255, 255, 255, 0.05) !important;
+    transform: translateX(4px) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+  }
+  .pn-settings-item-icon {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6) !important;
+    color: #fff !important;
+    border-radius: 8px !important;
+    padding: 6px !important;
+    box-shadow: 0 4px 12px -4px rgba(99, 102, 241, 0.5) !important;
+  }
+  .pn-settings-item-icon--prefs {
+    background: linear-gradient(135deg, #10b981, #3b82f6) !important;
+    box-shadow: 0 4px 12px -4px rgba(16, 185, 129, 0.5) !important;
+  }
+  .pn-settings-item-icon--about {
+    background: linear-gradient(135deg, #f59e0b, #eab308) !important;
+    box-shadow: 0 4px 12px -4px rgba(245, 158, 11, 0.5) !important;
+  }
+  .pn-settings-item-icon--platforms {
+    background: linear-gradient(135deg, #ec4899, #f43f5e) !important;
+    box-shadow: 0 4px 12px -4px rgba(236, 72, 153, 0.5) !important;
+  }
+  .pn-settings-pane-header {
+    background: linear-gradient(
+      to bottom,
+      rgba(13, 16, 23, 0.9),
+      rgba(13, 16, 23, 0.95)
+    ) !important;
+    backdrop-filter: blur(12px) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+    padding: 16px 20px !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 20 !important;
+    border-top-left-radius: 16px !important;
+    border-top-right-radius: 16px !important;
+  }
+  .pn-settings-back-btn {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border-radius: 8px !important;
+    padding: 6px 12px !important;
+    transition: all 0.2s !important;
+  }
+  .pn-settings-back-btn:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+    transform: translateX(-2px) !important;
+  }
+  .pn-sv-section {
+    background: #11141d !important;
+    border: 1px solid rgba(255, 255, 255, 0.05) !important;
+    border-radius: 16px !important;
+    padding: 20px !important;
+    margin-bottom: 24px !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02) !important;
+  }
+  .pn-sv-heading {
+    font-size: 1.1rem !important;
+    font-weight: 600 !important;
+    color: #e2e8f0 !important;
+    margin-bottom: 16px !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+    padding-bottom: 8px !important;
+  }
+  .pn-sv-row {
+    background: rgba(255, 255, 255, 0.02) !important;
+    border-radius: 12px !important;
+    padding: 12px 16px !important;
+    margin-bottom: 12px !important;
+    border: 1px solid transparent !important;
+    transition: all 0.2s !important;
+  }
+  .pn-sv-row:hover {
+    background: rgba(255, 255, 255, 0.03) !important;
+    border-color: rgba(255, 255, 255, 0.05) !important;
+  }
+  .pn-sv-row__label {
+    font-weight: 500 !important;
+    color: #f1f5f9 !important;
+  }
+  .pn-sv-row__desc {
+    color: #94a3b8 !important;
+    font-size: 0.8rem !important;
+    margin-top: 4px !important;
+  }
+  .pn-toggle__track {
+    background: #334155 !important;
+    border-radius: 16px !important;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+  }
+  .pn-toggle input:checked + .pn-toggle__track {
+    background: linear-gradient(135deg, #10b981, #059669) !important;
+    box-shadow:
+      0 0 12px rgba(16, 185, 129, 0.3),
+      inset 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+  }
+  .pn-sv-textarea,
+  .pn-sv-select {
+    background: #0f172a !important;
+    border: 1px solid #334155 !important;
+    border-radius: 8px !important;
+    color: #f8fafc !important;
+    padding: 10px 14px !important;
+    transition: all 0.2s !important;
+  }
+  .pn-sv-textarea:focus,
+  .pn-sv-select:focus {
+    border-color: #6366f1 !important;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2) !important;
+    outline: none !important;
+  }
+  .pn-sv-actions {
+    background: linear-gradient(
+      to top,
+      rgba(13, 16, 23, 1),
+      rgba(13, 16, 23, 0.9)
+    ) !important;
+    backdrop-filter: blur(12px) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
+    padding: 16px 20px !important;
+    border-bottom-left-radius: 16px;
+    border-bottom-right-radius: 16px;
+  }
+  .pn-btn--primary {
+    background: linear-gradient(135deg, #6366f1, #4f46e5) !important;
+    border: none !important;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3) !important;
+    font-weight: 600 !important;
+    border-radius: 10px !important;
+    color: #ffffff !important;
+  }
+  .pn-btn--primary:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4) !important;
+  }
+  .pn-btn--ghost {
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    background: rgba(255, 255, 255, 0.03) !important;
+    border-radius: 10px !important;
+  }
+  .pn-btn--ghost:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+  }
+
+  .pn-settings-panes-wrapper {
+    background: transparent !important;
+    border-radius: 16px !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
+    overflow: hidden !important;
+    animation: fadeSlideUp 0.3s ease-out forwards;
+  }
+
+  @keyframes fadeSlideUp {
+    0% {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
     }
   }
 }

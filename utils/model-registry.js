@@ -27,11 +27,11 @@ export const MODEL_REGISTRY = Object.freeze({
       keyStorageKey: 'promptiumGeminiKey',
       docsUrl: 'https://aistudio.google.com/apikey',
       models: [
-        { id: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash Lite', default: true, speed: 'fast', note: 'Best balance' },
-        { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite', default: false, speed: 'fast', note: 'Fastest, lower cost' },
-        { id: 'gemini-3-pro', label: 'Gemini 3 Pro', default: false, speed: 'medium', note: 'Highest quality' },
-        { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', default: false, speed: 'medium', note: 'Better quality' },
-        { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', default: false, speed: 'fast', note: 'Reliable, stable' }
+        { id: 'gemini-3.0-flash-preview', label: 'Gemini 3.0 Flash (Preview)', default: true, speed: 'fast', note: 'Latest balanced model' },
+        { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro (Preview)', default: false, speed: 'medium', note: 'Best reasoning quality' },
+        { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite', default: false, speed: 'blazing-fast', note: 'Lowest latency / cost' },
+        { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', default: false, speed: 'fast', note: 'Stable fast option' },
+        { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', default: false, speed: 'medium', note: 'Stable quality option' }
       ]
     },
 
@@ -43,9 +43,10 @@ export const MODEL_REGISTRY = Object.freeze({
       keyStorageKey: 'promptiumOpenAIKey',
       docsUrl: 'https://platform.openai.com/api-keys',
       models: [
-        { id: 'gpt-5.2-spark', label: 'gpt-5.2-spark', default: true, speed: 'blazing-fast', note: 'Best value' },
-        { id: 'gpt-5.2-mini', label: 'GPT-5.2 Mini', default: false, speed: 'medium', note: 'Highest quality' },
-        { id: 'gpt-4-turbo', label: 'GPT-4 Turbo', default: false, speed: 'medium', note: 'Reliable' }
+        { id: 'gpt-5.2-mini', label: 'GPT-5.2 Mini', default: true, speed: 'fast', note: 'Best default balance' },
+        { id: 'gpt-5.2', label: 'GPT-5.2', default: false, speed: 'medium', note: 'Highest quality' },
+        { id: 'gpt-5.2-nano', label: 'GPT-5.2 Nano', default: false, speed: 'blazing-fast', note: 'Fastest / cheapest' },
+        { id: 'gpt-4.1', label: 'GPT-4.1', default: false, speed: 'medium', note: 'Stable compatibility fallback' }
       ]
     },
 
@@ -57,8 +58,9 @@ export const MODEL_REGISTRY = Object.freeze({
       keyStorageKey: 'promptiumAnthropicKey',
       docsUrl: 'https://console.anthropic.com/settings/keys',
       models: [
-        { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5', default: true, speed: 'fast', note: 'Fast and capable' },
-        { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6', default: false, speed: 'medium', note: 'Best quality' }
+        { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5', default: true, speed: 'fast', note: 'Best balance' },
+        { id: 'claude-opus-4-6', label: 'Claude Opus 4.6', default: false, speed: 'medium', note: 'Highest quality' },
+        { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5', default: false, speed: 'blazing-fast', note: 'Fastest' }
       ]
     },
 
@@ -70,11 +72,11 @@ export const MODEL_REGISTRY = Object.freeze({
       keyStorageKey: 'promptiumOpenRouterKey',
       docsUrl: 'https://openrouter.ai/keys',
       models: [
-        { id: 'meta-llama/llama-3.1-8b-instruct:free', label: 'Llama 3.1 8B (Free)', default: true, speed: 'fast', note: 'Free tier' },
-        { id: 'mistralai/mistral-7b-instruct:free', label: 'Mistral 7B (Free)', default: false, speed: 'fast', note: 'Free tier' },
-        { id: 'anthropic/claude-haiku', label: 'Claude Haiku via OR', default: false, speed: 'fast', note: 'Via OpenRouter' },
-        { id: 'google/gemini-flash-1.5', label: 'Gemini Flash via OR', default: false, speed: 'fast', note: 'Via OpenRouter' },
-        { id: 'openai/gpt-4o-mini', label: 'GPT-4o Mini via OR', default: false, speed: 'fast', note: 'Via OpenRouter' }
+        { id: 'openrouter/auto', label: 'Auto Router (Recommended)', default: true, speed: 'adaptive', note: 'Best available model automatically' },
+        { id: 'anthropic/claude-sonnet-4.5', label: 'Claude Sonnet 4.5', default: false, speed: 'fast', note: 'Strong quality / cost' },
+        { id: 'openai/gpt-5.2', label: 'GPT-5.2', default: false, speed: 'medium', note: 'Latest OpenAI quality' },
+        { id: 'google/gemini-3-pro-preview', label: 'Gemini 3 Pro (Preview)', default: false, speed: 'medium', note: 'Latest Gemini quality' },
+        { id: 'anthropic/claude-opus-4.5', label: 'Claude Opus 4.5', default: false, speed: 'medium', note: 'Top-tier Anthropic via OR' }
       ]
     }
   }

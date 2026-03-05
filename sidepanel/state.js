@@ -23,10 +23,10 @@ const DEFAULT_SETTINGS = Object.freeze({
   enableAI: true,
   activeProvider: 'gemini',
   providerModels: {
-    gemini: 'gemini-3.1-flash-lite',
-    openai: 'gpt-5.2-spark',
-    anthropic: 'claude-haiku-4-5',
-    openrouter: 'meta-llama/llama-3.1-8b-instruct:free'
+    gemini: 'gemini-3.0-flash-preview',
+    openai: 'gpt-5.2-mini',
+    anthropic: 'claude-sonnet-4-5',
+    openrouter: 'openrouter/auto'
   },
   embeddingModelId: 'all-minilm-l6-v2',
   preferLocal: false,

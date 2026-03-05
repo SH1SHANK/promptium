@@ -766,6 +766,58 @@ const getSearchWrap = () => document.getElementById('search-wrap');
 
 const getSearchValue = () => String(getSearchInput()?.value || '');
 
+const formatLocalStatus = (rawStatus = '') => {
+  const normalized = String(rawStatus || '').trim().toLowerCase();
+  if (!normalized || normalized === 'not_downloaded') return 'not downloaded';
+  if (['ready', 'downloaded', 'loaded'].includes(normalized)) return 'ready';
+  if (['downloading', 'loading', 'initializing'].includes(normalized)) return 'preparing';
+  if (normalized === 'error') return 'error';
+  return normalized.replace(/_/g, ' ');
+};
+
+const renderModelFeedback = (payload = {}) => {
+  const wrap = document.getElementById('pn-model-feedback');
+  const textNode = document.getElementById('pn-model-feedback-text');
+  if (!wrap || !textNode) return;
+
+  const enabled = payload?.enabled !== false;
+  const preferLocal = payload?.preferLocal === true;
+  const semanticPhase = String(payload?.semanticPhase || 'idle').trim().toLowerCase();
+  const cloudModelLabel = String(payload?.cloudModelLabel || payload?.cloudModelId || '').trim();
+  const providerLabel = String(payload?.providerLabel || 'Cloud').trim();
+  const localModelLabel = String(payload?.localModelLabel || 'Local model').trim();
+  const localStatus = formatLocalStatus(payload?.localModelStatus || '');
+
+  if (!enabled) {
+    textNode.textContent = 'AI disabled · keyword search only';
+    wrap.dataset.tone = 'disabled';
+    wrap.classList.remove('pn-hidden');
+    return;
+  }
+
+  const semanticCopy = semanticPhase === 'ready'
+    ? 'semantic ready'
+    : semanticPhase === 'busy'
+      ? 'semantic preparing'
+      : semanticPhase === 'error'
+        ? 'semantic error'
+        : 'keyword search';
+
+  const line = preferLocal
+    ? `${localModelLabel} (${localStatus}) · ${semanticCopy}`
+    : `${providerLabel} · ${cloudModelLabel || 'model'} · ${semanticCopy}`;
+
+  textNode.textContent = line;
+  wrap.dataset.tone = semanticPhase === 'error'
+    ? 'error'
+    : semanticPhase === 'busy' || (preferLocal && localStatus === 'preparing')
+      ? 'busy'
+      : semanticPhase === 'ready'
+        ? 'ready'
+        : 'idle';
+  wrap.classList.remove('pn-hidden');
+};
+
 const clearSearch = () => {
   const searchInput = getSearchInput();
   const clearBtn = document.getElementById('pn-search-clear');
@@ -912,7 +964,7 @@ const renderBridgeStrip = async () => {
 
   const targets = Object.keys(window.Bridge.LLM_URLS)
     .filter((platform) => platform !== currentPlatform)
-    .filter((platform) => state.settings?.enabledPlatforms?.[platform] !== false)
+    .filter((platform) => state.settings?.enabledPlatforms?.[platform] === true)
     .map((platform) => ({ key: platform, label: PLATFORM_LABELS?.[platform] || platform }));
 
   if (!targets.length) {
@@ -920,18 +972,57 @@ const renderBridgeStrip = async () => {
     return;
   }
 
+  const labelNode = strip.querySelector('.pn-bridge-label');
+  if (labelNode) {
+    labelNode.textContent = 'Continue Chat';
+  }
+
+  let metaNode = strip.querySelector('#pn-bridge-meta');
+  if (!metaNode) {
+    metaNode = document.createElement('span');
+    metaNode.id = 'pn-bridge-meta';
+    metaNode.className = 'pn-bridge-meta';
+    targetsNode.insertAdjacentElement('beforebegin', metaNode);
+  }
+  metaNode.textContent = `${targets.length} enabled target${targets.length === 1 ? '' : 's'}`;
+
+  let openStudioButton = strip.querySelector('#pn-bridge-open-studio');
+  if (!openStudioButton) {
+    openStudioButton = document.createElement('button');
+    openStudioButton.type = 'button';
+    openStudioButton.id = 'pn-bridge-open-studio';
+    openStudioButton.className = 'pn-btn pn-btn--ghost pn-bridge-open-studio';
+    openStudioButton.textContent = 'Open Continue Studio';
+    openStudioButton.addEventListener('click', () => {
+      if (typeof window.ContinuationUI?.openFromActiveTab === 'function') {
+        void window.ContinuationUI.openFromActiveTab();
+        return;
+      }
+      void window.AppShell?.switchTab?.('continue');
+    });
+    targetsNode.insertAdjacentElement('beforebegin', openStudioButton);
+  }
+
   targetsNode.innerHTML = '';
   targets.forEach((target) => {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'pn-bridge-btn';
-    button.textContent = target.label;
+    const glyph = String(target.label || target.key || '?').trim().charAt(0).toUpperCase();
+    button.innerHTML = `
+      <span class="pn-bridge-btn__icon" aria-hidden="true">${escapeHtml(glyph || '?')}</span>
+      <span class="pn-bridge-btn__copy">
+        <span class="pn-bridge-btn__name">${escapeHtml(target.label)}</span>
+        <span class="pn-bridge-btn__hint">Continue</span>
+      </span>
+    `;
     button.addEventListener('click', () => {
       void (async () => {
         if (button.disabled) return;
-        const original = button.textContent;
+        button.classList.add('is-loading');
+        const hint = button.querySelector('.pn-bridge-btn__hint');
+        if (hint) hint.textContent = 'Opening...';
         button.disabled = true;
-        button.textContent = 'Opening...';
         try {
           await bridgeFromPrompts(target.key, target.label, currentPlatform);
         } catch (error) {
@@ -939,7 +1030,8 @@ const renderBridgeStrip = async () => {
           await showToast('Could not bridge conversation.');
         } finally {
           button.disabled = false;
-          button.textContent = original;
+          button.classList.remove('is-loading');
+          if (hint) hint.textContent = 'Continue';
         }
       })();
     });
@@ -976,6 +1068,7 @@ window.PromptsUI = {
   getSearchWrap,
   bindTemplateFilters,
   setActiveFilter,
-  resetTemplateFilter
+  resetTemplateFilter,
+  renderModelFeedback
 };
 })();

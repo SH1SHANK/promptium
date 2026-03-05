@@ -5,6 +5,8 @@
  */
 
 const { KEYS, ONBOARDING_CARDS, state, isEditableField } = window.SidepanelState;
+const MODAL_SCROLL_LOCK_CLASS = 'pn-modal-open';
+let modalLockObserver = null;
 
 const getOnboardingIconClass = (card) => String(card?.iconClass || 'pn-card-icon--violet');
 
@@ -333,6 +335,35 @@ const bindShellEvents = async () => {
   });
 };
 
+const syncModalScrollLock = () => {
+  const hasOpenModal = Array.from(document.querySelectorAll('.pn-modal'))
+    .some((node) => !node.classList.contains('pn-hidden'));
+  document.body.classList.toggle(MODAL_SCROLL_LOCK_CLASS, hasOpenModal);
+};
+
+const bindModalScrollLock = () => {
+  if (modalLockObserver) return;
+
+  const modals = Array.from(document.querySelectorAll('.pn-modal'));
+  if (!modals.length) {
+    syncModalScrollLock();
+    return;
+  }
+
+  modalLockObserver = new MutationObserver(() => {
+    syncModalScrollLock();
+  });
+
+  modals.forEach((modal) => {
+    modalLockObserver.observe(modal, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
+  });
+
+  syncModalScrollLock();
+};
+
 const handleShowExport = async () => {
   const incoming = await window.ExportPayloadUI.loadPayload();
   await window.ExportPayloadUI.ingestIncomingPayload(incoming);
@@ -501,6 +532,7 @@ const init = async () => {
   });
 
   await bindShellEvents();
+  bindModalScrollLock();
   window.PromptsUI.bindSearchHandlers();
   window.PromptForm.bindEvents();
   window.SettingsAI.bindEvents();

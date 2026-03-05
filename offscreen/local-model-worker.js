@@ -14,6 +14,7 @@ const OFFSCREEN_TARGET = 'promptium-offscreen-local-ai';
 const SETTINGS_KEY = 'promptiumSettings';
 const CACHE_INDEX_KEY = 'localModelCacheIndex';
 const EMBEDDING_CACHE_INDEX_KEY = 'embeddingModelCacheIndex';
+const OFFSCREEN_STORAGE_FALLBACK_PREFIX = 'promptium:offscreen:';
 const STATUS_TYPES = Object.freeze({
   NOT_DOWNLOADED: 'not_downloaded',
   DOWNLOADING: 'downloading',
@@ -124,10 +125,109 @@ const EMBEDDING_STATE = Object.fromEntries(Object.keys(EMBEDDING_REGISTRY).map((
 let activeEmbeddingModelId = String(getDefaultEmbeddingModel()?.id || 'all-minilm-l6-v2');
 let saveCacheIndexTimer = null;
 let saveEmbeddingCacheIndexTimer = null;
+const inMemoryFallbackStorage = new Map();
+let warnedStorageFallback = false;
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 const clampText = (value, max = 5000) => String(value || '').trim().slice(0, max);
+
+const getStorageLocalArea = () => {
+  const area = globalThis?.chrome?.storage?.local;
+  if (area && typeof area.get === 'function' && typeof area.set === 'function') {
+    return area;
+  }
+  return null;
+};
+
+const normalizeStorageKeys = (keys) => {
+  if (Array.isArray(keys)) {
+    return keys.map((key) => String(key || '').trim()).filter(Boolean);
+  }
+  if (typeof keys === 'string') {
+    const key = String(keys || '').trim();
+    return key ? [key] : [];
+  }
+  if (keys && typeof keys === 'object') {
+    return Object.keys(keys);
+  }
+  return [];
+};
+
+const readFallbackStorageKey = (key) => {
+  const safeKey = String(key || '').trim();
+  if (!safeKey) return undefined;
+
+  if (inMemoryFallbackStorage.has(safeKey)) {
+    return inMemoryFallbackStorage.get(safeKey);
+  }
+
+  try {
+    const raw = globalThis?.localStorage?.getItem(`${OFFSCREEN_STORAGE_FALLBACK_PREFIX}${safeKey}`);
+    if (!raw) {
+      inMemoryFallbackStorage.set(safeKey, undefined);
+      return undefined;
+    }
+    const parsed = safeJsonParse(raw);
+    inMemoryFallbackStorage.set(safeKey, parsed);
+    return parsed;
+  } catch (_error) {
+    return undefined;
+  }
+};
+
+const writeFallbackStorageEntries = (items = {}) => {
+  Object.entries(items || {}).forEach(([key, value]) => {
+    const safeKey = String(key || '').trim();
+    if (!safeKey) return;
+    inMemoryFallbackStorage.set(safeKey, value);
+    try {
+      globalThis?.localStorage?.setItem(
+        `${OFFSCREEN_STORAGE_FALLBACK_PREFIX}${safeKey}`,
+        JSON.stringify(value)
+      );
+    } catch (_error) {
+      // Best-effort persistence for offscreen contexts that do not expose chrome.storage.
+    }
+  });
+};
+
+const logStorageFallbackOnce = () => {
+  if (warnedStorageFallback) return;
+  warnedStorageFallback = true;
+  console.warn('[Promptium][LocalWorker] chrome.storage.local unavailable in offscreen context; using fallback storage.');
+};
+
+const storageLocalGet = async (keys = []) => {
+  const area = getStorageLocalArea();
+  if (area) {
+    return area.get(keys).catch(() => ({}));
+  }
+
+  logStorageFallbackOnce();
+  const result = {};
+  const safeKeys = normalizeStorageKeys(keys);
+  safeKeys.forEach((key) => {
+    const value = readFallbackStorageKey(key);
+    if (typeof value !== 'undefined') {
+      result[key] = value;
+    } else if (keys && typeof keys === 'object' && !Array.isArray(keys) && Object.prototype.hasOwnProperty.call(keys, key)) {
+      result[key] = keys[key];
+    }
+  });
+  return result;
+};
+
+const storageLocalSet = async (items = {}) => {
+  const area = getStorageLocalArea();
+  if (area) {
+    await area.set(items).catch(() => {});
+    return;
+  }
+
+  logStorageFallbackOnce();
+  writeFallbackStorageEntries(items);
+};
 
 const safeJsonParse = (value) => {
   try {
@@ -188,7 +288,7 @@ const limitWords = (value, maxWords) => {
 
 const modelKeyFromSettings = async () => {
   try {
-    const snapshot = await chrome.storage.local.get([SETTINGS_KEY]);
+    const snapshot = await storageLocalGet([SETTINGS_KEY]);
     const settings = snapshot?.[SETTINGS_KEY] || {};
     const key = String(settings?.localModelId || 'smollm2_1_7b').trim().toLowerCase();
     return MODEL_REGISTRY[key] ? key : 'smollm2_1_7b';
@@ -205,7 +305,7 @@ const resolveModelKey = async (value) => {
 
 const embeddingModelIdFromSettings = async () => {
   try {
-    const snapshot = await chrome.storage.local.get([SETTINGS_KEY]);
+    const snapshot = await storageLocalGet([SETTINGS_KEY]);
     const settings = snapshot?.[SETTINGS_KEY] || {};
     const modelId = String(settings?.embeddingModelId || activeEmbeddingModelId || '').trim();
     const resolved = getEmbeddingModelById(modelId);
@@ -243,12 +343,12 @@ const ensureIndexShape = (raw) => {
 };
 
 const readCacheIndex = async () => {
-  const snapshot = await chrome.storage.local.get([CACHE_INDEX_KEY]).catch(() => ({}));
+  const snapshot = await storageLocalGet([CACHE_INDEX_KEY]);
   return ensureIndexShape(snapshot?.[CACHE_INDEX_KEY]);
 };
 
 const writeCacheIndex = async (index) => {
-  await chrome.storage.local.set({ [CACHE_INDEX_KEY]: ensureIndexShape(index) }).catch(() => {});
+  await storageLocalSet({ [CACHE_INDEX_KEY]: ensureIndexShape(index) });
 };
 
 const queueCacheIndexSave = () => {
@@ -293,12 +393,12 @@ const ensureEmbeddingIndexShape = (raw) => {
 };
 
 const readEmbeddingCacheIndex = async () => {
-  const snapshot = await chrome.storage.local.get([EMBEDDING_CACHE_INDEX_KEY]).catch(() => ({}));
+  const snapshot = await storageLocalGet([EMBEDDING_CACHE_INDEX_KEY]);
   return ensureEmbeddingIndexShape(snapshot?.[EMBEDDING_CACHE_INDEX_KEY]);
 };
 
 const writeEmbeddingCacheIndex = async (index) => {
-  await chrome.storage.local.set({ [EMBEDDING_CACHE_INDEX_KEY]: ensureEmbeddingIndexShape(index) }).catch(() => {});
+  await storageLocalSet({ [EMBEDDING_CACHE_INDEX_KEY]: ensureEmbeddingIndexShape(index) });
 };
 
 const queueEmbeddingCacheIndexSave = () => {
