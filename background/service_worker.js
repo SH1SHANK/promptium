@@ -447,9 +447,11 @@ const scheduleLocalIdleRelease = () => {
   localIdleReleaseTimer = setTimeout(() => {
     void (async () => {
       try {
+        const settings = await getOffscreenSettingsPayload();
         await chrome.runtime.sendMessage({
           target: OFFSCREEN_LOCAL_TARGET,
           type: "AI_LOCAL_MODEL_RELEASE_IDLE",
+          settings,
           payload: { modelId: LOCAL_MODEL.modelId },
         });
       } catch (_error) {
@@ -599,6 +601,19 @@ const isMessageChannelClosedError = (err) =>
     .toLowerCase()
     .includes("message channel closed");
 
+const getOffscreenSettingsPayload = async () => {
+  const runtime = await getAiRuntimeSettings();
+  return {
+    localModelId: String(runtime?.localModelId || "smollm2_1_7b")
+      .trim()
+      .toLowerCase(),
+    embeddingModelId: String(
+      runtime?.embeddingModelId || EMBEDDING_META_FALLBACK.activeModelId,
+    ).trim(),
+    preferLocal: Boolean(runtime?.preferLocal),
+  };
+};
+
 const runLocalTaskViaOffscreen = async (
   type,
   task = "",
@@ -606,12 +621,14 @@ const runLocalTaskViaOffscreen = async (
   timeoutMs = LOCAL_MODEL_TASK_TIMEOUT_MS,
 ) => {
   await ensureOffscreenLocalHost();
+  const settings = await getOffscreenSettingsPayload();
 
   const requestPromise = chrome.runtime
     .sendMessage({
       target: OFFSCREEN_LOCAL_TARGET,
       type,
       task,
+      settings,
       payload,
     })
     .catch((err) => {
