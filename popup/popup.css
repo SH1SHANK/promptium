@@ -549,6 +549,7 @@ body.pn-popup::-webkit-scrollbar-thumb:hover {
 }
 
 .pn-density-compact .pn-card-text {
+  line-clamp: 3;
   -webkit-line-clamp: 3;
 }
 
@@ -778,12 +779,12 @@ body.pn-popup::-webkit-scrollbar-thumb:hover {
 }
 
 .pn-btn:active {
-  transform: translateY(1px);
+  transform: scale(0.97);
 }
 
 .pn-btn:disabled {
   cursor: not-allowed;
-  opacity: 0.45;
+  opacity: 0.4;
   box-shadow: none;
   border-color: var(--border-default);
   background: transparent;
@@ -978,6 +979,19 @@ body.pn-popup::-webkit-scrollbar-thumb:hover {
   margin-bottom: 10px;
   font-size: 12px;
   color: var(--text-secondary);
+}
+
+.pn-field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pn-field-counter {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
 }
 
 .pn-field input,
@@ -2015,6 +2029,23 @@ code {
   font-size: 11px;
   color: var(--text-secondary);
   line-height: 1.35;
+}
+
+.pn-inline-saved-badge {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  opacity: 0;
+  transform: translateY(1px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+}
+
+.pn-inline-saved-badge.is-visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 /* ─── Pill Toggle Switch ─── */
@@ -4171,8 +4202,31 @@ textarea:focus-visible,
 .pn-prompt-card .pn-card-title,
 .pn-history-card .pn-card-title {
   overflow: hidden;
+  display: -webkit-box;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+}
+
+.pn-card-saved-pulse {
+  animation: pn-card-saved-pulse 0.6s ease;
+}
+
+.pn-card-duplicate-pulse {
+  animation: pn-card-duplicate-pulse 2s ease;
+}
+
+@keyframes pn-card-saved-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(54, 214, 195, 0); }
+  40% { box-shadow: 0 0 0 2px rgba(54, 214, 195, 0.38), 0 0 16px rgba(54, 214, 195, 0.26); }
+  100% { box-shadow: 0 0 0 0 rgba(54, 214, 195, 0); }
+}
+
+@keyframes pn-card-duplicate-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0); }
+  30%, 70% { box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.45), 0 0 22px rgba(250, 204, 21, 0.28); }
 }
 
 .pn-detected-vars {

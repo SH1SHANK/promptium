@@ -35,11 +35,47 @@
   let templateLastBeforePolish = "";
   let variableDetectTimer = null;
   let runtimeMessageBound = false;
+  let highlightTimer = null;
+  const textareaMinHeights = new Map();
 
   const byIdSafe = (id) => document.getElementById(id);
 
   const clearChildren = (node) => {
     if (node) node.replaceChildren();
+  };
+
+  const updateCounter = (counterId, inputId) => {
+    const counter = byIdSafe(counterId);
+    const input = byIdSafe(inputId);
+    if (!counter || !input) return;
+
+    const value = String(input.value || "");
+    const max = Number(input.getAttribute("maxlength") || 0);
+    counter.textContent = max > 0 ? `${value.length}/${max}` : String(value.length);
+  };
+
+  const autoGrowTextarea = (textareaId) => {
+    const textarea = byIdSafe(textareaId);
+    if (!(textarea instanceof HTMLTextAreaElement)) return;
+
+    if (!textareaMinHeights.has(textareaId)) {
+      textareaMinHeights.set(textareaId, textarea.offsetHeight || 0);
+    }
+
+    textarea.style.height = "auto";
+    const minHeight = textareaMinHeights.get(textareaId) || 0;
+    const nextHeight = Math.max(minHeight, textarea.scrollHeight);
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY = nextHeight > 280 ? "auto" : "hidden";
+  };
+
+  const syncFormMetrics = () => {
+    updateCounter("pn-count-prompt-title", "prompt-title");
+    updateCounter("pn-count-prompt-text", "prompt-text");
+    updateCounter("pn-count-template-title", "pn-template-title");
+    updateCounter("pn-count-template-text", "pn-template-text");
+    autoGrowTextarea("prompt-text");
+    autoGrowTextarea("pn-template-text");
   };
 
   const normalizeTemplateText = (text) => {
@@ -127,6 +163,7 @@
     clearDuplicateWarning();
     clearChildren(byIdSafe("pn-tag-suggestions"));
     syncPlainPolishVisibility();
+    syncFormMetrics();
   };
 
   const resetTemplateForm = () => {
@@ -160,6 +197,7 @@
     }
 
     syncTemplatePolishVisibility();
+    syncFormMetrics();
   };
 
   const getLocalStatus = async () => {
@@ -260,6 +298,7 @@
 
     byIdSafe("add-modal")?.classList.remove("pn-hidden");
     setMode(MODE_SELECTOR);
+    syncFormMetrics();
     await updateAiStatusStrips();
   };
 
@@ -281,6 +320,7 @@
     }
 
     syncPlainPolishVisibility();
+    syncFormMetrics();
   };
 
   const close = async () => {
@@ -340,6 +380,8 @@
     textarea.focus();
     updateDetectedVarsNow();
     syncTemplatePolishVisibility();
+    updateCounter("pn-count-template-text", "pn-template-text");
+    autoGrowTextarea("pn-template-text");
   };
 
   const showTemporaryError = (id, message, ms = 4000) => {
@@ -424,6 +466,13 @@
       button.classList.remove("pn-btn--loading");
       syncPlainPolishVisibility();
       syncTemplatePolishVisibility();
+      if (isTemplate) {
+        updateCounter("pn-count-template-text", "pn-template-text");
+        autoGrowTextarea("pn-template-text");
+      } else {
+        updateCounter("pn-count-prompt-text", "prompt-text");
+        autoGrowTextarea("prompt-text");
+      }
     }
   };
 
@@ -445,6 +494,13 @@
     }
 
     undo.classList.add("pn-hidden");
+    if (isTemplate) {
+      updateCounter("pn-count-template-text", "pn-template-text");
+      autoGrowTextarea("pn-template-text");
+    } else {
+      updateCounter("pn-count-prompt-text", "prompt-text");
+      autoGrowTextarea("prompt-text");
+    }
   };
 
   const setPlainTagsFromArray = (tags) => {
@@ -513,12 +569,33 @@
     return window.PromptDuplicate.findDuplicate({ title, text }, prompts, 0.85);
   };
 
-  const scrollPromptIntoView = async (promptId) => {
+  const highlightPromptCard = (promptId, mode = "saved") => {
+    const node = document.querySelector(`[data-prompt-id="${promptId}"]`);
+    if (!(node instanceof HTMLElement)) return;
+
+    node.classList.remove("pn-card-saved-pulse", "pn-card-duplicate-pulse");
+    void node.offsetWidth;
+    node.classList.add(mode === "duplicate" ? "pn-card-duplicate-pulse" : "pn-card-saved-pulse");
+
+    if (highlightTimer) {
+      clearTimeout(highlightTimer);
+      highlightTimer = null;
+    }
+
+    highlightTimer = setTimeout(() => {
+      highlightTimer = null;
+      node.classList.remove("pn-card-saved-pulse", "pn-card-duplicate-pulse");
+    }, mode === "duplicate" ? 2000 : 650);
+  };
+
+  const scrollPromptIntoView = async (promptId, options = {}) => {
     if (!promptId) return;
     await window.PromptsUI?.render?.(window.PromptsUI.getSearchValue());
     setTimeout(() => {
       const node = document.querySelector(`[data-prompt-id="${promptId}"]`);
-      node?.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (!(node instanceof HTMLElement)) return;
+      node.scrollIntoView({ behavior: "smooth", block: "center" });
+      highlightPromptCard(promptId, options.mode === "duplicate" ? "duplicate" : "saved");
     }, 80);
   };
 
@@ -555,7 +632,7 @@
       const targetId = String(match?.id || "");
       void close();
       if (targetId) {
-        void scrollPromptIntoView(targetId);
+        void scrollPromptIntoView(targetId, { mode: "duplicate" });
       }
     });
 
@@ -802,19 +879,29 @@
 
     byIdSafe("prompt-text")?.addEventListener("input", () => {
       syncPlainPolishVisibility();
+      updateCounter("pn-count-prompt-text", "prompt-text");
+      autoGrowTextarea("prompt-text");
       hideError("pn-error-text");
+      hideError("pn-polish-error");
       clearDuplicateWarning();
     });
     byIdSafe("prompt-title")?.addEventListener("input", () => {
+      updateCounter("pn-count-prompt-title", "prompt-title");
       hideError("pn-error-title");
       clearDuplicateWarning();
     });
     byIdSafe("pn-template-title")?.addEventListener("input", () => {
+      updateCounter("pn-count-template-title", "pn-template-title");
       hideError("pn-template-error-title");
       clearDuplicateWarning();
     });
     byIdSafe("pn-template-text")?.addEventListener("input", () => {
+      updateCounter("pn-count-template-text", "pn-template-text");
+      autoGrowTextarea("pn-template-text");
       hideError("pn-template-error-text");
+      hideError("pn-template-polish-error");
+      hideError("pn-template-polish-warning");
+      byIdSafe("pn-template-text")?.classList.remove("pn-focus-invalid");
       clearDuplicateWarning();
     });
 
@@ -886,6 +973,7 @@
     }
 
     bindVariableToolbar();
+    syncFormMetrics();
   };
 
   const setCallbacks = (nextCallbacks = {}) => {

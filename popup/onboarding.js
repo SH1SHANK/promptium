@@ -1,669 +1,976 @@
 /**
  * File: popup/onboarding.js
- * Purpose: Manages first-run onboarding cards, gesture navigation, personalization capture, and model setup flow.
- * Communicates with: popup/popup.js, utils/ai.js, chrome.storage.local.
+ * Purpose: Premium onboarding with per-card animations, ambient glow, text reveals, and confetti.
+ * Design language: Linear.app onboarding meets Vercel dashboard — dark, precise, motion-forward.
+ * Communicates with: popup/popup.js, chrome.storage.local.
  */
 
 (() => {
-  const ONBOARDING_KEY = 'onboardingComplete';
-  const STEP_SEQUENCE = ['fetch', 'load', 'warmup', 'ready'];
+  const ONBOARDING_KEY = "onboardingComplete";
+
+  /* ===========================
+     CARD DATA
+     =========================== */
 
   const CARDS = [
     {
-      id: 'welcome',
-      icon: '✦',
-      iconClass: 'pn-card-icon--violet',
-      headline: 'Meet Promptium',
-      subheadline: 'Your AI workflow, elevated.',
-      body: 'Save prompts, fill template variables, continue across LLMs, bookmark key replies, and export in clean formats. All private.',
-      accent: 'var(--accent)'
+      id: "welcome",
+      headline: "Meet Promptium",
+      subline: "Your AI workflow, elevated.",
+      hint: "private \u00B7 local \u00B7 powerful",
     },
     {
-      id: 'prompts',
-      icon: '⌘',
-      iconClass: 'pn-card-icon--mint',
-      headline: 'Never lose a great prompt',
-      subheadline: 'Save once. Inject anywhere.',
-      body: 'Save prompts on any supported LLM page. Build templates with [name] required and [name?] optional blanks, then inject in one click.',
-      accent: 'var(--accent)'
+      id: "templates",
+      headline: "Templates that adapt",
+      subline: "Save prompts with [variables] that fill in on the fly.",
+      hint: "[topic] required \u00B7 [tone?] optional",
     },
     {
-      id: 'improve',
-      icon: '✨',
-      iconClass: 'pn-card-icon--lilac',
-      headline: 'AI Prompt Improvement',
-      subheadline: 'Enhance before you send.',
-      body: 'Open the Side Panel to refine your prompts. Choose from Coding, Creative, or Study styles and let Gemini perfect your text instantly.',
-      accent: 'var(--secondary-accent)'
+      id: "platforms",
+      headline: "One prompt, every platform",
+      subline: "Inject saved prompts into ChatGPT, Claude, Gemini, and more.",
+      hint: "5 platforms supported",
     },
     {
-      id: 'export',
-      icon: '↑',
-      iconClass: 'pn-card-icon--amber',
-      headline: 'Export with intention',
-      subheadline: 'Your conversations, your format.',
-      body: 'Export chats as Markdown, TXT, JSON, PDF, PNG, JPEG, Notion, or Obsidian. Smart filenames and starred bookmarks carry through exports.',
-      accent: 'var(--warning)'
+      id: "export",
+      headline: "Export with intention",
+      subline:
+        "Markdown, PDF, JSON, Notion \u2014 your conversations, your format.",
+      hint: "smart names \u00B7 bookmarks included",
     },
     {
-      id: 'ai',
-      icon: '◈',
-      iconClass: 'pn-card-icon--pink',
-      headline: 'Bridge between LLMs',
-      subheadline: 'Continue context in one click.',
-      body: 'Use Continue on buttons to move your active conversation context between ChatGPT, Claude, Gemini, Perplexity, and Copilot.',
-      accent: 'var(--danger)'
+      id: "ai",
+      headline: "Smart AI built in",
+      subline: "Local embeddings and prompt polish \u2014 no API key needed.",
+      hint: "\u2726 SmolLM2 ready",
     },
     {
-      id: 'privacy',
-      icon: '◉',
-      iconClass: 'pn-card-icon--green',
-      headline: 'Privacy-first architecture',
-      subheadline: 'No backend. No account.',
-      body: 'Every saved prompt, every export, every local search embedding stays fully local on your device. Your conversations are yours.',
-      accent: 'var(--success)'
+      id: "ready",
+      headline: "You're all set",
+      subline: "Start building your prompt library.",
+      hint: "let's go \u2192",
+      isFinal: true,
     },
-    {
-      id: 'launch',
-      icon: '→',
-      iconClass: 'pn-card-icon--violet',
-      headline: 'Ready to start',
-      subheadline: 'Choose your next step.',
-      body: 'Open your library, jump into settings, or start directly.',
-      accent: 'var(--accent)',
-      isLaunch: true
-    }
   ];
+
+  const GLOW_POSITIONS = [
+    { top: "20%", left: "30%" },
+    { top: "60%", left: "55%" },
+    { top: "35%", left: "20%" },
+    { top: "55%", left: "40%" },
+    { top: "25%", left: "60%" },
+    { top: "40%", left: "35%" },
+  ];
+
+  /* ===========================
+     STATE
+     =========================== */
 
   const state = {
     currentCard: 0,
-    totalCards: 7,
-    userName: '',
-    userContext: '',
-    touchStartX: 0,
-    touchStartY: 0,
-    isDragging: false,
-    dragOffset: 0
+    totalCards: CARDS.length,
+    transitioning: false,
+    dotsRevealed: false,
   };
 
   const dom = {
-    mount: null,
     overlay: null,
     deck: null,
+    glow: null,
     cards: [],
     dots: [],
-    swipeHint: null
+    timers: [],
   };
 
   let completionResolver = null;
-  let hasModelInitRun = false;
 
-  /** Pauses execution for the specified number of milliseconds. */
-  const sleep = async (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  /* ===========================
+     UTILITIES
+     =========================== */
 
-  /** Returns x and y pointer coordinates for touch or mouse input events. */
-  const getPointer = async (event) => {
-    if (event.touches && event.touches[0]) {
-      return { x: event.touches[0].clientX, y: event.touches[0].clientY };
-    }
+  /** Pauses execution for the specified milliseconds. */
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-    if (event.changedTouches && event.changedTouches[0]) {
-      return { x: event.changedTouches[0].clientX, y: event.changedTouches[0].clientY };
-    }
-
-    return { x: event.clientX, y: event.clientY };
+  /** Schedules a callback and tracks the timer for cleanup. */
+  const schedule = (fn, delay) => {
+    const id = setTimeout(fn, delay);
+    dom.timers.push(id);
+    return id;
   };
 
-  /** Returns a card transform string for the current index relative to active card position. */
-  const computeCardTransform = async (index) => {
-    if (index < state.currentCard) {
-      return 'translateX(-100%)';
-    }
-
-    if (index > state.currentCard) {
-      return 'translateX(100%)';
-    }
-
-    return 'translateX(0)';
+  /** Clears all scheduled timers. */
+  const clearTimers = () => {
+    dom.timers.forEach((id) => clearTimeout(id));
+    dom.timers.length = 0;
   };
 
-  /** Replays staggered reveal animation on the active card after navigation. */
-  const replayActiveAnimations = async () => {
-    const card = dom.cards[state.currentCard];
+  /* ===========================
+     TEXT ANIMATION SYSTEM
+     =========================== */
 
-    if (!card) {
+  /**
+   * Reveals text with character, word, or typewriter animation.
+   * @param {HTMLElement} el - The element containing the text.
+   * @param {'charReveal'|'wordFade'|'lineDraw'} type - Animation type.
+   * @param {number} delay - Milliseconds before animation starts.
+   */
+  const animateText = (el, type, delay) => {
+    if (!el) {
       return;
     }
 
-    card.classList.remove('pn-reveal');
-    void card.offsetWidth;
-    card.classList.add('pn-reveal');
+    const text = el.getAttribute("data-text") || el.textContent;
+    el.setAttribute("data-text", text);
+
+    if (type === "charReveal") {
+      el.innerHTML = "";
+      const chars = text.split("");
+
+      schedule(() => {
+        chars.forEach((ch, i) => {
+          if (ch === " ") {
+            el.appendChild(document.createTextNode("\u00A0"));
+          } else {
+            const span = document.createElement("span");
+            span.className = "char";
+            span.textContent = ch;
+            span.style.animationDelay = `${i * 30}ms`;
+            el.appendChild(span);
+          }
+        });
+      }, delay);
+    }
+
+    if (type === "wordFade") {
+      el.innerHTML = "";
+      const words = text.split(" ");
+
+      schedule(() => {
+        words.forEach((word, i) => {
+          const span = document.createElement("span");
+          span.className = "word";
+          span.textContent = word;
+          span.style.animationDelay = `${i * 60}ms`;
+          el.appendChild(span);
+
+          if (i < words.length - 1) {
+            el.appendChild(document.createTextNode("\u00A0"));
+          }
+        });
+      }, delay);
+    }
+
+    if (type === "lineDraw") {
+      el.classList.remove("typing", "typed");
+      el.textContent = text;
+      el.style.removeProperty("--hint-width");
+
+      schedule(() => {
+        // Measure natural width
+        el.style.visibility = "hidden";
+        el.style.width = "auto";
+        const naturalWidth = el.scrollWidth;
+        el.style.width = "0";
+        el.style.setProperty("--hint-width", naturalWidth + "px");
+        el.classList.add("typing");
+
+        // After typeOut (0.8s) + 3 cursor blinks (2.4s), hide cursor
+        schedule(() => {
+          el.classList.remove("typing");
+          el.classList.add("typed");
+        }, 2500);
+      }, delay);
+    }
   };
 
-  /** Updates progress dots to reflect the currently active onboarding card. */
-  const updateDots = async () => {
-    dom.dots.forEach((dot, index) => {
-      dot.classList.toggle('active', index === state.currentCard);
+  /* ===========================
+     GLOW ORB
+     =========================== */
+
+  /** Moves the ambient glow orb to the position for the given card index. */
+  const moveGlow = (index) => {
+    if (!dom.glow) {
+      return;
+    }
+
+    const pos = GLOW_POSITIONS[index] || GLOW_POSITIONS[0];
+    dom.glow.style.top = pos.top;
+    dom.glow.style.left = pos.left;
+  };
+
+  /* ===========================
+     PROGRESS DOTS
+     =========================== */
+
+  /** Reveals all dots with staggered scaleIn animation (runs once on first card enter). */
+  const revealDots = (baseDelay) => {
+    if (state.dotsRevealed) {
+      return;
+    }
+
+    state.dotsRevealed = true;
+    dom.dots.forEach((dot, i) => {
+      schedule(
+        () => {
+          dot.classList.add("visible");
+        },
+        baseDelay + i * 40,
+      );
     });
   };
 
-  /** Applies card transform positions and active states for current onboarding index. */
-  const updateCardPositions = async (withTransition = true) => {
-    for (let index = 0; index < dom.cards.length; index += 1) {
-      const card = dom.cards[index];
-      card.classList.toggle('active', index === state.currentCard);
-      card.classList.toggle('exited', index < state.currentCard);
-      card.style.transition = withTransition ? 'transform 0.32s cubic-bezier(0.4, 0, 0.2, 1)' : 'none';
-      card.style.transform = await computeCardTransform(index);
-    }
+  /** Updates dot states to reflect the current card index. */
+  const updateDots = () => {
+    dom.dots.forEach((dot, i) => {
+      dot.classList.remove("active");
 
-    await updateDots();
-    await replayActiveAnimations();
+      if (i < state.currentCard && !dot.classList.contains("visited")) {
+        dot.classList.add("visited");
+      }
+
+      if (i === state.currentCard) {
+        dot.classList.add("active");
+      }
+    });
   };
 
-  /** Applies live drag transforms to active and adjacent cards during swipe gestures. */
-  const applyDragTransform = async (offset) => {
-    const width = dom.deck?.clientWidth || 1;
-    const current = dom.cards[state.currentCard];
-    const previous = dom.cards[state.currentCard - 1];
-    const next = dom.cards[state.currentCard + 1];
+  /* ===========================
+     PER-CARD VISUAL HTML
+     =========================== */
 
-    if (current) {
-      current.style.transform = `translateX(${offset}px)`;
-    }
+  /** Returns the SVG/HTML markup for each card's illustration area. */
+  const getVisualHTML = (cardId) => {
+    switch (cardId) {
+      case "welcome":
+        return `
+          <svg class="pn-ob-logo-svg" viewBox="0 0 80 80" width="80" height="80">
+            <circle cx="40" cy="40" r="36" class="pn-ob-logo-ring" />
+            <path class="logo-stroke"
+              d="M28,58 L28,22 L40,22 C48,22 54,27 54,34 C54,41 48,46 40,46 L28,46" />
+            <path class="logo-fill"
+              d="M30,56 L30,24 L40,24 C47,24 52,28.5 52,34 C52,39.5 47,44 40,44 L30,44 Z" />
+          </svg>`;
 
-    if (previous) {
-      previous.style.transform = `translateX(${offset - width}px)`;
-    }
+      case "templates":
+        return `
+          <div class="pn-ob-prompt-card">
+            Write a <span class="pn-ob-var-highlight" data-var="1">[topic]</span> essay<br>
+            in a <span class="pn-ob-var-highlight" data-var="2">[tone?]</span> voice
+            <div class="pn-ob-fill-badge">\u2191 Fill in to use</div>
+          </div>`;
 
-    if (next) {
-      next.style.transform = `translateX(${offset + width}px)`;
+      case "platforms":
+        return `
+          <div class="pn-ob-platforms">
+            <div class="pn-ob-platform-icon">G</div>
+            <div class="pn-ob-platform-icon">C</div>
+            <div class="pn-ob-platform-icon">\u2726</div>
+            <div class="pn-ob-platform-icon">P</div>
+            <div class="pn-ob-platform-icon">\u229E</div>
+            <svg class="pn-ob-connect-line" viewBox="0 0 200 36">
+              <path d="M10,28 Q55,4 100,18 Q145,32 190,8" />
+            </svg>
+          </div>`;
+
+      case "export":
+        return `
+          <div class="pn-ob-bridge">
+            <div class="pn-ob-bridge-panel left">
+              <span class="panel-icon">\uD83D\uDCC4</span>
+              Export
+            </div>
+            <svg class="pn-ob-bridge-arrow" viewBox="0 0 40 20">
+              <path class="arrow-path" d="M2,10 L30,10 M26,5 L32,10 L26,15" />
+              <g class="travel-group">
+                <circle r="2.5" cx="2" cy="10" />
+              </g>
+            </svg>
+            <div class="pn-ob-bridge-panel right">
+              <span class="panel-icon">\uD83D\uDCAC</span>
+              Continue
+            </div>
+          </div>`;
+
+      case "ai":
+        return `
+          <div class="pn-ob-ai-section">
+            <div class="pn-ob-ai-badge">
+              <span class="pn-ob-ai-dot"></span>
+              <span class="pn-ob-ai-text">\u2726 SmolLM2 ready</span>
+            </div>
+            <div class="pn-ob-waveform">
+              <div class="pn-waveform-bar"></div>
+              <div class="pn-waveform-bar"></div>
+              <div class="pn-waveform-bar"></div>
+              <div class="pn-waveform-bar"></div>
+              <div class="pn-waveform-bar"></div>
+            </div>
+          </div>`;
+
+      case "ready":
+        return `
+          <div class="pn-ob-check-wrap">
+            <svg class="pn-ob-check-svg" viewBox="0 0 64 64" width="64" height="64">
+              <circle cx="32" cy="32" r="29" class="check-fill" />
+              <circle cx="32" cy="32" r="29" class="check-circle" />
+              <polyline points="20,34 28,42 44,24" class="check-mark" />
+            </svg>
+            <div class="pn-ob-check-ripple"></div>
+          </div>`;
+
+      default:
+        return "";
     }
   };
 
-  /** Animates cards back to stable positions when swipe threshold is not met. */
-  const snapBack = async () => {
-    await updateCardPositions(true);
+  /* ===========================
+     PER-CARD VISUAL ANIMATIONS
+     =========================== */
+
+  /** Triggers card-specific visual animations after the visual fades in. */
+  const triggerCardVisual = (cardEl, cardId) => {
+    const visual = cardEl.querySelector(".pn-ob-visual");
+
+    if (!visual) {
+      return;
+    }
+
+    switch (cardId) {
+      /* Card 1 — Logo stroke draw + fill + ring expand */
+      case "welcome": {
+        const svg = visual.querySelector(".pn-ob-logo-svg");
+
+        if (svg) {
+          svg.classList.remove("animate");
+          schedule(() => {
+            svg.classList.add("animate");
+          }, 80);
+        }
+
+        break;
+      }
+
+      /* Card 2 — Variable highlight underlines + fill badge */
+      case "templates": {
+        const v1 = visual.querySelector('[data-var="1"]');
+        const v2 = visual.querySelector('[data-var="2"]');
+        const badge = visual.querySelector(".pn-ob-fill-badge");
+
+        if (v1) {
+          v1.classList.remove("reveal");
+          schedule(() => {
+            v1.classList.add("reveal");
+          }, 200);
+        }
+
+        if (v2) {
+          v2.classList.remove("reveal");
+          schedule(() => {
+            v2.classList.add("reveal");
+          }, 500);
+        }
+
+        if (badge) {
+          badge.classList.remove("reveal");
+          schedule(() => {
+            badge.classList.add("reveal");
+          }, 700);
+        }
+
+        break;
+      }
+
+      /* Card 3 — Platform logos stagger + connecting line */
+      case "platforms": {
+        const icons = visual.querySelectorAll(".pn-ob-platform-icon");
+        const line = visual.querySelector(".pn-ob-connect-line");
+
+        icons.forEach((icon, i) => {
+          icon.classList.remove("reveal");
+          schedule(
+            () => {
+              icon.classList.add("reveal");
+            },
+            80 + i * 80,
+          );
+        });
+
+        if (line) {
+          line.classList.remove("reveal");
+          schedule(
+            () => {
+              line.classList.add("reveal");
+            },
+            80 + icons.length * 80 + 100,
+          );
+        }
+
+        break;
+      }
+
+      /* Card 4 — Panels slide in + arrow draw + traveling dot */
+      case "export": {
+        const leftPanel = visual.querySelector(".pn-ob-bridge-panel.left");
+        const rightPanel = visual.querySelector(".pn-ob-bridge-panel.right");
+        const arrow = visual.querySelector(".pn-ob-bridge-arrow");
+
+        if (leftPanel) {
+          leftPanel.classList.remove("reveal-left");
+          schedule(() => {
+            leftPanel.classList.add("reveal-left");
+          }, 100);
+        }
+
+        if (rightPanel) {
+          rightPanel.classList.remove("reveal-right");
+          schedule(() => {
+            rightPanel.classList.add("reveal-right");
+          }, 100);
+        }
+
+        if (arrow) {
+          arrow.classList.remove("reveal", "travel");
+          schedule(() => {
+            arrow.classList.add("reveal");
+          }, 400);
+          schedule(() => {
+            arrow.classList.add("travel");
+          }, 800);
+        }
+
+        break;
+      }
+
+      /* Card 5 — Badge fade + green blink + charReveal on text + waveform */
+      case "ai": {
+        const badge = visual.querySelector(".pn-ob-ai-badge");
+        const dot = visual.querySelector(".pn-ob-ai-dot");
+        const textEl = visual.querySelector(".pn-ob-ai-text");
+        const waveform = visual.querySelector(".pn-ob-waveform");
+
+        if (badge) {
+          badge.classList.remove("reveal");
+          schedule(() => {
+            badge.classList.add("reveal");
+          }, 0);
+        }
+
+        if (dot) {
+          dot.classList.remove("blink");
+          schedule(() => {
+            dot.classList.add("blink");
+          }, 80);
+        }
+
+        if (textEl) {
+          animateText(textEl, "charReveal", 200);
+        }
+
+        if (waveform) {
+          waveform.classList.remove("reveal");
+          schedule(() => {
+            waveform.classList.add("reveal");
+          }, 0);
+        }
+
+        break;
+      }
+
+      /* Card 6 — Check draw + ripple + confetti */
+      case "ready": {
+        const svg = visual.querySelector(".pn-ob-check-svg");
+        const ripple = visual.querySelector(".pn-ob-check-ripple");
+
+        if (svg) {
+          svg.classList.remove("animate");
+          schedule(() => {
+            svg.classList.add("animate");
+          }, 80);
+        }
+
+        if (ripple) {
+          ripple.classList.remove("animate");
+          schedule(() => {
+            ripple.classList.add("animate");
+          }, 80);
+        }
+
+        schedule(() => {
+          fireConfetti(cardEl);
+        }, 800);
+
+        break;
+      }
+
+      default:
+        break;
+    }
   };
 
-  /** Focuses personalization name input when the final card becomes active. */
-  const focusPersonalizationInput = async () => {
-    await sleep(340);
-    document.getElementById('pn-user-name')?.focus();
+  /* ===========================
+     CONFETTI SYSTEM
+     =========================== */
+
+  /** Fires 30 physics-based confetti particles from the card center. */
+  const fireConfetti = (container) => {
+    const canvas = document.createElement("canvas");
+    canvas.className = "pn-ob-confetti-canvas";
+    canvas.width = container.offsetWidth || 400;
+    canvas.height = container.offsetHeight || 500;
+    container.appendChild(canvas);
+
+    const ctx = canvas.getContext("2d");
+    const particles = [];
+    const colors = ["#8b7cf6", "#ffffff", "#6366f1", "#a78bfa", "#c4b5fd"];
+
+    const cx = canvas.width / 2;
+    const cy = canvas.height * 0.42;
+
+    for (let i = 0; i < 30; i += 1) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 2.5 + Math.random() * 4;
+
+      particles.push({
+        x: cx,
+        y: cy,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 3.5,
+        size: 3 + Math.random() * 4,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        life: 1,
+        decay: 0.012 + Math.random() * 0.008,
+        gravity: 0.08,
+        rotation: Math.random() * 360,
+        rotSpeed: (Math.random() - 0.5) * 8,
+      });
+    }
+
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      let alive = false;
+
+      for (const p of particles) {
+        if (p.life <= 0) {
+          continue;
+        }
+
+        alive = true;
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += p.gravity;
+        p.life -= p.decay;
+        p.rotation += p.rotSpeed;
+
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, p.life);
+        ctx.translate(p.x, p.y);
+        ctx.rotate((p.rotation * Math.PI) / 180);
+        ctx.fillStyle = p.color;
+
+        // Mix of rectangles and small circles for variety
+        if (p.size > 5) {
+          ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+        } else {
+          ctx.beginPath();
+          ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.restore();
+      }
+
+      if (alive) {
+        requestAnimationFrame(animate);
+      } else {
+        canvas.remove();
+      }
+    };
+
+    requestAnimationFrame(animate);
   };
 
-  /** Moves onboarding to the next card or completes personalization if on final card. */
+  /* ===========================
+     CARD ENTER SEQUENCE
+     =========================== */
+
+  /**
+   * Triggers the full card enter choreography for the given index.
+   * Follows the exact delay table from the spec.
+   */
+  const triggerCardEnter = (index) => {
+    clearTimers();
+
+    const cardEl = dom.cards[index];
+    const data = CARDS[index];
+
+    if (!cardEl || !data) {
+      return;
+    }
+
+    // headline: charReveal at 180ms
+    const headlineEl = cardEl.querySelector(".pn-ob-headline");
+    animateText(headlineEl, "charReveal", 180);
+
+    // subline: wordFade at 380ms
+    const sublineEl = cardEl.querySelector(".pn-ob-subline");
+    animateText(sublineEl, "wordFade", 380);
+
+    // hint: typeOut at 580ms
+    const hintEl = cardEl.querySelector(".pn-ob-hint");
+    animateText(hintEl, "lineDraw", 580);
+
+    // Per-card visual animation triggers
+    triggerCardVisual(cardEl, data.id);
+
+    // Progress dots: staggered scaleIn at 700ms (first time only)
+    revealDots(700);
+    updateDots();
+
+    // Move glow orb
+    moveGlow(index);
+  };
+
+  /* ===========================
+     CARD RESET (for re-entry)
+     =========================== */
+
+  /** Resets all animation states on a card so it can re-enter cleanly. */
+  const resetCard = (cardEl) => {
+    if (!cardEl) {
+      return;
+    }
+
+    cardEl.classList.remove("active", "exit");
+
+    // Reset headline
+    const headline = cardEl.querySelector(".pn-ob-headline");
+
+    if (headline) {
+      const text = headline.getAttribute("data-text") || headline.textContent;
+      headline.setAttribute("data-text", text);
+      headline.textContent = text;
+    }
+
+    // Reset subline
+    const subline = cardEl.querySelector(".pn-ob-subline");
+
+    if (subline) {
+      const text = subline.getAttribute("data-text") || subline.textContent;
+      subline.setAttribute("data-text", text);
+      subline.textContent = text;
+    }
+
+    // Reset hint
+    const hint = cardEl.querySelector(".pn-ob-hint");
+
+    if (hint) {
+      hint.classList.remove("typing", "typed");
+      hint.style.width = "0";
+      hint.style.removeProperty("--hint-width");
+    }
+
+    // Reset visual classes — remove common animation trigger classes
+    const classesToReset = [
+      ".pn-ob-logo-svg",
+      ".pn-ob-var-highlight",
+      ".pn-ob-fill-badge",
+      ".pn-ob-platform-icon",
+      ".pn-ob-connect-line",
+      ".pn-ob-bridge-panel",
+      ".pn-ob-bridge-arrow",
+      ".pn-ob-ai-badge",
+      ".pn-ob-ai-dot",
+      ".pn-ob-waveform",
+      ".pn-ob-check-svg",
+      ".pn-ob-check-ripple",
+    ];
+
+    classesToReset.forEach((sel) => {
+      cardEl.querySelectorAll(sel).forEach((el) => {
+        el.classList.remove(
+          "animate",
+          "reveal",
+          "reveal-left",
+          "reveal-right",
+          "travel",
+          "blink",
+          "visible",
+        );
+      });
+    });
+
+    // Remove confetti canvas if present
+    const confetti = cardEl.querySelector(".pn-ob-confetti-canvas");
+
+    if (confetti) {
+      confetti.remove();
+    }
+  };
+
+  /* ===========================
+     NAVIGATION
+     =========================== */
+
+  /** Navigates to the next card with exit/enter choreography. */
   const nextCard = async () => {
+    if (state.transitioning) {
+      return;
+    }
+
     if (state.currentCard >= state.totalCards - 1) {
       await completeOnboarding();
       return;
     }
 
-    state.currentCard += 1;
-    await updateCardPositions(true);
+    state.transitioning = true;
+    const currentEl = dom.cards[state.currentCard];
+    const nextIndex = state.currentCard + 1;
+    const nextEl = dom.cards[nextIndex];
+
+    // 1. Exit current card
+    currentEl.classList.remove("active");
+    currentEl.classList.add("exit");
+
+    // 2. Wait for exit animation (200ms)
+    await sleep(200);
+
+    // 3. Clean up current, prepare next
+    currentEl.classList.remove("exit");
+    resetCard(nextEl);
+
+    // 4. Enter next card
+    state.currentCard = nextIndex;
+    nextEl.classList.add("active");
+    triggerCardEnter(nextIndex);
+
+    state.transitioning = false;
   };
 
-  /** Moves onboarding to the previous card when available. */
-  const prevCard = async () => {
-    if (state.currentCard <= 0) {
+  /** Skips directly to the final card. */
+  const skipToEnd = async () => {
+    if (state.transitioning) {
       return;
     }
 
-    state.currentCard -= 1;
-    await updateCardPositions(true);
-  };
+    state.transitioning = true;
+    const currentEl = dom.cards[state.currentCard];
+    const endIndex = state.totalCards - 1;
+    const endEl = dom.cards[endIndex];
 
-  /** Jumps directly to the personalize card from any earlier card. */
-  const skipToPersonalize = async () => {
-    state.currentCard = state.totalCards - 1;
-    await updateCardPositions(true);
-  };
+    // Exit current
+    currentEl.classList.remove("active");
+    currentEl.classList.add("exit");
 
-  /** Starts drag state for touch and mouse interactions over onboarding cards. */
-  const onDragStart = async (event) => {
-    if (!dom.deck) {
-      return;
-    }
+    await sleep(200);
 
-    const targetTag = String(event.target?.tagName || '').toLowerCase();
+    currentEl.classList.remove("exit");
 
-    if (targetTag === 'input' || targetTag === 'textarea' || targetTag === 'button' || targetTag === 'a') {
-      return;
-    }
-
-    const pointer = await getPointer(event);
-    state.touchStartX = pointer.x;
-    state.touchStartY = pointer.y;
-    state.isDragging = true;
-    state.dragOffset = 0;
-
-    [dom.cards[state.currentCard - 1], dom.cards[state.currentCard], dom.cards[state.currentCard + 1]]
-      .filter(Boolean)
-      .forEach((card) => {
-        card.style.transition = 'none';
-      });
-  };
-
-  /** Updates drag offset with edge resistance and applies live card movement transforms. */
-  const onDragMove = async (event) => {
-    if (!state.isDragging) {
-      return;
-    }
-
-    const pointer = await getPointer(event);
-    const deltaX = pointer.x - state.touchStartX;
-    const deltaY = Math.abs(pointer.y - state.touchStartY);
-
-    if (deltaY > Math.abs(deltaX)) {
-      return;
-    }
-
-    state.dragOffset = deltaX;
-
-    const resistance = state.currentCard === 0 && deltaX > 0
-      ? 0.3
-      : state.currentCard === state.totalCards - 1 && deltaX < 0
-        ? 0.3
-        : 1;
-
-    await applyDragTransform(deltaX * resistance);
-
-    if (event.cancelable) {
-      event.preventDefault();
-    }
-  };
-
-  /** Ends drag gesture and triggers card navigation or snap-back based on threshold. */
-  const onDragEnd = async () => {
-    if (!state.isDragging) {
-      return;
-    }
-
-    const threshold = 60;
-
-    if (Math.abs(state.dragOffset) > threshold) {
-      if (state.dragOffset > 0) {
-        await prevCard();
-      } else {
-        await nextCard();
+    // Mark all intermediate dots as visited
+    for (let i = state.currentCard; i < endIndex; i += 1) {
+      if (dom.dots[i] && !dom.dots[i].classList.contains("visited")) {
+        dom.dots[i].classList.add("visited");
       }
-    } else {
-      await snapBack();
     }
 
-    state.isDragging = false;
-    state.dragOffset = 0;
+    // Enter final card
+    resetCard(endEl);
+    state.currentCard = endIndex;
+    endEl.classList.add("active");
+    triggerCardEnter(endIndex);
+
+    state.transitioning = false;
   };
 
-  /** Marks initialization steps as active/done according to the current stage id. */
-  const markStep = async (stepId) => {
-    const activeIndex = STEP_SEQUENCE.indexOf(stepId);
+  /* ===========================
+     OVERLAY LIFECYCLE
+     =========================== */
 
-    document.querySelectorAll('.pn-step').forEach((node) => {
-      const nodeIndex = STEP_SEQUENCE.indexOf(String(node.dataset.step || ''));
-      node.classList.remove('active');
-      node.classList.remove('done');
-
-      if (nodeIndex < activeIndex) {
-        node.classList.add('done');
-      }
-
-      if (nodeIndex === activeIndex) {
-        node.classList.add('active');
-      }
-    });
-  };
-
-  /** Marks all initialization steps complete after successful model setup. */
-  const markAllStepsDone = async () => {
-    document.querySelectorAll('.pn-step').forEach((node) => {
-      node.classList.remove('active');
-      node.classList.add('done');
-    });
-  };
-
-  /** Finalizes onboarding, saves completion flag, removes overlay, and resumes popup boot flow. */
+  /** Finalizes onboarding, saves flag, removes overlay, calls completion callback. */
   const completeOnboarding = async () => {
     await chrome.storage.local.set({ [ONBOARDING_KEY]: true });
+    clearTimers();
 
-    const overlay = dom.overlay || document.getElementById('pn-onboarding');
+    const overlay = dom.overlay || document.getElementById("pn-onboarding");
 
     if (overlay) {
-      overlay.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
-      overlay.style.opacity = '0';
-      overlay.style.transform = 'scale(0.97)';
-      await sleep(400);
+      overlay.classList.add("pn-ob-exit");
+      await sleep(350);
       overlay.remove();
     }
 
-    const headerTitle = document.querySelector('.pn-header-title, .pn-title');
-    const { userName } = await chrome.storage.local.get(['userName']);
-    const name = String(userName || '').trim();
-
-    if (name && headerTitle) {
-      headerTitle.textContent = `Hi, ${name} ✦`;
-      await sleep(2000);
-      headerTitle.textContent = 'Promptium';
+    // Remove glow orb
+    if (dom.glow) {
+      dom.glow.remove();
+      dom.glow = null;
     }
 
-    if (typeof completionResolver === 'function') {
-      await completionResolver({ aiInitialized: hasModelInitRun });
+    if (typeof completionResolver === "function") {
+      await completionResolver({ aiInitialized: false });
     }
   };
 
-  /** Runs staged setup progress animation and initializes smart features once. */
-  const runModelInit = async () => {
-    const bar = document.getElementById('pn-progress-bar');
-    const label = document.getElementById('pn-progress-label');
-    const pct = document.getElementById('pn-progress-pct');
+  /* ===========================
+     EVENT HANDLING
+     =========================== */
 
-    const steps = [
-      { pct: 15, label: 'Preparing smart search...', step: 'fetch', delay: 400 },
-      { pct: 45, label: 'Initializing runtime...', step: 'fetch', delay: 1200 },
-      { pct: 70, label: 'Applying preferences...', step: 'load', delay: 800 },
-      { pct: 85, label: 'Warming up suggestions...', step: 'warmup', delay: 600 },
-      { pct: 95, label: 'Personalizing...', step: 'warmup', delay: 400 }
-    ];
-
-    for (const item of steps) {
-      await sleep(item.delay);
-
-      if (bar) {
-        bar.style.width = `${item.pct}%`;
-      }
-
-      if (label) {
-        label.textContent = item.label;
-      }
-
-      if (pct) {
-        pct.textContent = `${item.pct}%`;
-      }
-
-      await markStep(item.step);
-    }
-
-    try {
-      hasModelInitRun = true;
-      const ready = await window.AI.initModel();
-
-      if (!ready) {
-        throw new Error('AI unavailable');
-      }
-
-      await sleep(300);
-
-      if (bar) {
-        bar.style.width = '100%';
-      }
-
-      if (pct) {
-        pct.textContent = '100%';
-      }
-
-      if (label) {
-        label.textContent = 'Ready.';
-      }
-
-      await markStep('ready');
-      await markAllStepsDone();
-      await sleep(600);
-      await completeOnboarding();
-    } catch (_error) {
-      if (label) {
-        label.textContent = 'AI unavailable — continuing without it.';
-      }
-
-      if (pct) {
-        pct.textContent = '';
-      }
-
-      await sleep(1500);
-      await completeOnboarding();
-    }
-  };
-
-  /** Replaces card deck with the smart-feature initialization interface in the same overlay. */
-  const showModelInitScreen = async () => {
-    const overlay = dom.overlay || document.getElementById('pn-onboarding');
-
-    if (!overlay) {
-      return;
-    }
-
-    overlay.classList.add('pn-model-mode');
-    overlay.innerHTML = `
-      <div id="pn-model-init">
-        <div class="pn-init-header">
-          <div class="pn-init-icon">◈</div>
-          <h2>Setting up smart features</h2>
-          <p>Promptium runs model-free smart ranking and tagging.<br>No model download is required.</p>
-        </div>
-
-        <div class="pn-progress-container">
-          <div class="pn-progress-track">
-            <div id="pn-progress-bar" class="pn-progress-fill"></div>
-          </div>
-          <div class="pn-progress-meta">
-            <span id="pn-progress-label">Initializing...</span>
-            <span id="pn-progress-pct">0%</span>
-          </div>
-        </div>
-
-        <div id="pn-init-steps" class="pn-init-steps">
-          <div class="pn-step" data-step="fetch">
-            <span class="pn-step-dot"></span>
-            <span class="pn-step-text">Preparing runtime</span>
-          </div>
-          <div class="pn-step" data-step="load">
-            <span class="pn-step-dot"></span>
-            <span class="pn-step-text">Applying preferences</span>
-          </div>
-          <div class="pn-step" data-step="warmup">
-            <span class="pn-step-dot"></span>
-            <span class="pn-step-text">Warming up ranking</span>
-          </div>
-          <div class="pn-step" data-step="ready">
-            <span class="pn-step-dot"></span>
-            <span class="pn-step-text">Personalizing tag engine</span>
-          </div>
-        </div>
-      </div>
-    `;
-
-    await runModelInit();
-  };
-
-  /** Saves user personalization inputs and transitions into model setup screen. */
-  const completePersonalization = async () => {
-    const nameInput = document.getElementById('pn-user-name');
-    const contextInput = document.getElementById('pn-user-context');
-    state.userName = String(nameInput?.value || '').trim();
-    state.userContext = String(contextInput?.value || '').trim();
-
-    await chrome.storage.local.set({
-      userName: state.userName,
-      userContext: state.userContext
-    });
-
-    await showModelInitScreen();
-  };
-
-  /** Returns markup for the personalize card input controls and helper text. */
-  const renderPersonalizeCard = async () => `
-    <div class="pn-onboard-inputs">
-      <div class="pn-input-group">
-        <label>What should we call you?</label>
-        <input type="text" id="pn-user-name" placeholder="Your name" maxlength="32" autocomplete="off">
-      </div>
-      <div class="pn-input-group">
-        <label>What do you mainly use LLMs for?</label>
-        <textarea id="pn-user-context" placeholder="e.g. coding, studying, research, writing..." maxlength="120" rows="2"></textarea>
-      </div>
-      <p class="pn-input-hint">This helps generate better tag suggestions for your prompts.</p>
-    </div>
-  `;
-
-  /** Builds one onboarding card element with text, optional inputs, and actions. */
-  const renderCard = async (card, index) => {
-    const node = document.createElement('section');
-    node.className = 'pn-onboard-card';
-    node.dataset.index = String(index);
-    node.dataset.cardId = card.id;
-    node.innerHTML = `
-      <span class="pn-card-icon ${card.iconClass || 'pn-card-icon--violet'}">${card.icon}</span>
-      <p class="pn-card-sub">${card.subheadline}</p>
-      <h2 class="pn-card-headline">${card.headline}</h2>
-      ${card.isPersonalize ? await renderPersonalizeCard() : `<p class="pn-card-body">${card.body}</p>`}
-      ${card.id === 'welcome' ? '<p class="pn-swipe-hint">swipe or continue →</p>' : ''}
-      ${
-        card.isLaunch
-          ? `<div class="pn-onboard-actions">
-              <button class="pn-onboard-btn" type="button" data-action="get-started">Get Started</button>
-              <button class="pn-onboard-btn pn-btn--ghost" type="button" data-action="open-library">Open Library</button>
-              <button class="pn-onboard-btn pn-btn--ghost" type="button" data-action="go-settings">Go to Settings</button>
-            </div>`
-          : `<div class="pn-onboard-actions">
-              <button class="pn-onboard-btn" type="button" data-action="continue">${card.isPersonalize ? 'Set Up AI →' : 'Continue'}</button>
-              ${card.isPersonalize ? '' : '<a class="pn-onboard-skip" href="#" data-action="skip">Skip</a>'}
-            </div>`
-      }
-    `;
-
-    return node;
-  };
-
-  /** Handles overlay click actions for continue and skip controls. */
+  /** Handles button clicks within the onboarding overlay. */
   const onOverlayClick = async (event) => {
-    const action = String(event.target?.dataset?.action || '');
+    const action = String(event.target?.dataset?.action || "");
 
-    if (action === 'continue') {
+    if (action === "continue") {
       event.preventDefault();
       await nextCard();
       return;
     }
 
-    if (action === 'skip') {
+    if (action === "skip") {
       event.preventDefault();
-      await skipToPersonalize();
+      await skipToEnd();
       return;
     }
 
-    if (action === 'get-started') {
+    if (action === "get-started") {
       event.preventDefault();
       await completeOnboarding();
-      return;
-    }
-
-    if (action === 'open-library') {
-      event.preventDefault();
-      await completeOnboarding();
-      window.open(chrome.runtime.getURL('sidepanel/sidepanel.html#prompts'), '_blank');
-      return;
-    }
-
-    if (action === 'go-settings') {
-      event.preventDefault();
-      await completeOnboarding();
-      window.open(chrome.runtime.getURL('sidepanel/sidepanel.html#settings'), '_blank');
     }
   };
 
-  /** Registers onboarding click and drag event listeners for touch and mouse input. */
-  const bindEvents = async () => {
-    if (!dom.overlay || !dom.deck) {
+  /** Handles keyboard navigation (right/left arrow, Enter, Escape). */
+  const onKeyDown = async (event) => {
+    if (!dom.overlay) {
       return;
     }
 
-    dom.overlay.addEventListener('click', (event) => {
+    if (event.key === "ArrowRight" || event.key === "Enter") {
+      event.preventDefault();
+      await nextCard();
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      await skipToEnd();
+    }
+  };
+
+  /** Binds all event listeners for the onboarding overlay. */
+  const bindEvents = () => {
+    if (!dom.overlay) {
+      return;
+    }
+
+    dom.overlay.addEventListener("click", (event) => {
       void onOverlayClick(event);
     });
 
-    dom.deck.addEventListener('touchstart', (event) => {
-      void onDragStart(event);
-    }, { passive: true });
-
-    dom.deck.addEventListener('touchmove', (event) => {
-      void onDragMove(event);
-    }, { passive: false });
-
-    dom.deck.addEventListener('touchend', () => {
-      void onDragEnd();
-    });
-
-    dom.deck.addEventListener('mousedown', (event) => {
-      void onDragStart(event);
-    });
-
-    window.addEventListener('mousemove', (event) => {
-      void onDragMove(event);
-    });
-
-    window.addEventListener('mouseup', () => {
-      void onDragEnd();
+    document.addEventListener("keydown", (event) => {
+      void onKeyDown(event);
     });
   };
 
-  /** Renders onboarding overlay, card deck, navigation dots, and initial reveal state. */
-  const renderOnboarding = async () => {
-    dom.mount = document.getElementById('pn-onboarding-mount') || document.body;
-    dom.overlay = document.createElement('div');
-    dom.overlay.id = 'pn-onboarding';
-    dom.overlay.innerHTML = `
-      <div class="pn-card-deck"></div>
-      <div class="pn-dot-row"></div>
+  /* ===========================
+     CARD RENDERING
+     =========================== */
+
+  /** Builds one onboarding card element with visual, text, and actions. */
+  const renderCard = (data, index) => {
+    const node = document.createElement("section");
+    node.className = "pn-onboarding-card";
+    node.dataset.index = String(index);
+    node.dataset.cardId = data.id;
+
+    const btnLabel = data.isFinal ? "Get Started" : "Continue";
+    const btnAction = data.isFinal ? "get-started" : "continue";
+    const skipMarkup = data.isFinal
+      ? ""
+      : `<button class="pn-ob-skip" type="button" data-action="skip">Skip</button>`;
+
+    node.innerHTML = `
+      <div class="pn-ob-visual">${getVisualHTML(data.id)}</div>
+      <h2 class="pn-ob-headline" data-text="${data.headline}">${data.headline}</h2>
+      <p class="pn-ob-subline" data-text="${data.subline}">${data.subline}</p>
+      <span class="pn-ob-hint" data-text="${data.hint}">${data.hint}</span>
+      <button class="pn-onboarding-primary" type="button" data-action="${btnAction}">${btnLabel}</button>
+      ${skipMarkup}
     `;
 
-    dom.mount.appendChild(dom.overlay);
-    dom.deck = dom.overlay.querySelector('.pn-card-deck');
-    const dotsRow = dom.overlay.querySelector('.pn-dot-row');
+    return node;
+  };
+
+  /* ===========================
+     RENDER ONBOARDING
+     =========================== */
+
+  /** Builds the complete onboarding overlay with glow, cards, and dots. */
+  const renderOnboarding = () => {
+    const mount =
+      document.getElementById("pn-onboarding-mount") || document.body;
+
+    // Create glow orb
+    dom.glow = document.createElement("div");
+    dom.glow.className = "pn-onboarding-glow";
+    dom.glow.style.top = GLOW_POSITIONS[0].top;
+    dom.glow.style.left = GLOW_POSITIONS[0].left;
+
+    // Create overlay
+    dom.overlay = document.createElement("div");
+    dom.overlay.id = "pn-onboarding";
+    dom.overlay.innerHTML = `
+      <div class="pn-ob-deck"></div>
+      <div class="pn-ob-dots"></div>
+    `;
+
+    // Append glow inside overlay
+    dom.overlay.appendChild(dom.glow);
+
+    mount.appendChild(dom.overlay);
+
+    dom.deck = dom.overlay.querySelector(".pn-ob-deck");
+    const dotsRow = dom.overlay.querySelector(".pn-ob-dots");
 
     dom.cards = [];
     dom.dots = [];
 
-    for (let index = 0; index < CARDS.length; index += 1) {
-      const cardNode = await renderCard(CARDS[index], index);
+    // Render all cards
+    for (let i = 0; i < CARDS.length; i += 1) {
+      const cardNode = renderCard(CARDS[i], i);
       dom.cards.push(cardNode);
       dom.deck.appendChild(cardNode);
+    }
 
-      const dot = document.createElement('span');
-      dot.className = 'pn-dot';
+    // Render dots
+    for (let i = 0; i < CARDS.length; i += 1) {
+      const dot = document.createElement("span");
+      dot.className = "pn-ob-dot";
       dotsRow.appendChild(dot);
       dom.dots.push(dot);
     }
 
-    dom.swipeHint = dom.overlay.querySelector('.pn-swipe-hint');
+    // Activate first card
+    dom.cards[0].classList.add("active");
+    triggerCardEnter(0);
 
-    await updateCardPositions(false);
-    await bindEvents();
-
-    if (dom.swipeHint) {
-      setTimeout(() => {
-        dom.swipeHint.classList.add('pn-hint-hidden');
-      }, 3000);
-    }
+    bindEvents();
   };
 
-  /** Starts onboarding flow from card zero and binds completion callback for popup boot continuation. */
+  /* ===========================
+     PUBLIC API
+     =========================== */
+
+  /** Starts the onboarding flow from card 0 and calls onComplete when finished. */
   const start = async ({ onComplete } = {}) => {
     state.currentCard = 0;
     state.totalCards = CARDS.length;
-    state.userName = '';
-    state.userContext = '';
-    state.touchStartX = 0;
-    state.touchStartY = 0;
-    state.isDragging = false;
-    state.dragOffset = 0;
-    hasModelInitRun = false;
-    completionResolver = typeof onComplete === 'function' ? onComplete : null;
+    state.transitioning = false;
+    state.dotsRevealed = false;
+    completionResolver = typeof onComplete === "function" ? onComplete : null;
 
-    const existing = document.getElementById('pn-onboarding');
+    const existing = document.getElementById("pn-onboarding");
 
     if (existing) {
       existing.remove();
     }
 
-    await renderOnboarding();
+    renderOnboarding();
   };
 
   window.Onboarding = {
@@ -672,6 +979,6 @@
     start,
     renderOnboarding,
     renderCard,
-    completeOnboarding
+    completeOnboarding,
   };
 })();

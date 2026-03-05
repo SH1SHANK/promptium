@@ -312,13 +312,27 @@
           </label>
 
           <label class="pn-field">
-            <span>Also tell it that... <small class="pn-field-hint">(optional)</small></span>
+            <span class="pn-field-head">
+              <span>Also tell it that... <small class="pn-field-hint">(optional)</small></span>
+              <span id="pn-count-continue-note" class="pn-field-counter">0</span>
+            </span>
             <textarea id="pn-continue-note" rows="4" placeholder="Any extra context or instruction for the next chat"></textarea>
           </label>
 
           <div class="pn-continue-actions">
             <button id="pn-continue-cancel" class="pn-btn pn-btn--ghost" type="button">Cancel</button>
             <button id="pn-continue-run" class="pn-btn pn-btn--primary" type="button">Continue →</button>
+          </div>
+
+          <div id="pn-continue-preview-wrap" class="pn-hidden">
+            <label class="pn-field">
+              <span>Handoff Preview</span>
+              <textarea id="pn-continue-preview" rows="7" readonly></textarea>
+            </label>
+            <div class="pn-continue-actions">
+              <button id="pn-continue-copy" class="pn-btn pn-btn--ghost" type="button">Copy instead</button>
+              <button id="pn-continue-open" class="pn-btn pn-btn--primary" type="button">Open in target</button>
+            </div>
           </div>
         </div>
       </section>
@@ -943,7 +957,10 @@
 
           <div class="pn-add-modal__section">
           <label class="pn-field">
-            <span>Title</span>
+            <span class="pn-field-head">
+              <span>Title</span>
+              <span id="pn-count-prompt-title" class="pn-field-counter">0/80</span>
+            </span>
             <input id="prompt-title" type="text" placeholder="Give it a name (e.g. My Study Helper)" maxlength="80" />
           </label>
           <p id="pn-error-title" class="pn-fill-error pn-hidden"></p>
@@ -951,7 +968,10 @@
 
           <div class="pn-add-modal__section">
             <label class="pn-field">
-              <span>Prompt Text</span>
+              <span class="pn-field-head">
+                <span>Prompt Text</span>
+                <span id="pn-count-prompt-text" class="pn-field-counter">0</span>
+              </span>
               <textarea id="prompt-text" rows="6" placeholder="Type your prompt here..."></textarea>
             </label>
             <div id="pn-polish-wrap" class="pn-hidden">
@@ -989,7 +1009,10 @@
           <div id="pn-template-ai-status" class="pn-sv-api-hint pn-add-ai-status">○ AI unavailable — enable in Settings</div>
 
           <label class="pn-field">
-            <span>Title</span>
+            <span class="pn-field-head">
+              <span>Title</span>
+              <span id="pn-count-template-title" class="pn-field-counter">0/80</span>
+            </span>
             <input id="pn-template-title" type="text" placeholder="Give it a name (e.g. My Study Helper)" maxlength="80" />
           </label>
           <p id="pn-template-error-title" class="pn-fill-error pn-hidden"></p>
@@ -1000,7 +1023,10 @@
           </p>
 
           <label class="pn-field">
-            <span>Template Text</span>
+            <span class="pn-field-head">
+              <span>Template Text</span>
+              <span id="pn-count-template-text" class="pn-field-counter">0</span>
+            </span>
             <div class="pn-textarea-wrap">
               <textarea id="pn-template-text" class="pn-form-textarea" rows="6" placeholder="Type your prompt here..."></textarea>
               <div class="pn-var-toolbar" id="pn-var-toolbar">

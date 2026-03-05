@@ -70,6 +70,44 @@ const showNotification = async (message) => {
   setTimeout(() => toast.remove(), 2500);
 };
 
+const setFabActionLoading = (button, isLoading) => {
+  if (!button) return;
+  const loading = Boolean(isLoading);
+  button.classList.toggle('pn-fab-action--loading', loading);
+  button.disabled = loading;
+};
+
+const setFabActionUnsupported = (button, reason = '') => {
+  if (!button) return;
+  const unsupportedReason = String(reason || '').trim();
+  const unsupported = Boolean(unsupportedReason);
+  button.classList.toggle('pn-fab-action--unsupported', unsupported);
+  button.setAttribute('aria-disabled', unsupported ? 'true' : 'false');
+  if (unsupported) {
+    button.dataset.unsupportedReason = unsupportedReason;
+    button.title = unsupportedReason;
+    return;
+  }
+
+  button.dataset.unsupportedReason = '';
+  button.title = '';
+};
+
+const refreshFabActionAvailability = async (root, platform) => {
+  if (!root) return;
+  const input = await getInputElement(platform);
+  const hasInput = Boolean(input);
+
+  root.querySelectorAll('.pn-fab-action').forEach((button) => {
+    const action = String(button.dataset.action || '').trim();
+    if (action === 'save-prompt' || action === 'improve-prompt') {
+      setFabActionUnsupported(button, hasInput ? '' : 'No editable chat input found on this page.');
+      return;
+    }
+    setFabActionUnsupported(button, '');
+  });
+};
+
 const normalizeFabSettings = (value) => {
   const source = value && typeof value === 'object' ? value : {};
   const incomingActions = source.fabActions && typeof source.fabActions === 'object' ? source.fabActions : {};
@@ -581,28 +619,27 @@ chrome.runtime.onMessage.addListener((msg) => {
 /** Routes FAB action clicks to prompt save, export dialog, library guidance, or improvement. */
 const handleFabAction = (platform, action) => {
   if (action === 'save-prompt') {
-    onSavePromptClick(platform).catch(console.error);
-    return;
+    return onSavePromptClick(platform);
   }
 
   if (action === 'export') {
-    onExportClick(platform).catch(console.error);
-    return;
+    return onExportClick(platform);
   }
 
   if (action === 'library') {
     onLibraryClick();
-    return;
+    return Promise.resolve();
   }
 
   if (action === 'continue-chat') {
-    onContinueChatClick().catch(console.error);
-    return;
+    return onContinueChatClick();
   }
 
   if (action === 'improve-prompt') {
-    onImprovePromptClick(platform).catch(console.error);
+    return onImprovePromptClick(platform);
   }
+
+  return Promise.resolve();
 };
 
 /** Builds the floating action button root markup for Promptium actions. */
@@ -682,6 +719,7 @@ const attachHandlers = async (platform) => {
 
   trigger?.addEventListener('click', (event) => {
     event.stopPropagation();
+    void refreshFabActionAvailability(root, platform);
     void toggleFabMenu();
   });
 
@@ -692,11 +730,28 @@ const attachHandlers = async (platform) => {
       
       const actionLabel = String(actionButton.dataset.action || '');
 
+      if (actionButton.classList.contains('pn-fab-action--unsupported')) {
+        const reason = String(actionButton.dataset.unsupportedReason || 'Action unavailable on this page.').trim();
+        toggleFabMenu(false).catch(console.error);
+        void showNotification(reason);
+        return;
+      }
+
+      setFabActionLoading(actionButton, true);
+
       // Side panel UI requires synchronous user gesture propagation. Do not use async/await here.
       toggleFabMenu(false).catch(console.error);
-      handleFabAction(platform, actionLabel);
+      Promise.resolve(handleFabAction(platform, actionLabel))
+        .catch((error) => {
+          console.error('[Promptium] FAB action failed:', error);
+        })
+        .finally(() => {
+          setFabActionLoading(actionButton, false);
+        });
     });
   });
+
+  void refreshFabActionAvailability(root, platform);
 
   if (!fabGlobalListenersBound) {
     document.addEventListener('click', (event) => {

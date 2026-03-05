@@ -12,6 +12,7 @@ let previousSmartHidden = true;
 let previousBridgeHidden = true;
 let previousFilterHidden = true;
 let activeCloseHandler = null;
+let previousPromptListScrollTop = 0;
 
 const normalizeText = (text) => {
   if (window.TemplateParser?.normalizeLegacy) {
@@ -73,7 +74,15 @@ const setPromptListVisibility = (visible) => {
   const filterBar = document.getElementById('pn-template-filters');
   const panel = document.getElementById(PANEL_ID);
 
-  if (list) list.classList.toggle('pn-hidden', !visible);
+  if (list) {
+    if (!visible) {
+      previousPromptListScrollTop = list.scrollTop;
+      list.classList.add('pn-hidden');
+    } else {
+      list.classList.remove('pn-hidden');
+      list.scrollTop = previousPromptListScrollTop;
+    }
+  }
 
   if (smart) {
     if (!visible) {
@@ -266,11 +275,12 @@ const showFillForm = (promptOrText, maybeTitle, maybeOnInject, maybeOnCancel) =>
     input.addEventListener('input', () => updatePreview(prompt.text, panel));
   });
 
-  const lastInput = inputs[inputs.length - 1];
-  lastInput?.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter') return;
-    event.preventDefault();
-    if (!injectButton?.disabled) doInject();
+  inputs.forEach((input) => {
+    input.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      if (!injectButton?.disabled) doInject();
+    });
   });
 
   panel.querySelector('#pn-fill-back')?.addEventListener('click', () => {

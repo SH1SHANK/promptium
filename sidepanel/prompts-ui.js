@@ -416,20 +416,41 @@ const createPromptCard = async (rawPrompt, activeFilter, canInject, options = {}
 
   const tagsWrap = document.createElement('div');
   tagsWrap.className = 'pn-tag-wrap';
+  let tagsExpanded = false;
+  const renderTags = () => {
+    tagsWrap.innerHTML = '';
+    const tags = Array.isArray(prompt.tags) ? prompt.tags : [];
+    const visible = tagsExpanded ? tags : tags.slice(0, 8);
 
-  for (const tag of prompt.tags || []) {
-    const pill = createTagPill(tag);
-    pill.classList.add('pn-tag-pill--clickable');
-    pill.title = `Filter by #${tag}`;
-    pill.addEventListener('click', () => {
-      const search = document.getElementById('prompt-search');
-      if (search) {
-        search.value = tag;
-      }
-      void render(tag);
+    visible.forEach((tag) => {
+      const pill = createTagPill(tag);
+      pill.classList.add('pn-tag-pill--clickable');
+      pill.title = `Filter by #${tag}`;
+      pill.addEventListener('click', () => {
+        const search = document.getElementById('prompt-search');
+        if (search) {
+          search.value = tag;
+        }
+        void render(tag);
+      });
+      tagsWrap.appendChild(pill);
     });
-    tagsWrap.appendChild(pill);
-  }
+
+    if (!tagsExpanded && tags.length > 8) {
+      const more = document.createElement('button');
+      more.type = 'button';
+      more.className = 'pn-tag-pill pn-tag-pill--clickable';
+      more.textContent = `+${tags.length - 8} more`;
+      more.title = 'Show all tags';
+      more.addEventListener('click', () => {
+        tagsExpanded = true;
+        renderTags();
+      });
+      tagsWrap.appendChild(more);
+    }
+  };
+
+  renderTags();
 
   const actions = document.createElement('div');
   actions.className = 'pn-card-actions';

@@ -93,6 +93,8 @@ const localModelStatuses = {
 let aiStatusHandler = null;
 let autoSaveTimer = null;
 let statusResetTimer = null;
+let autoSaveSourceId = '';
+let inlineSavedResetTimer = null;
 
 const EXPORT_FORMAT_ALIASES = Object.freeze({
   text: 'txt',
@@ -431,6 +433,49 @@ const flashAutoSaveStatus = (message, tone = 'ok') => {
     setSettingsStatus('');
     statusResetTimer = null;
   }, 1800);
+};
+
+const clearInlineSavedBadge = () => {
+  document.querySelectorAll('.pn-inline-saved-badge').forEach((node) => {
+    node.classList.remove('is-visible');
+  });
+};
+
+const showInlineSavedBadge = (controlId) => {
+  const id = String(controlId || '').trim();
+  if (!id) return;
+
+  const control = byId(id);
+  if (!control) return;
+
+  const row = control.closest('.pn-sv-row');
+  if (!row) return;
+
+  const copy = row.querySelector('.pn-sv-row__copy');
+  const label = row.querySelector('.pn-sv-row__label');
+  const anchor = label || copy;
+  if (!anchor) return;
+
+  let badge = row.querySelector('.pn-inline-saved-badge');
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.className = 'pn-inline-saved-badge';
+    badge.textContent = 'Saved';
+    if (label?.parentElement) {
+      label.insertAdjacentElement('afterend', badge);
+    } else {
+      anchor.appendChild(badge);
+    }
+  }
+
+  clearInlineSavedBadge();
+  badge.classList.add('is-visible');
+
+  if (inlineSavedResetTimer) clearTimeout(inlineSavedResetTimer);
+  inlineSavedResetTimer = setTimeout(() => {
+    clearInlineSavedBadge();
+    inlineSavedResetTimer = null;
+  }, 2000);
 };
 
 const applyInterfaceSettings = (settingsInput = state.settings) => {
@@ -1087,9 +1132,12 @@ const autoSaveNonAi = async () => {
   renderControls(state.settings);
   await persistRuntimeAfterSave();
   flashAutoSaveStatus('Preferences saved.', 'ok');
+  if (autoSaveSourceId) showInlineSavedBadge(autoSaveSourceId);
+  autoSaveSourceId = '';
 };
 
-const scheduleAutoSaveNonAi = () => {
+const scheduleAutoSaveNonAi = (sourceId = '') => {
+  autoSaveSourceId = String(sourceId || autoSaveSourceId || '').trim();
   if (autoSaveTimer) clearTimeout(autoSaveTimer);
   autoSaveTimer = setTimeout(() => {
     autoSaveTimer = null;
@@ -1363,16 +1411,45 @@ const bindInlineDanger = (triggerId, confirmId, action) => {
   const confirm = byId(confirmId);
   if (!trigger || !confirm) return;
 
+  let timeoutId = null;
+  let armed = false;
+
+  const reset = () => {
+    armed = false;
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      timeoutId = null;
+    }
+    trigger.classList.remove('pn-hidden');
+    trigger.textContent = String(trigger.dataset.defaultLabel || trigger.textContent || 'Cancel').trim();
+    confirm.classList.add('pn-hidden');
+    confirm.disabled = false;
+    confirm.textContent = 'Yes';
+  };
+
+  trigger.dataset.defaultLabel = String(trigger.textContent || '').trim();
+  confirm.textContent = 'Yes';
+
   trigger.addEventListener('click', () => {
+    if (armed) {
+      reset();
+      return;
+    }
+
+    armed = true;
+    trigger.textContent = 'Cancel';
     confirm.classList.remove('pn-hidden');
-    trigger.classList.add('pn-hidden');
+    if (timeoutId) clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => {
+      reset();
+    }, 5000);
   });
 
   confirm.addEventListener('click', () => {
     void (async () => {
+      confirm.disabled = true;
       await action();
-      confirm.classList.add('pn-hidden');
-      trigger.classList.remove('pn-hidden');
+      reset();
     })();
   });
 };
@@ -1658,8 +1735,8 @@ const bindEvents = () => {
   autoSaveControlIds.forEach((id) => {
     const node = byId(id);
     if (!node) return;
-    node.addEventListener('change', scheduleAutoSaveNonAi);
-    node.addEventListener('input', scheduleAutoSaveNonAi);
+    node.addEventListener('change', () => scheduleAutoSaveNonAi(id));
+    node.addEventListener('input', () => scheduleAutoSaveNonAi(id));
   });
 
   byId('setting-bookmark-shortcut')?.addEventListener('keydown', (event) => {
@@ -1667,7 +1744,7 @@ const bindEvents = () => {
     const value = formatShortcutFromEvent(event);
     if (!value) return;
     event.currentTarget.value = value;
-    scheduleAutoSaveNonAi();
+    scheduleAutoSaveNonAi('setting-bookmark-shortcut');
   });
 
   const onPlatformRowChange = (event) => {
