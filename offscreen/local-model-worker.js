@@ -4,10 +4,16 @@
  */
 
 import { pipeline, env } from '../libs/transformers.min.js';
+import {
+  EMBEDDING_MODELS,
+  getDefaultEmbeddingModel,
+  getEmbeddingModelById
+} from '../utils/model-registry.js';
 
 const OFFSCREEN_TARGET = 'promptium-offscreen-local-ai';
 const SETTINGS_KEY = 'promptiumSettings';
 const CACHE_INDEX_KEY = 'localModelCacheIndex';
+const EMBEDDING_CACHE_INDEX_KEY = 'embeddingModelCacheIndex';
 const STATUS_TYPES = Object.freeze({
   NOT_DOWNLOADED: 'not_downloaded',
   DOWNLOADING: 'downloading',
@@ -18,6 +24,7 @@ const STATUS_TYPES = Object.freeze({
 });
 
 const CONTINUATION_WORD_LIMIT = 300;
+const EMBEDDING_RATE_LIMIT_PER_SEC = 10;
 const MODEL_REGISTRY = Object.freeze({
   smollm2_1_7b: {
     key: 'smollm2_1_7b',
@@ -84,7 +91,38 @@ const MODEL_STATE = Object.fromEntries(Object.keys(MODEL_REGISTRY).map((key) => 
   lastUsedAt: 0
 }]));
 
+const EMBEDDING_REGISTRY = Object.freeze(Object.fromEntries(
+  EMBEDDING_MODELS.map((entry) => [entry.id, {
+    ...entry,
+    key: entry.id,
+    task: 'feature-extraction',
+    dtype: 'q8'
+  }])
+));
+
+const EMBEDDING_CACHE_INDEX = Object.freeze(Object.fromEntries(
+  EMBEDDING_MODELS.map((entry) => [entry.id, {
+    cacheNames: ['transformers-cache'],
+    urlPatterns: [String(entry.modelId || '').toLowerCase()]
+  }])
+));
+
+const EMBEDDING_STATE = Object.fromEntries(Object.keys(EMBEDDING_REGISTRY).map((key) => [key, {
+  status: STATUS_TYPES.NOT_DOWNLOADED,
+  progress: 0,
+  backend: 'webgpu',
+  error: '',
+  pipe: null,
+  loadingPromise: null,
+  cancelRequested: false,
+  lastProgressBucket: -1,
+  seenUrls: new Set(),
+  lastUsedAt: 0
+}]));
+
+let activeEmbeddingModelId = String(getDefaultEmbeddingModel()?.id || 'all-minilm-l6-v2');
 let saveCacheIndexTimer = null;
+let saveEmbeddingCacheIndexTimer = null;
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -164,6 +202,27 @@ const resolveModelKey = async (value) => {
   return modelKeyFromSettings();
 };
 
+const embeddingModelIdFromSettings = async () => {
+  try {
+    const snapshot = await chrome.storage.local.get([SETTINGS_KEY]);
+    const settings = snapshot?.[SETTINGS_KEY] || {};
+    const modelId = String(settings?.embeddingModelId || activeEmbeddingModelId || '').trim();
+    const resolved = getEmbeddingModelById(modelId);
+    return String(resolved?.id || getDefaultEmbeddingModel()?.id || 'all-minilm-l6-v2');
+  } catch (_error) {
+    return String(getDefaultEmbeddingModel()?.id || 'all-minilm-l6-v2');
+  }
+};
+
+const resolveEmbeddingModelId = async (value) => {
+  const requested = String(value || '').trim();
+  const exact = getEmbeddingModelById(requested);
+  if (exact?.id) return exact.id;
+  const fromSettings = await embeddingModelIdFromSettings();
+  const normalized = getEmbeddingModelById(fromSettings);
+  return String(normalized?.id || getDefaultEmbeddingModel()?.id || 'all-minilm-l6-v2');
+};
+
 const ensureIndexShape = (raw) => {
   const base = safeJsonParse(JSON.stringify(MODEL_CACHE_INDEX));
   const source = raw && typeof raw === 'object' ? raw : {};
@@ -214,12 +273,70 @@ const queueCacheIndexSave = () => {
   }, 450);
 };
 
+const ensureEmbeddingIndexShape = (raw) => {
+  const base = safeJsonParse(JSON.stringify(EMBEDDING_CACHE_INDEX));
+  const source = raw && typeof raw === 'object' ? raw : {};
+
+  Object.keys(base).forEach((key) => {
+    const entry = source?.[key];
+    if (!entry || typeof entry !== 'object') return;
+    const cacheNames = Array.isArray(entry.cacheNames) ? entry.cacheNames.map((item) => String(item || '').trim()).filter(Boolean) : [];
+    const urlPatterns = Array.isArray(entry.urlPatterns) ? entry.urlPatterns.map((item) => String(item || '').trim()).filter(Boolean) : [];
+    base[key] = {
+      cacheNames: Array.from(new Set([...base[key].cacheNames, ...cacheNames])),
+      urlPatterns: Array.from(new Set([...base[key].urlPatterns, ...urlPatterns]))
+    };
+  });
+
+  return base;
+};
+
+const readEmbeddingCacheIndex = async () => {
+  const snapshot = await chrome.storage.local.get([EMBEDDING_CACHE_INDEX_KEY]).catch(() => ({}));
+  return ensureEmbeddingIndexShape(snapshot?.[EMBEDDING_CACHE_INDEX_KEY]);
+};
+
+const writeEmbeddingCacheIndex = async (index) => {
+  await chrome.storage.local.set({ [EMBEDDING_CACHE_INDEX_KEY]: ensureEmbeddingIndexShape(index) }).catch(() => {});
+};
+
+const queueEmbeddingCacheIndexSave = () => {
+  if (saveEmbeddingCacheIndexTimer) clearTimeout(saveEmbeddingCacheIndexTimer);
+  saveEmbeddingCacheIndexTimer = setTimeout(async () => {
+    saveEmbeddingCacheIndexTimer = null;
+    const current = await readEmbeddingCacheIndex();
+
+    Object.entries(EMBEDDING_STATE).forEach(([modelId, state]) => {
+      if (!state.seenUrls.size) return;
+      const existing = current[modelId] || { cacheNames: [], urlPatterns: [] };
+      const nextPatterns = Array.from(new Set([
+        ...(existing.urlPatterns || []),
+        ...Array.from(state.seenUrls)
+      ]));
+      current[modelId] = {
+        cacheNames: Array.from(new Set(existing.cacheNames || [])),
+        urlPatterns: nextPatterns
+      };
+    });
+
+    await writeEmbeddingCacheIndex(current);
+  }, 450);
+};
+
 const rememberArtifact = (modelId, value) => {
   const raw = String(value || '').trim();
   if (!raw) return;
   const normalized = raw.toLowerCase();
   MODEL_STATE[modelId].seenUrls.add(normalized);
   queueCacheIndexSave();
+};
+
+const rememberEmbeddingArtifact = (modelId, value) => {
+  const raw = String(value || '').trim();
+  if (!raw || !EMBEDDING_STATE[modelId]) return;
+  const normalized = raw.toLowerCase();
+  EMBEDDING_STATE[modelId].seenUrls.add(normalized);
+  queueEmbeddingCacheIndexSave();
 };
 
 const emitStatus = async (modelId) => {
@@ -252,6 +369,39 @@ const emitProgress = async (modelId, progress, status = '') => {
   await chrome.runtime.sendMessage({
     type: 'AI_LOCAL_MODEL_PROGRESS',
     modelId,
+    progress: normalized,
+    status: String(status || '').trim().toLowerCase() || state.status
+  }).catch(() => {});
+};
+
+const emitEmbeddingStatus = async (modelId) => {
+  const state = EMBEDDING_STATE[modelId];
+  const registry = EMBEDDING_REGISTRY[modelId];
+  await chrome.runtime.sendMessage({
+    type: 'AI_EMBEDDING_STATUS',
+    modelId,
+    activeModelId: activeEmbeddingModelId,
+    modelLabel: registry?.label || modelId,
+    status: state?.status || STATUS_TYPES.NOT_DOWNLOADED,
+    progress: state?.progress || 0,
+    backend: state?.backend || 'webgpu',
+    error: state?.error || ''
+  }).catch(() => {});
+};
+
+const emitEmbeddingProgress = async (modelId, progress, status = '') => {
+  const state = EMBEDDING_STATE[modelId];
+  if (!state) return;
+  const normalized = clamp(Math.round(Number(progress) || 0), 0, 100);
+  const bucket = Math.floor(normalized / 5) * 5;
+  if (bucket < state.lastProgressBucket && normalized !== 100) return;
+  if (bucket === state.lastProgressBucket && normalized !== 100) return;
+  state.lastProgressBucket = bucket;
+
+  await chrome.runtime.sendMessage({
+    type: 'AI_EMBEDDING_PROGRESS',
+    modelId,
+    activeModelId: activeEmbeddingModelId,
     progress: normalized,
     status: String(status || '').trim().toLowerCase() || state.status
   }).catch(() => {});
@@ -401,6 +551,155 @@ const loadPipelineForModel = async (modelId, { downloadOnly = false } = {}) => {
   })();
 
   return state.loadingPromise;
+};
+
+const withEmbeddingProgressCallback = (modelId, status) => (data = {}) => {
+  const state = EMBEDDING_STATE[modelId];
+  if (!state) return;
+  if (state.cancelRequested) {
+    throw new Error('Embedding model download cancelled.');
+  }
+
+  const progress = clamp(Math.round(Number(data?.progress || 0)), 0, 100);
+  state.progress = progress;
+  if (progress > 0 && state.status === STATUS_TYPES.NOT_DOWNLOADED) {
+    state.status = STATUS_TYPES.DOWNLOADING;
+  }
+
+  const fileHint = String(data?.file || data?.name || data?.url || '').trim();
+  if (fileHint) {
+    rememberEmbeddingArtifact(modelId, fileHint);
+  }
+
+  void emitEmbeddingProgress(modelId, progress, status || state.status);
+};
+
+const loadPipelineForEmbeddingModel = async (modelId, { downloadOnly = false } = {}) => {
+  const state = EMBEDDING_STATE[modelId];
+  const config = EMBEDDING_REGISTRY[modelId];
+
+  if (!state || !config) {
+    throw new Error(`Unsupported embedding model: ${modelId}`);
+  }
+
+  if (!downloadOnly && state.status === STATUS_TYPES.READY && state.pipe) {
+    state.lastUsedAt = Date.now();
+    return state.pipe;
+  }
+
+  if (state.loadingPromise) {
+    return state.loadingPromise;
+  }
+
+  state.cancelRequested = false;
+  state.progress = 0;
+  state.error = '';
+  state.lastProgressBucket = -1;
+  state.status = downloadOnly ? STATUS_TYPES.DOWNLOADING : STATUS_TYPES.LOADING;
+  await emitEmbeddingStatus(modelId);
+  await emitEmbeddingProgress(modelId, 0, state.status);
+
+  state.loadingPromise = (async () => {
+    let loaded = null;
+    try {
+      try {
+        state.backend = 'webgpu';
+        loaded = await pipeline(config.task, config.modelId, {
+          device: 'webgpu',
+          dtype: config.dtype,
+          progress_callback: withEmbeddingProgressCallback(modelId, state.status)
+        });
+      } catch (webgpuError) {
+        state.backend = 'wasm';
+        loaded = await pipeline(config.task, config.modelId, {
+          device: 'wasm',
+          progress_callback: withEmbeddingProgressCallback(modelId, state.status)
+        });
+        if (!loaded) throw webgpuError;
+      }
+
+      if (downloadOnly) {
+        if (typeof loaded?.dispose === 'function') {
+          await loaded.dispose().catch(() => {});
+        }
+        state.pipe = null;
+        state.status = STATUS_TYPES.CACHED;
+        state.progress = 100;
+        state.error = '';
+        state.lastUsedAt = Date.now();
+        await emitEmbeddingStatus(modelId);
+        await emitEmbeddingProgress(modelId, 100, STATUS_TYPES.CACHED);
+        return null;
+      }
+
+      state.pipe = loaded;
+      state.status = STATUS_TYPES.READY;
+      state.progress = 100;
+      state.error = '';
+      state.lastUsedAt = Date.now();
+      activeEmbeddingModelId = modelId;
+      await emitEmbeddingStatus(modelId);
+      await emitEmbeddingProgress(modelId, 100, STATUS_TYPES.READY);
+      return loaded;
+    } catch (error) {
+      state.pipe = null;
+      state.status = STATUS_TYPES.ERROR;
+      state.error = String(error?.message || 'Embedding model failed to initialize.');
+      state.progress = 0;
+      await emitEmbeddingStatus(modelId);
+      throw error;
+    } finally {
+      state.loadingPromise = null;
+    }
+  })();
+
+  return state.loadingPromise;
+};
+
+const embedWithModel = async (modelId, text = '') => {
+  const source = clampText(text, 7000);
+  if (!source) return [];
+  const pipe = await loadPipelineForEmbeddingModel(modelId, { downloadOnly: false });
+  const output = await pipe(source, { pooling: 'mean', normalize: true });
+  if (Array.isArray(output?.data)) {
+    return output.data.map((value) => Number(value) || 0);
+  }
+  return Array.from(output?.data || []).map((value) => Number(value) || 0);
+};
+
+const batchEmbedWithModel = async (modelId, texts = [], ratePerSecond = EMBEDDING_RATE_LIMIT_PER_SEC) => {
+  const sourceRows = Array.isArray(texts) ? texts : [];
+  const pipe = await loadPipelineForEmbeddingModel(modelId, { downloadOnly: false });
+  const total = sourceRows.length;
+  const vectors = [];
+  const intervalMs = Math.max(1, Math.round(1000 / Math.max(1, Number(ratePerSecond) || EMBEDDING_RATE_LIMIT_PER_SEC)));
+
+  for (let i = 0; i < total; i += 1) {
+    const text = clampText(sourceRows[i], 7000);
+    if (!text) {
+      vectors.push([]);
+    } else {
+      const output = await pipe(text, { pooling: 'mean', normalize: true });
+      const vector = Array.from(output?.data || []).map((value) => Number(value) || 0);
+      vectors.push(vector);
+    }
+
+    const progress = total ? Math.round(((i + 1) / total) * 100) : 100;
+    await chrome.runtime.sendMessage({
+      type: 'AI_EMBEDDING_REINDEX_PROGRESS',
+      modelId,
+      activeModelId: activeEmbeddingModelId,
+      done: i + 1,
+      total,
+      progress
+    }).catch(() => {});
+
+    if (i < total - 1) {
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+  }
+
+  return vectors;
 };
 
 const parseClarityJson = (raw) => {
@@ -662,6 +961,70 @@ const removeCachedModelData = async (modelId) => {
   return { ok: false, deletedRequests: 0, error: 'No matching cached files found.' };
 };
 
+const removeCachedEmbeddingModelData = async (modelId) => {
+  const index = await readEmbeddingCacheIndex();
+  const entry = index?.[modelId] || { cacheNames: [], urlPatterns: [] };
+  const modelIdToken = String(EMBEDDING_REGISTRY?.[modelId]?.modelId || '').toLowerCase();
+  const looseTokens = [
+    modelIdToken,
+    modelIdToken.replace(/\//g, '%2f'),
+    modelIdToken.replace(/\//g, '_'),
+    modelIdToken.split('/').pop(),
+    modelId
+  ].map((token) => String(token || '').toLowerCase()).filter(Boolean);
+
+  let deletedRequests = 0;
+  const touchedCaches = new Set(entry.cacheNames || []);
+
+  const cacheNames = await caches.keys();
+  for (const cacheName of cacheNames) {
+    const cache = await caches.open(cacheName);
+    const requests = await cache.keys();
+    let cacheHadDeletes = false;
+
+    for (const request of requests) {
+      const url = String(request?.url || '').toLowerCase();
+      const patternMatch = (entry.urlPatterns || []).some((pattern) => url.includes(String(pattern || '').toLowerCase()));
+      const tokenMatch = looseTokens.some((token) => token && url.includes(token));
+      if (!patternMatch && !tokenMatch) continue;
+
+      const deleted = await cache.delete(request);
+      if (deleted) {
+        deletedRequests += 1;
+        cacheHadDeletes = true;
+      }
+    }
+
+    if (cacheHadDeletes) {
+      touchedCaches.add(cacheName);
+    }
+  }
+
+  if (deletedRequests > 0) {
+    index[modelId] = { cacheNames: Array.from(touchedCaches), urlPatterns: [] };
+    await writeEmbeddingCacheIndex(index);
+
+    const state = EMBEDDING_STATE[modelId];
+    if (state?.pipe && typeof state.pipe.dispose === 'function') {
+      await state.pipe.dispose().catch(() => {});
+    }
+    if (state) {
+      state.pipe = null;
+      state.loadingPromise = null;
+      state.cancelRequested = false;
+      state.progress = 0;
+      state.status = STATUS_TYPES.NOT_DOWNLOADED;
+      state.error = '';
+      state.lastProgressBucket = -1;
+      state.seenUrls.clear();
+      await emitEmbeddingStatus(modelId);
+    }
+    return { ok: true, deletedRequests };
+  }
+
+  return { ok: false, deletedRequests: 0, error: 'No matching cached files found.' };
+};
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.target !== OFFSCREEN_TARGET) {
     return false;
@@ -678,8 +1041,93 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           : incomingType;
     const payload = message?.payload && typeof message.payload === 'object' ? message.payload : {};
     const modelId = await resolveModelKey(payload.modelId || message?.modelId);
+    const embeddingModelId = await resolveEmbeddingModelId(payload.modelId || payload.embeddingModelId || message?.modelId || message?.embeddingModelId);
 
     try {
+      if (type === 'AI_EMBEDDING_STATUS') {
+        const state = EMBEDDING_STATE[embeddingModelId];
+        sendResponse({
+          ok: true,
+          result: {
+            modelId: embeddingModelId,
+            activeModelId: activeEmbeddingModelId,
+            status: state?.status || STATUS_TYPES.NOT_DOWNLOADED,
+            progress: state?.progress || 0,
+            backend: state?.backend || 'webgpu',
+            error: state?.error || ''
+          }
+        });
+        return;
+      }
+
+      if (type === 'AI_EMBEDDING_DOWNLOAD') {
+        await loadPipelineForEmbeddingModel(embeddingModelId, { downloadOnly: true });
+        sendResponse({
+          ok: true,
+          result: {
+            modelId: embeddingModelId,
+            activeModelId: activeEmbeddingModelId,
+            status: EMBEDDING_STATE[embeddingModelId].status,
+            progress: EMBEDDING_STATE[embeddingModelId].progress,
+            backend: EMBEDDING_STATE[embeddingModelId].backend
+          }
+        });
+        return;
+      }
+
+      if (type === 'AI_EMBEDDING_SWITCH') {
+        activeEmbeddingModelId = embeddingModelId;
+        await loadPipelineForEmbeddingModel(embeddingModelId, { downloadOnly: false });
+        sendResponse({
+          ok: true,
+          result: {
+            modelId: embeddingModelId,
+            activeModelId: activeEmbeddingModelId,
+            status: EMBEDDING_STATE[embeddingModelId].status,
+            progress: EMBEDDING_STATE[embeddingModelId].progress,
+            backend: EMBEDDING_STATE[embeddingModelId].backend
+          }
+        });
+        return;
+      }
+
+      if (type === 'AI_EMBEDDING_EMBED_TEXT') {
+        const vector = await embedWithModel(embeddingModelId, String(payload.text || payload.input || ''));
+        sendResponse({
+          ok: true,
+          result: {
+            modelId: embeddingModelId,
+            activeModelId: activeEmbeddingModelId,
+            vector
+          }
+        });
+        return;
+      }
+
+      if (type === 'AI_EMBEDDING_BATCH_EMBED') {
+        activeEmbeddingModelId = embeddingModelId;
+        const vectors = await batchEmbedWithModel(
+          embeddingModelId,
+          Array.isArray(payload.texts) ? payload.texts : [],
+          Number(payload.ratePerSecond || EMBEDDING_RATE_LIMIT_PER_SEC)
+        );
+        sendResponse({
+          ok: true,
+          result: {
+            modelId: embeddingModelId,
+            activeModelId: activeEmbeddingModelId,
+            vectors
+          }
+        });
+        return;
+      }
+
+      if (type === 'AI_EMBEDDING_REMOVE_CACHE') {
+        const result = await removeCachedEmbeddingModelData(embeddingModelId);
+        sendResponse({ ok: result.ok, result, error: result.error || '' });
+        return;
+      }
+
       if (type === 'AI_LOCAL_MODEL_STATUS' || type === 'LOCAL_MODEL_STATUS_CHECK') {
         const state = MODEL_STATE[modelId];
         sendResponse({

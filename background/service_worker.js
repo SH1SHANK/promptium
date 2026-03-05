@@ -1,38 +1,47 @@
 /**
  * File: background/service_worker.js
- * Purpose: Initializes storage, configures side panel behavior, handles extension-level
- *          runtime actions, and owns the on-device Transformers.js AI model.
+ * Purpose: Initializes storage, configures side panel behavior, and routes AI features
+ *          across local + cloud providers with embedding lifecycle management.
  * Communicates with: utils/storage.js, popup/popup.js, content/content.js, utils/ai-bridge.js.
  */
 
-import { pipeline, env } from '../libs/transformers.min.js';
-import { routeAIRequest, AI_BACKEND_GEMINI, AI_BACKEND_LOCAL } from '../utils/ai-router.js';
-
-// ─── Transformers.js Environment ─────────────────────────────────────────────
-
-env.allowRemoteModels = true;
-env.localModelPath = '../models/';
-env.backends.onnx.wasm.numThreads = 1;
+import {
+  routeAIRequest,
+  AI_BACKEND_GEMINI,
+  AI_BACKEND_LOCAL
+} from '../utils/ai-router.js';
+import {
+  PROVIDER_IDS,
+  getDefaultEmbeddingModel,
+  getEmbeddingModelById,
+  getProvider,
+  getProviderDefaultModel,
+  getProviderKeyStorageKey,
+  normalizeProviderModels
+} from '../utils/model-registry.js';
+import { callProvider, validateProviderKey } from '../utils/provider-client.js';
 
 // ─── AI State ────────────────────────────────────────────────────────────────
 
 const AI = {
-  pipe: null,
   status: 'idle',          // idle | loading | ready | failed
-  embeddingCache: {},      // promptId → Float32Array
+  embeddingCache: {},      // promptId → embedding vector
+  searchMode: 'keyword'
 };
 
 const BRAND_KEYS = {
   geminiKey: 'promptiumGeminiKey',
+  openaiKey: 'promptiumOpenAIKey',
+  anthropicKey: 'promptiumAnthropicKey',
+  openrouterKey: 'promptiumOpenRouterKey',
   settingsKey: 'promptiumSettings',
   sidePanelPayload: 'promptiumSidePanelPayload',
   improvePayload: 'promptiumImprovePayload',
-  pendingSnippet: 'pendingSnippet'
+  pendingSnippet: 'pendingSnippet',
+  embeddingMeta: 'promptiumEmbeddingMeta',
+  embeddingReindexState: 'promptiumEmbeddingReindexState'
 };
 
-const GEMINI_API_ROOT = 'https://generativelanguage.googleapis.com/v1beta';
-const GEMINI_MODEL = 'gemini-2.0-flash-lite';
-const GEMINI_TIMEOUT_MS = 15000;
 const CONTINUATION_WORD_LIMIT = 300;
 const CONTINUATION_LONG_THRESHOLD = 20;
 const CONTEXT_MENU_SAVE_ID = 'promptium-save-selection';
@@ -40,10 +49,42 @@ const LOCAL_MODEL_TASK_TIMEOUT_MS = 120000;
 const LOCAL_IDLE_RELEASE_MS = 5 * 60 * 1000;
 const OFFSCREEN_LOCAL_TARGET = 'promptium-offscreen-local-ai';
 const OFFSCREEN_LOCAL_URL = 'offscreen/local-model-worker.html';
+const EMBEDDING_META_FALLBACK = Object.freeze({
+  activeModelId: String(getDefaultEmbeddingModel()?.id || 'all-minilm-l6-v2'),
+  downloadedModelIds: [],
+  status: 'not_downloaded',
+  progress: 0,
+  backend: 'webgpu',
+  error: '',
+  searchMode: 'keyword'
+});
 const LOCAL_MODEL_LABELS = Object.freeze({
   smollm2_1_7b: 'SmolLM2',
   phi35_mini: 'Phi-3.5-mini',
   qwen3_0_6b: 'Qwen3'
+});
+const PROVIDER_LABELS = Object.freeze({
+  gemini: 'Gemini',
+  openai: 'OpenAI',
+  anthropic: 'Claude',
+  openrouter: 'OpenRouter',
+  local: 'Local model'
+});
+const ALL_PROVIDER_IDS = Object.freeze([
+  PROVIDER_IDS.GEMINI,
+  PROVIDER_IDS.OPENAI,
+  PROVIDER_IDS.ANTHROPIC,
+  PROVIDER_IDS.OPENROUTER
+]);
+const EMBEDDING_REINDEX_FALLBACK = Object.freeze({
+  running: false,
+  done: 0,
+  total: 0,
+  progress: 0,
+  modelId: String(getDefaultEmbeddingModel()?.id || 'all-minilm-l6-v2'),
+  error: '',
+  startedAt: 0,
+  completedAt: 0
 });
 
 const LOCAL_MODEL = {
@@ -59,33 +100,83 @@ let offscreenLocalReady = false;
 let offscreenLocalInitPromise = null;
 let localIdleReleaseTimer = null;
 
-/** Executes fetch with strict defaults to reduce accidental data leakage and hangs. */
-const safeFetch = async (url, options = {}, timeoutMs = GEMINI_TIMEOUT_MS) => {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    return await fetch(url, {
-      cache: 'no-store',
-      credentials: 'omit',
-      referrerPolicy: 'no-referrer',
-      ...options,
-      signal: controller.signal
-    });
-  } finally {
-    clearTimeout(timeoutId);
-  }
+const normalizeProviderId = (providerId = '') => {
+  const normalized = String(providerId || '').trim().toLowerCase();
+  return getProvider(normalized)?.id || PROVIDER_IDS.GEMINI;
 };
 
-/** Builds Gemini request headers without exposing key in URL/query strings. */
-const buildGeminiHeaders = (apiKey, includeJsonContentType = true) => {
-  const headers = {
-    'x-goog-api-key': String(apiKey || '').trim()
-  };
-  if (includeJsonContentType) {
-    headers['Content-Type'] = 'application/json';
+const getProviderLabel = (providerId = '') => {
+  const normalized = normalizeProviderId(providerId);
+  return PROVIDER_LABELS[normalized] || normalized;
+};
+
+const normalizeEmbeddingMeta = (value = {}) => {
+  const source = value && typeof value === 'object' ? value : {};
+  const requested = String(source.activeModelId || EMBEDDING_META_FALLBACK.activeModelId).trim();
+  const activeModel = getEmbeddingModelById(requested) || getDefaultEmbeddingModel();
+  const downloadedModelIdsRaw = Array.isArray(source.downloadedModelIds) ? source.downloadedModelIds : [];
+  const downloadedModelIds = Array.from(new Set(downloadedModelIdsRaw
+    .map((entry) => String(entry || '').trim())
+    .filter((entry) => Boolean(getEmbeddingModelById(entry)))));
+
+  if (activeModel?.id && !downloadedModelIds.includes(activeModel.id) && source.searchMode === 'semantic') {
+    downloadedModelIds.push(activeModel.id);
   }
-  return headers;
+
+  return {
+    activeModelId: String(activeModel?.id || EMBEDDING_META_FALLBACK.activeModelId),
+    downloadedModelIds,
+    status: String(source.status || EMBEDDING_META_FALLBACK.status).trim().toLowerCase(),
+    progress: Number.isFinite(Number(source.progress)) ? Math.max(0, Math.min(100, Math.round(Number(source.progress)))) : 0,
+    backend: String(source.backend || EMBEDDING_META_FALLBACK.backend).trim().toLowerCase() || 'webgpu',
+    error: String(source.error || '').trim(),
+    searchMode: String(source.searchMode || (downloadedModelIds.length ? 'semantic' : 'keyword')).trim().toLowerCase() === 'semantic'
+      ? 'semantic'
+      : 'keyword'
+  };
+};
+
+const readEmbeddingMeta = async () => {
+  const snapshot = await chrome.storage.local.get([BRAND_KEYS.embeddingMeta]).catch(() => ({}));
+  return normalizeEmbeddingMeta(snapshot?.[BRAND_KEYS.embeddingMeta] || EMBEDDING_META_FALLBACK);
+};
+
+const writeEmbeddingMeta = async (nextValue = {}) => {
+  const merged = normalizeEmbeddingMeta(nextValue);
+  await chrome.storage.local.set({ [BRAND_KEYS.embeddingMeta]: merged }).catch(() => {});
+  return merged;
+};
+
+const normalizeEmbeddingReindexState = (value = {}) => {
+  const source = value && typeof value === 'object' ? value : {};
+  const modelId = String(source.modelId || EMBEDDING_REINDEX_FALLBACK.modelId).trim();
+  const resolvedModelId = String(getEmbeddingModelById(modelId)?.id || getDefaultEmbeddingModel()?.id || EMBEDDING_REINDEX_FALLBACK.modelId);
+  const total = Math.max(0, Number(source.total) || 0);
+  const done = Math.max(0, Math.min(total || Number.MAX_SAFE_INTEGER, Number(source.done) || 0));
+  const progress = total > 0
+    ? Math.max(0, Math.min(100, Math.round((done / total) * 100)))
+    : Math.max(0, Math.min(100, Number(source.progress) || 0));
+  return {
+    running: Boolean(source.running),
+    done,
+    total,
+    progress,
+    modelId: resolvedModelId,
+    error: String(source.error || '').trim(),
+    startedAt: Number(source.startedAt) || 0,
+    completedAt: Number(source.completedAt) || 0
+  };
+};
+
+const readEmbeddingReindexState = async () => {
+  const snapshot = await chrome.storage.local.get([BRAND_KEYS.embeddingReindexState]).catch(() => ({}));
+  return normalizeEmbeddingReindexState(snapshot?.[BRAND_KEYS.embeddingReindexState] || EMBEDDING_REINDEX_FALLBACK);
+};
+
+const writeEmbeddingReindexState = async (nextValue = {}) => {
+  const merged = normalizeEmbeddingReindexState(nextValue);
+  await chrome.storage.local.set({ [BRAND_KEYS.embeddingReindexState]: merged }).catch(() => {});
+  return merged;
 };
 
 /** Redacts obvious secret-like and PII patterns before external API calls. */
@@ -206,6 +297,13 @@ const getAiRuntimeSettings = async () => {
         };
 
     const localModelId = String(settings?.localModelId || 'smollm2_1_7b').trim().toLowerCase();
+    const activeProvider = normalizeProviderId(settings?.activeProvider || AI_BACKEND_GEMINI);
+    const providerModels = normalizeProviderModels(settings?.providerModels || {});
+    const embeddingModelId = String(
+      getEmbeddingModelById(String(settings?.embeddingModelId || '').trim())?.id
+      || getDefaultEmbeddingModel()?.id
+      || EMBEDDING_META_FALLBACK.activeModelId
+    );
     const hasLegacySignals = Object.prototype.hasOwnProperty.call(settings, 'aiBackend')
       || Object.prototype.hasOwnProperty.call(settings, 'aiAutoFallback')
       || Object.prototype.hasOwnProperty.call(settings, 'polishWithGemini');
@@ -217,6 +315,9 @@ const getAiRuntimeSettings = async () => {
       enableAI: settings?.enableAI !== false,
       preferLocal,
       useLocalFallback,
+      activeProvider,
+      providerModels,
+      embeddingModelId,
       localModelId: localModelId || 'smollm2_1_7b',
       localFeatureFlags,
       legacyAutoRewriteOnSave
@@ -226,6 +327,9 @@ const getAiRuntimeSettings = async () => {
       enableAI: true,
       preferLocal: false,
       useLocalFallback: true,
+      activeProvider: AI_BACKEND_GEMINI,
+      providerModels: normalizeProviderModels({}),
+      embeddingModelId: EMBEDDING_META_FALLBACK.activeModelId,
       localModelId: 'smollm2_1_7b',
       localFeatureFlags: {
         polish: true,
@@ -502,21 +606,52 @@ const clearLocalModelCache = async (modelId = '') => {
 
 const runWithConfiguredBackend = async ({
   feature = '',
+  cloudTask,
   geminiTask,
   localTask,
+  forceProvider = '',
   forceGemini = false,
   geminiApiKey = '',
+  noCloudMessage = 'Cloud provider API key is not configured.',
   noGeminiMessage = 'Gemini API key is not configured.'
 }) => {
   const runtime = await getAiRuntimeSettings();
-  const apiKey = String(geminiApiKey || '').trim() || await getGeminiApiKey();
-  const hasGeminiKey = Boolean(apiKey);
+  const providerModels = normalizeProviderModels(runtime.providerModels || {});
+  const resolvedForceProvider = forceProvider || (forceGemini ? PROVIDER_IDS.GEMINI : '');
+  const cloudTasks = {};
+
+  for (const providerId of ALL_PROVIDER_IDS) {
+    const explicit = providerId === PROVIDER_IDS.GEMINI ? geminiApiKey : '';
+    const apiKey = explicit || await getProviderApiKey(providerId);
+    if (!apiKey) continue;
+
+    const modelId = String(providerModels?.[providerId] || getProviderDefaultModel(providerId)?.id || '').trim();
+    if (!modelId) continue;
+
+    if (typeof cloudTask === 'function') {
+      cloudTasks[providerId] = async () => {
+        const cloudResult = await cloudTask({ providerId, apiKey, modelId, runtime });
+        return { ok: true, ...(cloudResult || {}) };
+      };
+      continue;
+    }
+
+    if (providerId === PROVIDER_IDS.GEMINI && typeof geminiTask === 'function') {
+      cloudTasks[providerId] = async () => {
+        const geminiResult = await geminiTask(apiKey);
+        return { ok: true, ...(geminiResult || {}) };
+      };
+    }
+  }
 
   const routed = await routeAIRequest({
     feature,
     settings: runtime,
-    hasGeminiKey,
-    forceGemini,
+    cloudTasks,
+    activeProvider: runtime.activeProvider,
+    forceProvider: resolvedForceProvider,
+    hasGeminiKey: Boolean(cloudTasks[PROVIDER_IDS.GEMINI]),
+    forceGemini: forceGemini || resolvedForceProvider === PROVIDER_IDS.GEMINI,
     localTask: typeof localTask === 'function'
       ? async () => {
           const localResult = await localTask();
@@ -526,22 +661,12 @@ const runWithConfiguredBackend = async ({
           };
         }
       : null,
-    geminiTask: typeof geminiTask === 'function'
-      ? async () => {
-          if (!apiKey) {
-            return { ok: false, error: noGeminiMessage };
-          }
-          const geminiResult = await geminiTask(apiKey);
-          return {
-            ok: true,
-            ...geminiResult
-          };
-        }
-      : null
+    geminiTask: null
   });
 
   if (!routed?.ok) {
-    throw new Error(String(routed?.error || noGeminiMessage));
+    const fallbackMessage = forceGemini ? noGeminiMessage : noCloudMessage;
+    throw new Error(String(routed?.error || fallbackMessage));
   }
 
   return {
@@ -551,101 +676,44 @@ const runWithConfiguredBackend = async ({
   };
 };
 
-/** Returns the configured Promptium Gemini API key. */
-const getGeminiApiKey = async () => {
-  const sessionSnapshot = await chrome.storage.session.get([BRAND_KEYS.geminiKey]);
-  const sessionKey = String(sessionSnapshot?.[BRAND_KEYS.geminiKey] || '').trim();
-  if (sessionKey) {
-    return sessionKey;
-  }
+const getProviderApiKey = async (providerId = PROVIDER_IDS.GEMINI) => {
+  const storageKey = getProviderKeyStorageKey(providerId);
+  if (!storageKey) return '';
 
-  // Backward compatibility: read legacy local key once, promote to session, then clear persistent copy.
-  const localSnapshot = await chrome.storage.local.get([BRAND_KEYS.geminiKey]);
-  const localKey = String(localSnapshot?.[BRAND_KEYS.geminiKey] || '').trim();
+  const sessionSnapshot = await chrome.storage.session.get([storageKey]).catch(() => ({}));
+  const sessionKey = String(sessionSnapshot?.[storageKey] || '').trim();
+  if (sessionKey) return sessionKey;
+
+  const localSnapshot = await chrome.storage.local.get([storageKey]).catch(() => ({}));
+  const localKey = String(localSnapshot?.[storageKey] || '').trim();
   if (localKey) {
-    await chrome.storage.session.set({ [BRAND_KEYS.geminiKey]: localKey });
-    await chrome.storage.local.remove([BRAND_KEYS.geminiKey]).catch(() => {});
+    await chrome.storage.session.set({ [storageKey]: localKey }).catch(() => {});
+    await chrome.storage.local.remove([storageKey]).catch(() => {});
   }
   return localKey;
 };
 
-/** Calls Gemini generateContent endpoint with secure request defaults. */
-const callGeminiGenerateContent = async (apiKey, payload) => safeFetch(
-  `${GEMINI_API_ROOT}/models/${GEMINI_MODEL}:generateContent`,
-  {
-    method: 'POST',
-    headers: buildGeminiHeaders(apiKey, true),
-    body: JSON.stringify(payload)
-  }
-);
+const getGeminiApiKey = async () => getProviderApiKey(PROVIDER_IDS.GEMINI);
 
-/** Validates a Gemini API key without exposing it in URL query parameters. */
-const validateGeminiApiKey = async (rawKey) => {
-  const key = String(rawKey || '').trim();
-  if (!key) {
-    return { ok: false, error: 'Missing API key.' };
-  }
-
-  try {
-    const response = await safeFetch(`${GEMINI_API_ROOT}/models`, {
-      method: 'GET',
-      headers: buildGeminiHeaders(key, false)
-    });
-    if (!response.ok) {
-      return { ok: false, error: `Gemini API key validation failed (${response.status}).` };
-    }
-    return { ok: true };
-  } catch (error) {
-    return { ok: false, error: error?.name === 'AbortError' ? 'Gemini key validation timed out.' : 'Gemini key validation failed.' };
-  }
+const mapValidationResultToLegacy = (result = {}) => {
+  if (result?.ok) return { ok: true };
+  const category = String(result?.category || '').trim().toLowerCase();
+  if (category === 'invalid_key') return { ok: false, error: 'Invalid key.' };
+  if (category === 'rate_limited') return { ok: false, error: 'Rate limited.' };
+  if (category === 'network_error') return { ok: false, error: 'Network error.' };
+  return { ok: false, error: String(result?.message || 'Provider error.') };
 };
 
-// ─── AI Bootstrap ────────────────────────────────────────────────────────────
-
-async function loadModel() {
-  if (AI.status === 'ready' || AI.status === 'loading') return;
-
-  AI.status = 'loading';
-  broadcast({ type: 'AI_STATUS', status: 'loading' });
-
-  try {
-    AI.pipe = await pipeline(
-      'feature-extraction',
-      'Xenova/all-MiniLM-L6-v2',
-      {
-        progress_callback: (data) => {
-          if (data.status === 'progress') {
-            broadcast({
-              type: 'AI_DOWNLOAD_PROGRESS',
-              progress: Math.round(data.progress ?? 0),
-            });
-          }
-        },
-      }
-    );
-
-    // Warm up with a dummy inference so first real call is instant
-    await embed('warmup');
-
-    // Rebuild embedding cache from stored prompts
-    await rebuildCache();
-
-    AI.status = 'ready';
-    broadcast({ type: 'AI_STATUS', status: 'ready' });
-  } catch (err) {
-    AI.status = 'failed';
-    broadcast({ type: 'AI_STATUS', status: 'failed', error: err.message });
-    console.warn('[Promptium AI] Model failed to load:', err.message);
-  }
-}
-
-// ─── AI Core Utilities ───────────────────────────────────────────────────────
-
-async function embed(text) {
-  if (!AI.pipe) throw new Error('Model not ready');
-  const output = await AI.pipe(text, { pooling: 'mean', normalize: true });
-  return Array.from(output.data);
-}
+const validateGeminiApiKey = async (rawKey) => {
+  const key = String(rawKey || '').trim();
+  if (!key) return { ok: false, error: 'Missing API key.' };
+  const result = await validateProviderKey({
+    providerId: PROVIDER_IDS.GEMINI,
+    apiKey: key,
+    modelId: getProviderDefaultModel(PROVIDER_IDS.GEMINI)?.id || ''
+  });
+  return mapValidationResultToLegacy(result);
+};
 
 function cosineSimilarity(a, b) {
   let dot = 0, normA = 0, normB = 0;
@@ -663,66 +731,179 @@ function broadcast(message) {
   });
 }
 
-// ─── Embedding Cache ─────────────────────────────────────────────────────────
-
 let _cacheSaveTimer = null;
 const CACHE_SAVE_DELAY_MS = 5000;
+let _cachedEmbeddingPayload = null;
 
-/** Debounced write of embedding cache to storage — coalesces rapid mutations. */
-function scheduleCacheSave() {
+const sanitizeVector = (value) => {
+  if (!Array.isArray(value)) return [];
+  return value.map((entry) => Number(entry) || 0);
+};
+
+const normalizeEmbeddingCachePayload = (value = {}, fallbackModelId = '') => {
+  const source = value && typeof value === 'object' ? value : {};
+  const legacyLooksLikeVectorMap = source
+    && !source.vectors
+    && Object.values(source).every((entry) => Array.isArray(entry));
+
+  if (legacyLooksLikeVectorMap) {
+    const vectors = {};
+    Object.entries(source).forEach(([promptId, vector]) => {
+      const key = String(promptId || '').trim();
+      if (!key) return;
+      vectors[key] = sanitizeVector(vector);
+    });
+    return {
+      modelId: String(fallbackModelId || getDefaultEmbeddingModel()?.id || EMBEDDING_META_FALLBACK.activeModelId),
+      vectors
+    };
+  }
+
+  const vectorsSource = source?.vectors && typeof source.vectors === 'object' ? source.vectors : {};
+  const vectors = {};
+  Object.entries(vectorsSource).forEach(([promptId, vector]) => {
+    const key = String(promptId || '').trim();
+    if (!key) return;
+    vectors[key] = sanitizeVector(vector);
+  });
+
+  return {
+    modelId: String(source?.modelId || fallbackModelId || getDefaultEmbeddingModel()?.id || EMBEDDING_META_FALLBACK.activeModelId),
+    vectors
+  };
+};
+
+const readEmbeddingCache = async (fallbackModelId = '') => {
+  if (_cachedEmbeddingPayload) {
+    return normalizeEmbeddingCachePayload(_cachedEmbeddingPayload, fallbackModelId);
+  }
+  const snapshot = await chrome.storage.local.get(['embeddingCache']).catch(() => ({}));
+  _cachedEmbeddingPayload = normalizeEmbeddingCachePayload(snapshot?.embeddingCache || {}, fallbackModelId);
+  return normalizeEmbeddingCachePayload(_cachedEmbeddingPayload, fallbackModelId);
+};
+
+const scheduleCacheSave = () => {
   if (_cacheSaveTimer) clearTimeout(_cacheSaveTimer);
   _cacheSaveTimer = setTimeout(() => {
     _cacheSaveTimer = null;
-    chrome.storage.local.set({ embeddingCache: AI.embeddingCache }).catch(() => {});
+    const payload = _cachedEmbeddingPayload
+      ? normalizeEmbeddingCachePayload(_cachedEmbeddingPayload, EMBEDDING_META_FALLBACK.activeModelId)
+      : { modelId: EMBEDDING_META_FALLBACK.activeModelId, vectors: {} };
+    chrome.storage.local.set({ embeddingCache: payload }).catch(() => {});
   }, CACHE_SAVE_DELAY_MS);
-}
+};
 
-async function rebuildCache() {
+const writeEmbeddingCache = async (nextPayload = {}) => {
+  _cachedEmbeddingPayload = normalizeEmbeddingCachePayload(nextPayload, EMBEDDING_META_FALLBACK.activeModelId);
+  await chrome.storage.local.set({ embeddingCache: _cachedEmbeddingPayload }).catch(() => {});
+};
+
+const buildPromptEmbeddingInput = (prompt = {}) => {
+  const title = String(prompt?.title || '').trim();
+  const text = String(prompt?.text || '').trim();
+  const tags = Array.isArray(prompt?.tags) ? prompt.tags.map((tag) => String(tag || '').trim()).filter(Boolean).join(' ') : '';
+  return [title, text, tags].filter(Boolean).join('\n');
+};
+
+const emitSearchMode = async (mode = 'keyword') => {
+  const nextMode = String(mode || '').trim().toLowerCase() === 'semantic' ? 'semantic' : 'keyword';
+  AI.searchMode = nextMode;
+  broadcast({ type: 'AI_SEARCH_MODE', mode: nextMode });
+};
+
+const isSemanticSearchReady = async () => {
+  const meta = await readEmbeddingMeta();
+  if (meta.searchMode !== 'semantic' || meta.status !== 'ready') {
+    await emitSearchMode('keyword');
+    return { ok: false, meta };
+  }
+  const cache = await readEmbeddingCache(meta.activeModelId);
+  const hasVectors = cache.modelId === meta.activeModelId && Object.keys(cache.vectors || {}).length > 0;
+  if (!hasVectors) {
+    await emitSearchMode('keyword');
+    return { ok: false, meta, cache };
+  }
+  await emitSearchMode('semantic');
+  return { ok: true, meta, cache };
+};
+
+const requestEmbeddingVector = async (modelId = '', text = '') => {
+  const response = await runLocalTaskViaOffscreen('AI_EMBEDDING_EMBED_TEXT', '', {
+    modelId,
+    text: String(text || '')
+  }, 120000);
+  return Array.isArray(response?.vector) ? response.vector.map((entry) => Number(entry) || 0) : [];
+};
+
+const rebuildCache = async (modelId = '') => {
+  const resolvedModelId = String(modelId || getDefaultEmbeddingModel()?.id || EMBEDDING_META_FALLBACK.activeModelId);
   const { prompts = [] } = await chrome.storage.local.get('prompts');
-  const stored = await chrome.storage.local.get('embeddingCache');
-  AI.embeddingCache = stored.embeddingCache ?? {};
-
-  const toEmbed = prompts.filter(p => !AI.embeddingCache[p.id]);
-
-  for (const prompt of toEmbed) {
-    try {
-      const text = `${prompt.title} ${prompt.text} ${(prompt.tags ?? []).join(' ')}`;
-      AI.embeddingCache[prompt.id] = await embed(text);
-    } catch (_) {
-      // Skip if individual embed fails
-    }
+  if (!Array.isArray(prompts) || !prompts.length) {
+    await writeEmbeddingCache({ modelId: resolvedModelId, vectors: {} });
+    return { ok: true, done: 0, total: 0, modelId: resolvedModelId };
   }
 
-  // Flush immediately after full rebuild
-  await chrome.storage.local.set({ embeddingCache: AI.embeddingCache });
-}
+  const texts = prompts.map((prompt) => buildPromptEmbeddingInput(prompt));
+  const batchResult = await runLocalTaskViaOffscreen('AI_EMBEDDING_BATCH_EMBED', '', {
+    modelId: resolvedModelId,
+    texts,
+    ratePerSecond: 10
+  }, 300000);
 
-async function addToCache(prompt) {
+  const vectors = Array.isArray(batchResult?.vectors) ? batchResult.vectors : [];
+  const byPromptId = {};
+  prompts.forEach((prompt, index) => {
+    const promptId = String(prompt?.id || '').trim();
+    if (!promptId) return;
+    byPromptId[promptId] = sanitizeVector(vectors[index]);
+  });
+  await writeEmbeddingCache({ modelId: resolvedModelId, vectors: byPromptId });
+  return { ok: true, done: prompts.length, total: prompts.length, modelId: resolvedModelId };
+};
+
+const addToCache = async (prompt) => {
+  const promptId = String(prompt?.id || '').trim();
+  if (!promptId) return;
+  const ready = await isSemanticSearchReady();
+  if (!ready.ok) return;
   try {
-    const text = `${prompt.title} ${prompt.text} ${(prompt.tags ?? []).join(' ')}`;
-    AI.embeddingCache[prompt.id] = await embed(text);
+    const vector = await requestEmbeddingVector(ready.meta.activeModelId, buildPromptEmbeddingInput(prompt));
+    const cache = normalizeEmbeddingCachePayload(ready.cache || {}, ready.meta.activeModelId);
+    cache.modelId = ready.meta.activeModelId;
+    cache.vectors[promptId] = sanitizeVector(vector);
+    _cachedEmbeddingPayload = cache;
     scheduleCacheSave();
-  } catch (_) {}
-}
+  } catch (_error) {
+    // Ignore per-item failures.
+  }
+};
 
 async function removeFromCache(promptId) {
-  delete AI.embeddingCache[promptId];
+  const key = String(promptId || '').trim();
+  if (!key) return;
+  const cache = await readEmbeddingCache();
+  if (!cache.vectors?.[key]) return;
+  delete cache.vectors[key];
+  _cachedEmbeddingPayload = cache;
   scheduleCacheSave();
 }
 
-// ─── AI Feature: Semantic Search ─────────────────────────────────────────────
-
 async function semanticSearch(query) {
-  if (AI.status !== 'ready' || !AI.pipe) return null;
+  const normalizedQuery = String(query || '').trim();
+  if (!normalizedQuery) return null;
+  const ready = await isSemanticSearchReady();
+  if (!ready.ok) return null;
 
-  const queryEmbed = await embed(query);
+  const queryEmbed = await requestEmbeddingVector(ready.meta.activeModelId, normalizedQuery);
+  if (!queryEmbed.length) return null;
   const { prompts = [] } = await chrome.storage.local.get('prompts');
+  const vectors = ready.cache?.vectors || {};
 
   const scored = prompts
-    .filter(p => AI.embeddingCache[p.id])
+    .filter((prompt) => Array.isArray(vectors?.[prompt.id]) && vectors[prompt.id].length > 0)
     .map(p => ({
       id: p.id,
-      score: cosineSimilarity(queryEmbed, AI.embeddingCache[p.id]),
+      score: cosineSimilarity(queryEmbed, vectors[p.id]),
     }))
     .filter(r => r.score > 0.25)
     .sort((a, b) => b.score - a.score);
@@ -745,6 +926,195 @@ async function semanticSearch(query) {
     semanticOnly: !keywordIds.has(r.id),
   }));
 }
+
+const getEmbeddingStatusPayload = async () => {
+  const [meta, reindex] = await Promise.all([
+    readEmbeddingMeta(),
+    readEmbeddingReindexState()
+  ]);
+  return { ...meta, reindex };
+};
+
+const updateSearchModeFromMeta = async (meta = {}) => {
+  const normalized = normalizeEmbeddingMeta(meta);
+  if (normalized.searchMode === 'semantic' && normalized.status === 'ready') {
+    await emitSearchMode('semantic');
+  } else {
+    await emitSearchMode('keyword');
+  }
+};
+
+const updateEmbeddingMetaFromWorkerEvent = async (message = {}) => {
+  const modelId = String(message?.modelId || '').trim();
+  const current = await readEmbeddingMeta();
+  const downloaded = new Set(current.downloadedModelIds || []);
+  const status = String(message?.status || current.status || '').trim().toLowerCase();
+  if (['cached', 'ready', 'loading', 'downloading'].includes(status) && modelId) {
+    downloaded.add(modelId);
+  }
+  const next = await writeEmbeddingMeta({
+    ...current,
+    activeModelId: String(message?.activeModelId || current.activeModelId || modelId || current.activeModelId),
+    status: status || current.status,
+    progress: Number.isFinite(Number(message?.progress)) ? Number(message.progress) : current.progress,
+    backend: String(message?.backend || current.backend || 'webgpu'),
+    error: String(message?.error || '').trim(),
+    downloadedModelIds: Array.from(downloaded),
+    searchMode: current.searchMode
+  });
+  await updateSearchModeFromMeta(next);
+  return next;
+};
+
+const downloadEmbeddingModel = async (modelId = '', { silent = false } = {}) => {
+  const selected = getEmbeddingModelById(modelId) || getDefaultEmbeddingModel();
+  const targetModelId = String(selected?.id || EMBEDDING_META_FALLBACK.activeModelId);
+  const current = await readEmbeddingMeta();
+  const downloaded = new Set(current.downloadedModelIds || []);
+  if (downloaded.has(targetModelId) && ['cached', 'ready', 'loading'].includes(current.status)) {
+    return {
+      ok: true,
+      ...current,
+      modelId: targetModelId,
+      advisory: silent ? 'already_downloaded' : undefined
+    };
+  }
+
+  const pending = await writeEmbeddingMeta({
+    ...current,
+    status: 'downloading',
+    progress: 0,
+    error: '',
+    activeModelId: current.activeModelId || targetModelId,
+    downloadedModelIds: Array.from(downloaded)
+  });
+  if (!silent) {
+    broadcast({ type: 'AI_EMBEDDING_STATUS', ...pending, modelId: targetModelId, activeModelId: pending.activeModelId });
+  }
+
+  const result = await runLocalTaskViaOffscreen('AI_EMBEDDING_DOWNLOAD', '', { modelId: targetModelId }, 300000);
+  const finalized = await updateEmbeddingMetaFromWorkerEvent({
+    modelId: targetModelId,
+    activeModelId: pending.activeModelId,
+    status: String(result?.status || 'cached'),
+    progress: Number(result?.progress || 100),
+    backend: String(result?.backend || pending.backend || 'webgpu'),
+    error: ''
+  });
+
+  return { ok: true, ...finalized, modelId: targetModelId };
+};
+
+const runEmbeddingReindex = async (modelId = '') => {
+  const selected = getEmbeddingModelById(modelId) || getDefaultEmbeddingModel();
+  const targetModelId = String(selected?.id || EMBEDDING_META_FALLBACK.activeModelId);
+  const running = await readEmbeddingReindexState();
+  if (running.running && running.modelId === targetModelId) {
+    return { ok: true, ...running, advisory: 'already_running' };
+  }
+
+  const startedAt = Date.now();
+  const seed = await writeEmbeddingReindexState({
+    running: true,
+    done: 0,
+    total: 0,
+    progress: 0,
+    modelId: targetModelId,
+    error: '',
+    startedAt,
+    completedAt: 0
+  });
+  broadcast({ type: 'AI_EMBEDDING_REINDEX_PROGRESS', ...seed });
+
+  try {
+    const rebuilt = await rebuildCache(targetModelId);
+    const finalized = await writeEmbeddingReindexState({
+      running: false,
+      done: rebuilt.done,
+      total: rebuilt.total,
+      progress: rebuilt.total > 0 ? 100 : 0,
+      modelId: targetModelId,
+      error: '',
+      startedAt,
+      completedAt: Date.now()
+    });
+    const meta = await readEmbeddingMeta();
+    const downloaded = new Set(meta.downloadedModelIds || []);
+    downloaded.add(targetModelId);
+    const nextMeta = await writeEmbeddingMeta({
+      ...meta,
+      activeModelId: targetModelId,
+      downloadedModelIds: Array.from(downloaded),
+      status: 'ready',
+      progress: 100,
+      error: '',
+      searchMode: 'semantic'
+    });
+    await updateSearchModeFromMeta(nextMeta);
+    broadcast({ type: 'AI_EMBEDDING_REINDEX_PROGRESS', ...finalized });
+    return { ok: true, ...finalized };
+  } catch (error) {
+    const finalized = await writeEmbeddingReindexState({
+      running: false,
+      done: 0,
+      total: 0,
+      progress: 0,
+      modelId: targetModelId,
+      error: String(error?.message || 'Re-index failed.'),
+      startedAt,
+      completedAt: Date.now()
+    });
+    const meta = await readEmbeddingMeta();
+    const nextMeta = await writeEmbeddingMeta({
+      ...meta,
+      status: 'error',
+      error: finalized.error,
+      searchMode: 'keyword'
+    });
+    await updateSearchModeFromMeta(nextMeta);
+    broadcast({ type: 'AI_EMBEDDING_REINDEX_PROGRESS', ...finalized });
+    return { ok: false, error: finalized.error, ...finalized };
+  }
+};
+
+const switchEmbeddingModel = async (modelId = '') => {
+  const current = await readEmbeddingMeta();
+  const previousModelId = String(current.activeModelId || '');
+  const selected = getEmbeddingModelById(modelId) || getDefaultEmbeddingModel();
+  const targetModelId = String(selected?.id || previousModelId || EMBEDDING_META_FALLBACK.activeModelId);
+
+  const downloaded = await downloadEmbeddingModel(targetModelId);
+  if (!downloaded?.ok) {
+    return { ok: false, error: String(downloaded?.error || 'Download failed.'), ...(await getEmbeddingStatusPayload()) };
+  }
+
+  await writeEmbeddingMeta({
+    ...(await readEmbeddingMeta()),
+    status: 'loading',
+    progress: 100,
+    error: '',
+    activeModelId: previousModelId || targetModelId
+  });
+
+  const reindexed = await runEmbeddingReindex(targetModelId);
+  if (!reindexed?.ok) {
+    return { ok: false, error: String(reindexed?.error || 'Re-index failed.'), ...(await getEmbeddingStatusPayload()) };
+  }
+
+  if (previousModelId && previousModelId !== targetModelId) {
+    await runLocalTaskViaOffscreen('AI_EMBEDDING_REMOVE_CACHE', '', { modelId: previousModelId }, 180000).catch(() => null);
+    const meta = await readEmbeddingMeta();
+    const nextDownloaded = (meta.downloadedModelIds || []).filter((entry) => entry !== previousModelId);
+    await writeEmbeddingMeta({
+      ...meta,
+      downloadedModelIds: nextDownloaded
+    });
+  }
+
+  const payload = await getEmbeddingStatusPayload();
+  broadcast({ type: 'AI_EMBEDDING_STATUS', ...payload, modelId: targetModelId, activeModelId: payload.activeModelId });
+  return { ok: true, ...payload };
+};
 
 // ─── AI Feature: Auto-Tagging ────────────────────────────────────────────────
 
@@ -802,32 +1172,43 @@ const parseTagsFromModelText = (text) => {
     .slice(0, 3);
 };
 
-const suggestTagsViaGeminiStrict = async (apiKey, promptText) => {
+const callProviderTextTask = async ({
+  providerId = PROVIDER_IDS.GEMINI,
+  apiKey = '',
+  modelId = '',
+  systemPrompt = '',
+  userPrompt = ''
+} = {}) => {
+  const text = await callProvider({
+    providerId,
+    modelId,
+    apiKey,
+    systemPrompt: String(systemPrompt || '').trim(),
+    prompt: String(userPrompt || '').trim(),
+    extensionId: chrome.runtime?.id || ''
+  });
+  return String(text || '').trim();
+};
+
+const suggestTagsViaCloudStrict = async ({ providerId, apiKey, modelId, promptText }) => {
   const source = clampText(promptText, 2200);
   if (!source) {
     throw new Error('Empty prompt text provided.');
   }
 
-  const instruction = [
+  const systemPrompt = [
     'Suggest 2-3 short lowercase tags for this prompt.',
     'Return strict JSON array only, e.g. ["coding","debugging"].',
     'No prose.'
   ].join('\n');
-
-  const response = await callGeminiGenerateContent(apiKey, {
-    contents: [{ role: 'user', parts: [{ text: `${instruction}\n\nPrompt:\n${source}` }] }],
-    generationConfig: {
-      temperature: 0.2,
-      maxOutputTokens: 80
-    }
+  const rawText = await callProviderTextTask({
+    providerId,
+    modelId,
+    apiKey,
+    systemPrompt,
+    userPrompt: `Prompt:\n${source}`
   });
-
-  if (!response.ok) {
-    throw new Error(`Gemini API request failed (${response.status}).`);
-  }
-
-  const data = await response.json();
-  const tags = parseTagsFromModelText(readGeminiText(data));
+  const tags = parseTagsFromModelText(rawText);
   return { tags };
 };
 
@@ -838,9 +1219,9 @@ async function suggestTags(promptText) {
   try {
     const result = await runWithConfiguredBackend({
       feature: 'autoTags',
-      geminiTask: (apiKey) => suggestTagsViaGeminiStrict(apiKey, source),
+      cloudTask: ({ providerId, apiKey, modelId }) => suggestTagsViaCloudStrict({ providerId, apiKey, modelId, promptText: source }),
       localTask: () => runLocalTextTask('tags', { text: source }),
-      noGeminiMessage: 'No Gemini API Key found in Extension Settings.'
+      noCloudMessage: 'No cloud API key found in Settings.'
     });
 
     const tags = Array.isArray(result?.tags)
@@ -935,15 +1316,12 @@ async function checkDuplicate(promptText, excludeId = null) {
   return null;
 }
 
-// ─── AI Feature: Smart Suggestions via Gemini Flash Lite ─────────────────────
+// ─── AI Feature: Smart Suggestions ───────────────────────────────────────────
 
 async function getSmartSuggestions(conversationText) {
   if (!conversationText || conversationText.length < 30) return null;
 
   try {
-    const promptiumGeminiKey = await getGeminiApiKey();
-    if (!promptiumGeminiKey) return null;
-
     const { prompts = [] } = await chrome.storage.local.get('prompts');
     if (!prompts.length) return null;
 
@@ -952,25 +1330,26 @@ async function getSmartSuggestions(conversationText) {
       .map((p, i) => `${i + 1}. [${p.id}] "${p.title}"${p.tags?.length ? ` (tags: ${p.tags.join(', ')})` : ''}`)
       .join('\n');
 
-    const systemPrompt = `You are a prompt suggestion engine. Given a conversation snippet and a numbered list of saved prompts, return the IDs of the top 3 most relevant prompts. Reply ONLY with a JSON array of ID strings, e.g. ["id1","id2","id3"]. If none are relevant, reply [].`;
+    const systemPrompt = 'You are a prompt suggestion engine. Given a conversation snippet and a numbered list of saved prompts, return the IDs of the top 3 most relevant prompts. Reply ONLY with a JSON array of ID strings, e.g. ["id1","id2","id3"]. If none are relevant, reply [].';
 
     const safeConversation = redactSensitiveText(conversationText).slice(0, 600);
     const userMessage = `Conversation:\n${safeConversation}\n\nSaved prompts:\n${promptList}`;
 
-    const response = await callGeminiGenerateContent(promptiumGeminiKey, {
-      contents: [
-        { role: 'user', parts: [{ text: `${systemPrompt}\n\n${userMessage}` }] }
-      ],
-      generationConfig: {
-        temperature: 0.1,
-        maxOutputTokens: 200
-      }
+    const routed = await runWithConfiguredBackend({
+      feature: 'improvePrompt',
+      cloudTask: ({ providerId, apiKey, modelId }) => callProviderTextTask({
+        providerId,
+        modelId,
+        apiKey,
+        systemPrompt,
+        userPrompt: userMessage
+      }).then((text) => ({ text })),
+      localTask: null,
+      noCloudMessage: 'No cloud API key found in Settings.'
     });
 
-    if (!response.ok) return null;
-
-    const data = await response.json();
-    const textResult = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    const textResult = String(routed?.text || '').trim();
+    if (!textResult) return null;
 
     // Parse the JSON array from the response
     const match = textResult.match(/\[[\s\S]*?\]/);
@@ -991,9 +1370,7 @@ async function getSmartSuggestions(conversationText) {
 
 // ─── AI Feature: AI Prompt Improvement, Paraphrase, Title, Clarity ──────────
 
-const readGeminiText = (data) => String(data?.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
-
-async function improvePromptViaGeminiStrict(apiKey, text, tags = [], style = 'general') {
+async function improvePromptViaCloudStrict({ providerId, apiKey, modelId, text, tags = [], style = 'general' }) {
   if (!text || text.trim().length === 0) {
     throw new Error('Empty prompt text provided.');
   }
@@ -1015,29 +1392,20 @@ ${styleInstruction}
 ${tagContext}
 ONLY return the improved prompt text. Do not add quotes, do not explain your changes, and do not add headings.`;
 
-  const response = await callGeminiGenerateContent(apiKey, {
-    contents: [
-      { role: 'user', parts: [{ text: `${systemPrompt}\n\nUser's Original Prompt: ${clampText(text, 5000)}` }] }
-    ],
-    generationConfig: {
-      temperature: 0.35,
-      maxOutputTokens: 820
-    }
+  const improvedText = await callProviderTextTask({
+    providerId,
+    modelId,
+    apiKey,
+    systemPrompt,
+    userPrompt: `User's Original Prompt:\n${clampText(text, 5000)}`
   });
-
-  if (!response.ok) {
-    throw new Error(`Gemini API request failed (${response.status}).`);
-  }
-
-  const data = await response.json();
-  const improvedText = readGeminiText(data);
   if (!improvedText) {
-    throw new Error('Gemini returned empty improved text.');
+    throw new Error(`${getProviderLabel(providerId)} returned empty improved text.`);
   }
   return { text: improvedText };
 }
 
-async function paraphrasePromptViaGeminiStrict(apiKey, text) {
+async function paraphrasePromptViaCloudStrict({ providerId, apiKey, modelId, text }) {
   const source = clampText(text, 5000);
   if (!source) {
     throw new Error('Empty prompt text provided.');
@@ -1049,61 +1417,51 @@ async function paraphrasePromptViaGeminiStrict(apiKey, text) {
     'Return only the rewritten prompt text.'
   ].join('\n');
 
-  const response = await callGeminiGenerateContent(apiKey, {
-    contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nPrompt:\n${source}` }] }],
-    generationConfig: {
-      temperature: 0.25,
-      maxOutputTokens: 620
-    }
+  const rewritten = await callProviderTextTask({
+    providerId,
+    modelId,
+    apiKey,
+    systemPrompt,
+    userPrompt: `Prompt:\n${source}`
   });
-
-  if (!response.ok) {
-    throw new Error(`Gemini API request failed (${response.status}).`);
-  }
-
-  const data = await response.json();
-  const rewritten = readGeminiText(data);
   if (!rewritten) {
-    throw new Error('Gemini returned empty paraphrase output.');
+    throw new Error(`${getProviderLabel(providerId)} returned empty paraphrase output.`);
   }
   return { text: rewritten };
 }
 
-async function buildContinuationHandoffViaGemini(messages, mode = 'FULL_SUMMARY', userNote = '', explicitKey = '') {
+async function buildContinuationHandoffViaCloud(messages, mode = 'FULL_SUMMARY', userNote = '', cloud = {}) {
   const safeMessages = Array.isArray(messages) ? messages : [];
   if (!safeMessages.length) {
     return { ok: false, error: 'No messages to summarize.' };
   }
 
-  const promptiumGeminiKey = String(explicitKey || '').trim() || await getGeminiApiKey();
-  if (!promptiumGeminiKey) {
-    return { ok: false, error: 'Missing Gemini key.' };
+  const providerId = normalizeProviderId(cloud.providerId || PROVIDER_IDS.GEMINI);
+  const apiKey = String(cloud.apiKey || '').trim();
+  const modelId = String(cloud.modelId || '').trim();
+  if (!apiKey) {
+    return { ok: false, error: 'Missing provider key.' };
   }
 
   const prompt = buildContinuationPrompt(safeMessages, mode, userNote);
 
   try {
-    const response = await callGeminiGenerateContent(promptiumGeminiKey, {
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.3,
-        maxOutputTokens: 520
-      }
+    const raw = await callProviderTextTask({
+      providerId,
+      modelId,
+      apiKey,
+      systemPrompt: 'Summarize for a continuation handoff.',
+      userPrompt: prompt
     });
-
-    if (!response.ok) {
-      return { ok: false, error: `Gemini API request failed (${response.status}).` };
-    }
-
-    const data = await response.json();
-    const raw = String(data?.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
     if (!raw) {
-      return { ok: false, error: 'Gemini returned empty continuation context.' };
+      return { ok: false, error: `${getProviderLabel(providerId)} returned empty continuation context.` };
     }
 
     return { ok: true, text: limitWords(raw, CONTINUATION_WORD_LIMIT) };
   } catch (error) {
-    const fallback = error?.name === 'AbortError' ? 'Gemini request timed out.' : 'Failed to generate continuation handoff.';
+    const fallback = error?.name === 'AbortError'
+      ? `${getProviderLabel(providerId)} request timed out.`
+      : 'Failed to generate continuation handoff.';
     return { ok: false, error: fallback };
   }
 }
@@ -1142,14 +1500,16 @@ async function buildContinuationHandoff(messages, mode = 'FULL_SUMMARY', userNot
   }
 
   const key = String(explicitKey || '').trim();
-  const hasExplicitKey = Boolean(key);
-  const hasGeminiKey = hasExplicitKey || Boolean(await getGeminiApiKey());
+  const activeProvider = normalizeProviderId((await getAiRuntimeSettings()).activeProvider || PROVIDER_IDS.GEMINI);
+  const activeProviderKey = key || await getProviderApiKey(activeProvider);
+  const hasActiveKey = Boolean(activeProviderKey);
   const longConversation = safeMessages.length > CONTINUATION_LONG_THRESHOLD;
-  const forceGemini = longConversation && hasGeminiKey;
+  const forceProvider = longConversation && hasActiveKey ? activeProvider : '';
+  const activeLabel = getProviderLabel(activeProvider);
   const longAdvisory = longConversation
-    ? (hasGeminiKey
-      ? 'For best results, Gemini will be used for this long conversation.'
-      : 'Long conversations may be lower quality with local AI. Add a Gemini key in Settings for better summaries.')
+    ? (hasActiveKey
+      ? `For best results, ${activeLabel} will be used for this long conversation.`
+      : 'Long conversations may be lower quality with local AI. Add a cloud API key in Settings for better summaries.')
     : '';
 
   if (forceLocal) {
@@ -1168,11 +1528,16 @@ async function buildContinuationHandoff(messages, mode = 'FULL_SUMMARY', userNot
   try {
     const result = await runWithConfiguredBackend({
       feature: 'continueSummary',
-      forceGemini,
+      forceProvider,
       geminiApiKey: key,
-      geminiTask: (apiKey) => buildContinuationHandoffViaGemini(safeMessages, mode, userNote, apiKey),
+      cloudTask: ({ providerId, apiKey, modelId }) => buildContinuationHandoffViaCloud(
+        safeMessages,
+        mode,
+        userNote,
+        { providerId, apiKey, modelId }
+      ),
       localTask: () => buildContinuationHandoffViaLocal(safeMessages, mode, userNote),
-      noGeminiMessage: 'No Gemini API Key found in Extension Settings.'
+      noCloudMessage: 'No cloud API key found in Settings.'
     });
 
     return {
@@ -1190,7 +1555,7 @@ async function buildContinuationHandoff(messages, mode = 'FULL_SUMMARY', userNot
   }
 }
 
-async function generatePromptTitleViaGeminiStrict(apiKey, text) {
+async function generatePromptTitleViaCloudStrict({ providerId, apiKey, modelId, text }) {
   const source = clampText(text, 3200);
   if (!source) {
     throw new Error('Empty text provided.');
@@ -1200,20 +1565,13 @@ async function generatePromptTitleViaGeminiStrict(apiKey, text) {
 Return ONLY the title text.
 No quotes, no numbering, no extra text.`;
 
-  const response = await callGeminiGenerateContent(apiKey, {
-    contents: [{ role: 'user', parts: [{ text: `${instruction}\n\nPrompt:\n${source}` }] }],
-    generationConfig: {
-      temperature: 0.2,
-      maxOutputTokens: 44
-    }
-  });
-
-  if (!response.ok) {
-    throw new Error(`Gemini API request failed (${response.status}).`);
-  }
-
-  const data = await response.json();
-  const title = readGeminiText(data)
+  const title = (await callProviderTextTask({
+    providerId,
+    modelId,
+    apiKey,
+    systemPrompt: instruction,
+    userPrompt: `Prompt:\n${source}`
+  }))
     .split('\n')[0]
     .replace(/^["'`]+|["'`]+$/g, '')
     .replace(/^\d+[\).\s-]+/, '')
@@ -1226,7 +1584,7 @@ No quotes, no numbering, no extra text.`;
   return { title };
 }
 
-async function scorePromptClarityViaGeminiStrict(apiKey, text) {
+async function scorePromptClarityViaCloudStrict({ providerId, apiKey, modelId, text }) {
   const source = clampText(text, 4200);
   if (!source) {
     throw new Error('Empty text provided.');
@@ -1238,20 +1596,13 @@ async function scorePromptClarityViaGeminiStrict(apiKey, text) {
     '{"score": 0, "explanation": "one short sentence"}'
   ].join('\n');
 
-  const response = await callGeminiGenerateContent(apiKey, {
-    contents: [{ role: 'user', parts: [{ text: `${instruction}\n\nPrompt:\n${source}` }] }],
-    generationConfig: {
-      temperature: 0.1,
-      maxOutputTokens: 120
-    }
+  const raw = await callProviderTextTask({
+    providerId,
+    modelId,
+    apiKey,
+    systemPrompt: instruction,
+    userPrompt: `Prompt:\n${source}`
   });
-
-  if (!response.ok) {
-    throw new Error(`Gemini API request failed (${response.status}).`);
-  }
-
-  const data = await response.json();
-  const raw = readGeminiText(data);
   return parseClarityFromText(raw, source);
 }
 
@@ -1259,9 +1610,11 @@ const improvePrompt = async (text, tags = [], style = 'general') => {
   try {
     const result = await runWithConfiguredBackend({
       feature: 'improvePrompt',
-      geminiTask: (apiKey) => improvePromptViaGeminiStrict(apiKey, text, tags, style),
+      cloudTask: ({ providerId, apiKey, modelId }) => improvePromptViaCloudStrict({
+        providerId, apiKey, modelId, text, tags, style
+      }),
       localTask: () => runLocalTextTask('improve', { text, tags, style }),
-      noGeminiMessage: 'No Gemini API Key found in Extension Settings.'
+      noCloudMessage: 'No cloud API key found in Settings.'
     });
     return {
       ok: true,
@@ -1283,9 +1636,11 @@ const generatePromptTitle = async (text) => {
   try {
     const result = await runWithConfiguredBackend({
       feature: 'smartExportTitle',
-      geminiTask: (apiKey) => generatePromptTitleViaGeminiStrict(apiKey, source),
+      cloudTask: ({ providerId, apiKey, modelId }) => generatePromptTitleViaCloudStrict({
+        providerId, apiKey, modelId, text: source
+      }),
       localTask: () => runLocalTextTask('title', { text: source }),
-      noGeminiMessage: 'No Gemini API Key found in Extension Settings.'
+      noCloudMessage: 'No cloud API key found in Settings.'
     });
 
     const title = String(result?.title || '').trim().slice(0, 80);
@@ -1308,9 +1663,11 @@ const paraphrasePrompt = async (text) => {
   try {
     const result = await runWithConfiguredBackend({
       feature: 'polish',
-      geminiTask: (apiKey) => paraphrasePromptViaGeminiStrict(apiKey, source),
+      cloudTask: ({ providerId, apiKey, modelId }) => paraphrasePromptViaCloudStrict({
+        providerId, apiKey, modelId, text: source
+      }),
       localTask: () => runLocalTextTask('paraphrase', { text: source }),
-      noGeminiMessage: 'No Gemini API Key found in Extension Settings.'
+      noCloudMessage: 'No cloud API key found in Settings.'
     });
     const rewritten = String(result?.text || '').trim();
     return {
@@ -1333,9 +1690,11 @@ const scorePromptClarity = async (text) => {
   try {
     const result = await runWithConfiguredBackend({
       feature: 'polish',
-      geminiTask: (apiKey) => scorePromptClarityViaGeminiStrict(apiKey, source),
+      cloudTask: ({ providerId, apiKey, modelId }) => scorePromptClarityViaCloudStrict({
+        providerId, apiKey, modelId, text: source
+      }),
       localTask: () => runLocalTextTask('clarity', { text: source }),
-      noGeminiMessage: 'No Gemini API Key found in Extension Settings.'
+      noCloudMessage: 'No cloud API key found in Settings.'
     });
     return {
       ok: true,
@@ -1423,11 +1782,65 @@ const handleAIMessage = async (message, sendResponse) => {
           AI.status = 'ready';
           broadcast({ type: 'AI_STATUS', status: 'ready' });
         }
-        sendResponse({ status: AI.status });
+        await updateSearchModeFromMeta(await readEmbeddingMeta());
+        sendResponse({
+          status: AI.status,
+          embedding: await getEmbeddingStatusPayload()
+        });
         return true;
 
       case 'AI_SEARCH':
-        sendResponse({ results: await semanticSearch(message.query) });
+        {
+          const semantic = await semanticSearch(message.query);
+          const mode = semantic ? 'semantic' : 'keyword';
+          sendResponse({ results: semantic, mode });
+        }
+        return true;
+
+      case 'AI_PROVIDER_VALIDATE_KEY':
+        {
+          const providerId = normalizeProviderId(message?.providerId || PROVIDER_IDS.GEMINI);
+          const key = String(message?.key || '').trim();
+          const modelId = String(message?.modelId || getProviderDefaultModel(providerId)?.id || '').trim();
+          const validation = await validateProviderKey({
+            providerId,
+            apiKey: key,
+            modelId
+          });
+          sendResponse(validation);
+        }
+        return true;
+
+      case 'AI_EMBEDDING_STATUS_CHECK':
+        sendResponse(await getEmbeddingStatusPayload());
+        return true;
+
+      case 'AI_EMBEDDING_DOWNLOAD':
+        {
+          const modelId = String(message?.payload?.modelId || message?.modelId || '').trim();
+          const result = await downloadEmbeddingModel(modelId);
+          sendResponse(result);
+        }
+        return true;
+
+      case 'AI_EMBEDDING_SWITCH':
+        {
+          const modelId = String(message?.payload?.modelId || message?.modelId || '').trim();
+          const result = await switchEmbeddingModel(modelId);
+          sendResponse(result);
+        }
+        return true;
+
+      case 'AI_EMBEDDING_REINDEX_STATUS':
+        sendResponse(await readEmbeddingReindexState());
+        return true;
+
+      case 'AI_EMBEDDING_REINDEX_START':
+        {
+          const modelId = String(message?.payload?.modelId || message?.modelId || '').trim();
+          const result = await runEmbeddingReindex(modelId || (await readEmbeddingMeta()).activeModelId);
+          sendResponse(result);
+        }
         return true;
 
       case 'AI_SUGGEST_TAGS':
@@ -1535,9 +1948,11 @@ const handleAIMessage = async (message, sendResponse) => {
         }
 
       case 'AI_STATUS_CHECK':
+        await updateSearchModeFromMeta(await readEmbeddingMeta());
         sendResponse({
           status: AI.status,
-          localModel: getLocalStatusPayload()
+          localModel: getLocalStatusPayload(),
+          embedding: await getEmbeddingStatusPayload()
         });
         return true;
 
@@ -1609,6 +2024,20 @@ const registerContextMenus = async () => {
   }
 };
 
+const bootstrapEmbeddingOnInstall = async () => {
+  const meta = await readEmbeddingMeta();
+  if (Array.isArray(meta.downloadedModelIds) && meta.downloadedModelIds.length > 0) {
+    await updateSearchModeFromMeta(meta);
+    return;
+  }
+
+  const defaultModelId = String(getDefaultEmbeddingModel()?.id || EMBEDDING_META_FALLBACK.activeModelId);
+  await downloadEmbeddingModel(defaultModelId, { silent: true });
+  const refreshed = await readEmbeddingMeta();
+  await updateSearchModeFromMeta(refreshed);
+  broadcast({ type: 'AI_EMBEDDING_STATUS', ...refreshed, modelId: defaultModelId, activeModelId: refreshed.activeModelId });
+};
+
 // Manually open the side panel when the user clicks the extension action icon.
 // This often works more reliably than the declarative setPanelBehavior API.
 chrome.action.onClicked.addListener((tab) => {
@@ -1624,6 +2053,7 @@ const onInstalled = async () => {
   try {
     await initializeStorageKeys();
     await registerContextMenus();
+    await bootstrapEmbeddingOnInstall();
   } catch (error) {
     console.error('[Promptium][ServiceWorker] Initialization failed.', error);
   }
@@ -1726,6 +2156,13 @@ const isOffscreenLocalEvent = (message) => {
   return type === 'AI_LOCAL_MODEL_PROGRESS' || type === 'AI_LOCAL_MODEL_STATUS';
 };
 
+const isOffscreenEmbeddingEvent = (message) => {
+  const type = String(message?.type || '').trim();
+  return type === 'AI_EMBEDDING_STATUS'
+    || type === 'AI_EMBEDDING_PROGRESS'
+    || type === 'AI_EMBEDDING_REINDEX_PROGRESS';
+};
+
 const isOffscreenLocalSender = (sender) => String(sender?.url || '').includes(`/${OFFSCREEN_LOCAL_URL}`);
 
 /** Routes runtime messages and keeps channel open for async response delivery. */
@@ -1736,6 +2173,36 @@ const onRuntimeMessage = (message, sender, sendResponse) => {
 
   if (isOffscreenLocalSender(sender) && isOffscreenLocalEvent(message)) {
     updateLocalStatusFromEvent(message);
+    return false;
+  }
+
+  if (isOffscreenLocalSender(sender) && isOffscreenEmbeddingEvent(message)) {
+    void (async () => {
+      const type = String(message?.type || '').trim();
+      if (type === 'AI_EMBEDDING_REINDEX_PROGRESS') {
+        const running = (Number(message?.done || 0) < Number(message?.total || 0));
+        const updated = await writeEmbeddingReindexState({
+          ...(await readEmbeddingReindexState()),
+          running,
+          done: Number(message?.done || 0),
+          total: Number(message?.total || 0),
+          progress: Number(message?.progress || 0),
+          modelId: String(message?.modelId || (await readEmbeddingMeta()).activeModelId),
+          error: '',
+          completedAt: running ? 0 : Date.now()
+        });
+        broadcast({ type: 'AI_EMBEDDING_REINDEX_PROGRESS', ...updated });
+        return;
+      }
+
+      const meta = await updateEmbeddingMetaFromWorkerEvent(message);
+      broadcast({
+        type: type === 'AI_EMBEDDING_PROGRESS' ? 'AI_EMBEDDING_PROGRESS' : 'AI_EMBEDDING_STATUS',
+        ...meta,
+        modelId: String(message?.modelId || meta.activeModelId),
+        activeModelId: meta.activeModelId
+      });
+    })();
     return false;
   }
 
@@ -1885,7 +2352,11 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  void registerContextMenus();
+  void (async () => {
+    await registerContextMenus();
+    const meta = await readEmbeddingMeta();
+    await updateSearchModeFromMeta(meta);
+  })();
 });
 
 chrome.commands.onCommand.addListener((command) => {

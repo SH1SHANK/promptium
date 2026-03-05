@@ -36,6 +36,9 @@ const formatSaveBackendFeedback = (savedPrompt) => {
   const backend = String(savedPrompt?._aiMeta?.paraphrase || '').trim().toLowerCase();
   if (backend === 'local') return 'Prompt saved and optimized locally.';
   if (backend === 'gemini') return 'Prompt saved and optimized with Gemini.';
+  if (backend === 'openai') return 'Prompt saved and optimized with OpenAI.';
+  if (backend === 'anthropic') return 'Prompt saved and optimized with Claude.';
+  if (backend === 'openrouter') return 'Prompt saved and optimized with OpenRouter.';
   return 'Prompt saved to library.';
 };
 
@@ -559,7 +562,7 @@ const onLibraryClick = () => {
   });
 };
 
-/** Triggers Gemini Flash Lite to improve the current active prompt in the chat box. */
+/** Triggers AI prompt improvement for the current active prompt in the chat box. */
 const onImprovePromptClick = async (platform) => {
   const input = await getInputElement(platform);
   const text = String(input?.value || input?.textContent || '').trim();

@@ -35,7 +35,10 @@ const hasTemplateVariables = (text) => {
 const formatSaveBackendFeedback = (savedPrompt) => {
   const backend = String(savedPrompt?._aiMeta?.paraphrase || '').trim().toLowerCase();
   if (backend === 'local') return 'Saved and optimized locally.';
-  if (backend === 'gemini') return 'Saved and optimized with Gemini.';
+  if (backend === 'gemini') return 'Saved with Gemini.';
+  if (backend === 'openai') return 'Saved with OpenAI.';
+  if (backend === 'anthropic') return 'Saved with Claude.';
+  if (backend === 'openrouter') return 'Saved with OpenRouter.';
   return 'Prompt saved.';
 };
 
@@ -801,6 +804,19 @@ const updateAddAiStatusStrip = async () => {
   const enableAI = settings?.enableAI !== false;
   const preferLocal = settings?.preferLocal === true;
   const localFeaturePolish = settings?.localFeatureFlags?.polish !== false;
+  const activeProvider = String(settings?.activeProvider || 'gemini').trim().toLowerCase();
+  const providerKeyMap = {
+    gemini: 'promptiumGeminiKey',
+    openai: 'promptiumOpenAIKey',
+    anthropic: 'promptiumAnthropicKey',
+    openrouter: 'promptiumOpenRouterKey'
+  };
+  const providerLabelMap = {
+    gemini: 'Gemini',
+    openai: 'OpenAI',
+    anthropic: 'Claude',
+    openrouter: 'OpenRouter'
+  };
 
   let text = '○ AI unavailable — enable in Settings';
   let unavailable = true;
@@ -809,15 +825,16 @@ const updateAddAiStatusStrip = async () => {
     const localStatus = await window.AIBridge.getLocalModelStatus().catch(() => null);
     const localReady = String(localStatus?.status || '').toLowerCase() === 'ready';
     const localLoading = ['loading', 'downloading'].includes(String(localStatus?.status || '').toLowerCase());
-    const geminiKey = String((await chrome.storage.session.get(['promptiumGeminiKey']).catch(() => ({})))?.promptiumGeminiKey || '').trim();
+    const keyStorageKey = providerKeyMap[activeProvider] || 'promptiumGeminiKey';
+    const providerKey = String((await chrome.storage.session.get([keyStorageKey]).catch(() => ({})))?.[keyStorageKey] || '').trim();
     if (preferLocal && localFeaturePolish && localLoading) {
       text = '⟳ AI loading...';
       unavailable = false;
     } else if (localReady && localFeaturePolish) {
       text = `✦ ${getLocalModelLabel(localStatus?.modelId || settings?.localModelId)} ready`;
       unavailable = false;
-    } else if (geminiKey) {
-      text = '✦ AI via Gemini';
+    } else if (providerKey) {
+      text = `✦ AI via ${providerLabelMap[activeProvider] || 'cloud'}`;
       unavailable = false;
     } else if (localLoading) {
       text = '⟳ AI loading...';

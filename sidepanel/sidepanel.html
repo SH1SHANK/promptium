@@ -12,6 +12,7 @@
   <body class="pn-popup pn-sidepanel">
     <header class="pn-header pn-sidepanel-header">
       <div class="pn-header-actions">
+        <span id="pn-search-setup-indicator" class="pn-search-setup-indicator pn-hidden" title="Setting up search..." aria-label="Setting up search"></span>
         <button
           id="back-btn"
           class="pn-btn pn-btn--ghost pn-icon-btn hidden pn-mr-auto"
@@ -90,6 +91,7 @@
           </svg>
         </button>
       </div>
+      <span id="pn-search-mode-badge" class="pn-search-mode-badge pn-hidden">Keyword search</span>
       <span id="pn-search-spark" class="pn-search-spark pn-hidden">✦</span>
       <div id="pn-ai-bar" class="pn-ai-bar pn-ai-bar--hidden">
         <div class="pn-ai-bar__line"></div>
@@ -450,7 +452,7 @@
             <label class="pn-sv-field">
               <span class="pn-sv-field__label">AI backend</span>
               <select id="setting-ai-backend" class="pn-sv-select">
-                <option value="gemini">Gemini API</option>
+                <option value="gemini">Cloud API</option>
                 <option value="local">Local Model (Unlimited)</option>
               </select>
             </label>
@@ -458,7 +460,7 @@
             <div class="pn-sv-row">
               <div class="pn-sv-row__copy">
                 <span class="pn-sv-row__label">Auto-fallback</span>
-                <span class="pn-sv-row__desc">If Gemini fails or key is missing, use local model automatically.</span>
+                <span class="pn-sv-row__desc">If cloud provider fails or key is missing, use local model automatically.</span>
               </div>
               <label class="pn-toggle">
                 <input id="setting-ai-auto-fallback" type="checkbox" checked />
@@ -521,7 +523,7 @@
             <div class="pn-sv-row">
               <div class="pn-sv-row__copy">
                 <span class="pn-sv-row__label">Polish button</span>
-                <span class="pn-sv-row__desc">Enable Gemini prompt cleanup actions.</span>
+                <span class="pn-sv-row__desc">Enable AI prompt cleanup actions.</span>
               </div>
               <label class="pn-toggle">
                 <input id="setting-polish-toggle" type="checkbox" checked />
@@ -571,40 +573,50 @@
 
           <!-- ── Connections ──────────────────────────── -->
           <div class="pn-sv-section">
-            <h4 class="pn-sv-heading">Connections</h4>
+            <h4 class="pn-sv-heading">Cloud Provider</h4>
+            <div id="pn-provider-tabs" class="pn-provider-tabs"></div>
 
-            <div class="pn-sv-api-row">
-              <div class="pn-sv-api-row__icon">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <div class="pn-provider-editor">
+              <div class="pn-sv-api-row">
+                <div class="pn-sv-api-row__icon">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </div>
+                <input
+                  id="pn-provider-key"
+                  type="password"
+                  class="pn-sv-api-row__input"
+                  placeholder="API key"
+                  autocomplete="off"
+                />
+                <button type="button" id="pn-provider-test" class="pn-sv-api-row__check" title="Test connection">Test</button>
+                <button type="button" id="pn-provider-key-toggle" class="pn-sv-api-row__eye" title="Show or hide key">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
               </div>
-              <input
-                id="setting-gemini-key"
-                type="password"
-                class="pn-sv-api-row__input"
-                placeholder="Gemini API key"
-                autocomplete="off"
-              />
-              <button type="button" id="check-api-key" class="pn-sv-api-row__check" title="Test connection">Check</button>
-              <button type="button" id="toggle-key-vis" class="pn-sv-api-row__eye" title="Show/hide key">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-              </button>
+              <div class="pn-provider-controls">
+                <a id="pn-provider-docs" href="https://aistudio.google.com/apikey" target="_blank" class="pn-sv-api-link">Get API key</a>
+                <button id="pn-provider-set-primary" class="pn-btn pn-btn--ghost" type="button">Use this provider</button>
+              </div>
+              <p id="pn-provider-status" class="pn-sv-api-hint">Status: idle</p>
+              <div id="pn-provider-models" class="pn-provider-models"></div>
             </div>
-            <p class="pn-sv-api-hint">
-              Powers contextual suggestions.
-              <a href="https://aistudio.google.com/app/apikey" target="_blank" class="pn-sv-api-link">Get a free key →</a>
-            </p>
 
-            <div class="pn-sv-row">
-              <div class="pn-sv-row__copy">
-                <span class="pn-sv-row__label">Gemini as Primary</span>
-                <span class="pn-sv-row__desc">When off and local model is ready, Gemini is fallback only.</span>
+            <hr class="pn-sv-divider" />
+
+            <h4 class="pn-sv-heading">Search Model</h4>
+            <p class="pn-sv-api-hint">Powers semantic prompt search.</p>
+            <div id="pn-embedding-models" class="pn-embedding-models"></div>
+            <div id="pn-embedding-confirm" class="pn-embedding-confirm pn-hidden">
+              <p id="pn-embedding-confirm-text" class="pn-sv-api-hint">Switch model?</p>
+              <div class="pn-embedding-confirm-actions">
+                <button id="pn-embedding-confirm-yes" class="pn-btn pn-btn--primary" type="button">Confirm</button>
+                <button id="pn-embedding-confirm-no" class="pn-btn pn-btn--ghost" type="button">Cancel</button>
               </div>
-              <label class="pn-toggle">
-                <input id="setting-gemini-primary" type="checkbox" checked />
-                <span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span>
-              </label>
             </div>
-            <p id="pn-gemini-primary-note" class="pn-sv-api-hint pn-hidden">Gemini is set as primary. Local model will only be used if Gemini fails.</p>
+            <div id="pn-embedding-reindex-wrap" class="pn-local-model-progress pn-hidden">
+              <progress id="pn-embedding-reindex-progress" max="100" value="0"></progress>
+              <span id="pn-embedding-reindex-text">Re-indexing prompts…</span>
+            </div>
           </div>
 
           <hr class="pn-sv-divider" />
@@ -670,7 +682,7 @@
               <h4 class="pn-sv-heading">Fallback Behavior</h4>
               <div class="pn-sv-row">
                 <div class="pn-sv-row__copy">
-                  <span class="pn-sv-row__label">Use local model as fallback when Gemini is unavailable</span>
+                  <span class="pn-sv-row__label">Use local model as fallback when cloud AI is unavailable</span>
                 </div>
                 <label class="pn-toggle">
                   <input id="setting-local-fallback" type="checkbox" checked />
@@ -679,8 +691,8 @@
               </div>
               <div class="pn-sv-row">
                 <div class="pn-sv-row__copy">
-                  <span class="pn-sv-row__label">Prefer local model over Gemini by default</span>
-                  <span id="pn-local-prefer-note" class="pn-sv-row__desc pn-hidden">Local model runs on your device. Quality may differ from Gemini.</span>
+                  <span class="pn-sv-row__label">Prefer local model over cloud AI by default</span>
+                  <span id="pn-local-prefer-note" class="pn-sv-row__desc pn-hidden">Local model runs on your device. Quality may differ from cloud models.</span>
                 </div>
                 <label class="pn-toggle">
                   <input id="setting-prefer-local" type="checkbox" />

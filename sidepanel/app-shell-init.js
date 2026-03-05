@@ -522,7 +522,11 @@ const init = async () => {
   try {
     const snapshot = await chrome.storage.local.get([KEYS.IMPROVE_PAYLOAD_KEY]);
     const promptiumImprovePayload = snapshot?.[KEYS.IMPROVE_PAYLOAD_KEY];
-    const promptiumGeminiKey = await window.SessionStorage.getStoredGeminiKey();
+    const settingsSnap = await chrome.storage.local.get([KEYS.SETTINGS_KEY]).catch(() => ({}));
+    const activeProvider = String(settingsSnap?.[KEYS.SETTINGS_KEY]?.activeProvider || 'gemini').trim().toLowerCase();
+    const providerKey = window.SessionStorage?.getStoredProviderKey
+      ? await window.SessionStorage.getStoredProviderKey(activeProvider).catch(() => '')
+      : await window.SessionStorage.getStoredGeminiKey().catch(() => '');
 
     if (promptiumImprovePayload) {
       await chrome.storage.local.remove([KEYS.IMPROVE_PAYLOAD_KEY]).catch(() => {});
@@ -535,8 +539,8 @@ const init = async () => {
       }
     }
 
-    const keyInput = document.getElementById('setting-gemini-key');
-    if (keyInput && promptiumGeminiKey) keyInput.value = promptiumGeminiKey;
+    const keyInput = document.getElementById('pn-provider-key');
+    if (keyInput && providerKey) keyInput.value = providerKey;
   } catch (_) {
     // non-fatal
   }

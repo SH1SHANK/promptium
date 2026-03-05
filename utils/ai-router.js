@@ -1,15 +1,17 @@
 /**
  * File: utils/ai-router.js
- * Purpose: Unified AI routing policy for local + Gemini backends.
+ * Purpose: Unified AI routing policy for local + multi-provider cloud backends.
  */
+
+import { PROVIDER_FALLBACK_CHAIN } from './model-registry.js';
 
 export const AI_BACKEND_LOCAL = 'local';
 export const AI_BACKEND_GEMINI = 'gemini';
+export const AI_BACKEND_OPENAI = 'openai';
+export const AI_BACKEND_ANTHROPIC = 'anthropic';
+export const AI_BACKEND_OPENROUTER = 'openrouter';
 
-const toBool = (value, fallback = false) => {
-  if (typeof value === 'boolean') return value;
-  return fallback;
-};
+export const AI_CLOUD_FALLBACK_CHAIN = Object.freeze([...PROVIDER_FALLBACK_CHAIN]);
 
 export const buildRuntimePolicy = (settings = {}, feature = '') => {
   const safeSettings = settings && typeof settings === 'object' ? settings : {};
@@ -30,10 +32,15 @@ export const buildRuntimePolicy = (settings = {}, feature = '') => {
     ? featureFlags?.[feature] !== false
     : true;
 
+  const activeProvider = String(safeSettings.activeProvider || AI_BACKEND_GEMINI)
+    .trim()
+    .toLowerCase();
+
   return {
     preferLocal,
     useLocalFallback,
     localEnabledForFeature,
+    activeProvider,
     enableAI: safeSettings.enableAI !== false
   };
 };
@@ -66,10 +73,9 @@ const runAndNormalize = async (task, backend, defaultError) => {
     }
 
     return {
-      ok: true,
-      backend,
       ...result,
       ok: true,
+      backend,
       advisory: String(result.advisory || '').trim() || undefined,
       error: undefined
     };
@@ -78,15 +84,43 @@ const runAndNormalize = async (task, backend, defaultError) => {
   }
 };
 
+const buildCloudOrder = ({ activeProvider = '', forceProvider = '', fallbackChain = AI_CLOUD_FALLBACK_CHAIN } = {}) => {
+  const chain = Array.isArray(fallbackChain) ? fallbackChain : AI_CLOUD_FALLBACK_CHAIN;
+  const seen = new Set();
+  const order = [];
+
+  const pushUnique = (value) => {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (!normalized || seen.has(normalized)) return;
+    seen.add(normalized);
+    order.push(normalized);
+  };
+
+  if (forceProvider) {
+    pushUnique(forceProvider);
+  } else {
+    pushUnique(activeProvider);
+  }
+
+  chain.forEach((providerId) => pushUnique(providerId));
+  return order;
+};
+
 /**
  * Routes an AI feature request according to Promptium runtime policy.
  */
 export const routeAIRequest = async ({
   feature = '',
   settings = {},
+  localTask,
+  cloudTasks = {},
+  activeProvider = '',
+  forceProvider = '',
+  fallbackChain = AI_CLOUD_FALLBACK_CHAIN,
+
+  // Legacy compatibility
   hasGeminiKey = false,
   forceGemini = false,
-  localTask,
   geminiTask
 } = {}) => {
   const policy = buildRuntimePolicy(settings, feature);
@@ -95,13 +129,40 @@ export const routeAIRequest = async ({
     return { ok: false, error: 'AI unavailable' };
   }
 
+  const normalizedCloudTasks = cloudTasks && typeof cloudTasks === 'object'
+    ? { ...cloudTasks }
+    : {};
+
+  if (!normalizedCloudTasks[AI_BACKEND_GEMINI] && typeof geminiTask === 'function' && Boolean(hasGeminiKey)) {
+    normalizedCloudTasks[AI_BACKEND_GEMINI] = geminiTask;
+  }
+
   const canUseLocal = typeof localTask === 'function' && policy.localEnabledForFeature;
-  const canUseGemini = typeof geminiTask === 'function' && Boolean(hasGeminiKey);
-
   const tryLocal = () => runAndNormalize(localTask, AI_BACKEND_LOCAL, 'Local AI unavailable.');
-  const tryGemini = () => runAndNormalize(geminiTask, AI_BACKEND_GEMINI, 'Gemini unavailable.');
 
-  const localFirst = !forceGemini && policy.preferLocal;
+  const resolvedForceProvider = forceProvider || (forceGemini ? AI_BACKEND_GEMINI : '');
+  const cloudOrder = buildCloudOrder({
+    activeProvider: activeProvider || policy.activeProvider,
+    forceProvider: resolvedForceProvider,
+    fallbackChain
+  });
+
+  const runCloudChain = async () => {
+    let lastFailure = null;
+
+    for (const providerId of cloudOrder) {
+      const task = normalizedCloudTasks[providerId];
+      if (typeof task !== 'function') continue;
+
+      const result = await runAndNormalize(task, providerId, `${providerId} unavailable.`);
+      if (result.ok) return result;
+      lastFailure = result;
+    }
+
+    return lastFailure;
+  };
+
+  const localFirst = policy.preferLocal && !resolvedForceProvider;
 
   if (localFirst) {
     let localResult = null;
@@ -110,28 +171,20 @@ export const routeAIRequest = async ({
       if (localResult.ok) return localResult;
     }
 
-    // Gemini fallback remains enabled even when local fallback is disabled.
-    if (canUseGemini) {
-      const geminiResult = await tryGemini();
-      if (geminiResult.ok) return geminiResult;
-      return geminiResult.error ? geminiResult : (localResult || { ok: false, error: 'AI unavailable' });
-    }
+    const cloudResult = await runCloudChain();
+    if (cloudResult?.ok) return cloudResult;
 
-    return localResult || { ok: false, error: 'AI unavailable' };
+    return cloudResult?.error ? cloudResult : (localResult || { ok: false, error: 'AI unavailable' });
   }
 
-  let geminiResult = null;
-  if (canUseGemini) {
-    geminiResult = await tryGemini();
-    if (geminiResult.ok) return geminiResult;
-  }
+  const cloudResult = await runCloudChain();
+  if (cloudResult?.ok) return cloudResult;
 
-  // When Gemini is preferred, local runs only as fallback if explicitly enabled.
   if (policy.useLocalFallback && canUseLocal) {
     const localResult = await tryLocal();
     if (localResult.ok) return localResult;
-    return geminiResult?.error ? geminiResult : localResult;
+    return cloudResult?.error ? cloudResult : localResult;
   }
 
-  return geminiResult || { ok: false, error: 'AI unavailable' };
+  return cloudResult || { ok: false, error: 'AI unavailable' };
 };

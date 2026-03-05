@@ -2,7 +2,7 @@
  * File: utils/ai-bridge.js
  * Purpose: Thin message wrapper for communicating with the AI layer in service_worker.js.
  * Communicates with: background/service_worker.js (via chrome.runtime.sendMessage).
- * Never call chrome.runtime.sendMessage directly from UI code — use this bridge.
+ * Never call chrome.runtime.sendMessage directly from UI code - use this bridge.
  */
 
 const AIBridge = {
@@ -59,6 +59,15 @@ const AIBridge = {
     return this._send({ type: 'AI_ROUTE_TASK', task, ...payload });
   },
 
+  async validateProviderKey(providerId, key, modelId = '') {
+    return this._send({
+      type: 'AI_PROVIDER_VALIDATE_KEY',
+      providerId,
+      key,
+      modelId
+    });
+  },
+
   async initLocalModel() {
     return this._send({ type: 'AI_LOCAL_MODEL_INIT' });
   },
@@ -91,6 +100,26 @@ const AIBridge = {
     return this._send({ type: 'AI_LOCAL_MODEL_REMOVE_CACHE', payload: { modelId } });
   },
 
+  async getEmbeddingStatus() {
+    return this._send({ type: 'AI_EMBEDDING_STATUS_CHECK' });
+  },
+
+  async downloadEmbeddingModel(modelId = '') {
+    return this._send({ type: 'AI_EMBEDDING_DOWNLOAD', payload: { modelId } });
+  },
+
+  async switchEmbeddingModel(modelId = '') {
+    return this._send({ type: 'AI_EMBEDDING_SWITCH', payload: { modelId } });
+  },
+
+  async getEmbeddingReindexStatus() {
+    return this._send({ type: 'AI_EMBEDDING_REINDEX_STATUS' });
+  },
+
+  async startEmbeddingReindex(modelId = '') {
+    return this._send({ type: 'AI_EMBEDDING_REINDEX_START', payload: { modelId } });
+  },
+
   async getStatus() {
     return this._send({ type: 'AI_STATUS_CHECK' });
   },
@@ -102,7 +131,7 @@ const AIBridge = {
       console.warn('[Promptium][AIBridge] Message failed:', message?.type, error?.message);
       return null;
     }
-  },
+  }
 };
 
 if (typeof window !== 'undefined') {

@@ -8,14 +8,27 @@ const KEYS = Object.freeze({
   SIDEPANEL_SESSION_KEY: 'promptiumSidePanelPayload',
   SETTINGS_KEY: 'promptiumSettings',
   GEMINI_KEY: 'promptiumGeminiKey',
+  OPENAI_KEY: 'promptiumOpenAIKey',
+  ANTHROPIC_KEY: 'promptiumAnthropicKey',
+  OPENROUTER_KEY: 'promptiumOpenRouterKey',
   IMPROVE_PAYLOAD_KEY: 'promptiumImprovePayload',
   PENDING_SNIPPET_KEY: 'pendingSnippet',
   ONBOARDING_KEY: 'onboardingComplete',
-  LOCAL_CACHE_INDEX_KEY: 'localModelCacheIndex'
+  LOCAL_CACHE_INDEX_KEY: 'localModelCacheIndex',
+  EMBEDDING_META_KEY: 'promptiumEmbeddingMeta',
+  EMBEDDING_REINDEX_KEY: 'promptiumEmbeddingReindexState'
 });
 
 const DEFAULT_SETTINGS = Object.freeze({
   enableAI: true,
+  activeProvider: 'gemini',
+  providerModels: {
+    gemini: 'gemini-3.1-flash-lite',
+    openai: 'gpt-5.2-spark',
+    anthropic: 'claude-haiku-4-5',
+    openrouter: 'meta-llama/llama-3.1-8b-instruct:free'
+  },
+  embeddingModelId: 'all-minilm-l6-v2',
   preferLocal: false,
   useLocalFallback: true,
   geminiPrimary: true,

@@ -115,7 +115,7 @@
       .toLowerCase();
     if (code === "no_ai_available") return "No AI available";
     if (code.includes("quota") || code.includes("429"))
-      return "Gemini quota exceeded";
+      return "Cloud provider rate limited";
     if (
       code.includes("model_not_loaded") ||
       code.includes("model not loaded") ||

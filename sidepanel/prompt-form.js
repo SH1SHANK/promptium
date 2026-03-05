@@ -242,11 +242,14 @@
       return { text: `✦ ${localLabel} ready`, mode: "local" };
     }
 
-    const key = await window.SessionStorage.getStoredGeminiKey().catch(
-      () => "",
-    );
+    const activeProvider = String(state.settings?.activeProvider || "gemini")
+      .trim()
+      .toLowerCase();
+    const key = window.SessionStorage.getStoredProviderKey
+      ? await window.SessionStorage.getStoredProviderKey(activeProvider).catch(() => "")
+      : await window.SessionStorage.getStoredGeminiKey().catch(() => "");
     if (String(key || "").trim()) {
-      return { text: "✦ AI via Gemini", mode: "gemini" };
+      return { text: "✦ AI via cloud", mode: "cloud" };
     }
 
     if (localLoading) {
@@ -272,7 +275,7 @@
         status.mode === "unavailable" ? "Open Settings → AI Models" : "";
     });
 
-    const canPolish = status.mode === "local" || status.mode === "gemini";
+    const canPolish = status.mode === "local" || status.mode === "cloud";
     ["pn-polish-btn", "pn-template-polish-btn"].forEach((id) => {
       const button = byIdSafe(id);
       if (!button) return;
@@ -519,7 +522,11 @@
     if (
       state.settings?.localFeatureFlags?.autoTags === false &&
       !String(
-        (await window.SessionStorage.getStoredGeminiKey().catch(() => "")) ||
+        (await (
+          window.SessionStorage.getStoredProviderKey
+            ? window.SessionStorage.getStoredProviderKey(String(state.settings?.activeProvider || "gemini").trim().toLowerCase())
+            : window.SessionStorage.getStoredGeminiKey()
+        ).catch(() => "")) ||
           "",
       ).trim()
     ) {

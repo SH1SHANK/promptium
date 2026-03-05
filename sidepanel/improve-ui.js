@@ -27,7 +27,10 @@ const improveModalState = {
 const formatBackendLabel = (value) => {
   const backend = String(value || '').trim().toLowerCase();
   if (backend === 'local') return 'Local Model';
-  if (backend === 'gemini') return 'Gemini API';
+  if (backend === 'gemini') return 'Gemini';
+  if (backend === 'openai') return 'OpenAI';
+  if (backend === 'anthropic') return 'Claude';
+  if (backend === 'openrouter') return 'OpenRouter';
   if (backend === 'fallback') return 'Fallback model';
   return 'AI';
 };
@@ -219,7 +222,15 @@ const open = async (promptId, originalText, tags = [], options = {}) => {
   diff?.classList.add('pn-hidden');
   error?.classList.add('pn-hidden');
   setButtonsDisabled(true, 'Working…');
-  const preferredBackend = String(state.settings?.aiBackend || 'gemini').toLowerCase() === 'local' ? 'Local Model' : 'Gemini API';
+  const providerLabels = {
+    gemini: 'Gemini',
+    openai: 'OpenAI',
+    anthropic: 'Claude',
+    openrouter: 'OpenRouter'
+  };
+  const prefersLocal = state.settings?.preferLocal === true || String(state.settings?.aiBackend || '').toLowerCase() === 'local';
+  const cloudLabel = providerLabels[String(state.settings?.activeProvider || 'gemini').toLowerCase()] || 'Cloud AI';
+  const preferredBackend = prefersLocal ? 'Local Model' : cloudLabel;
   setRuntimeNote(`Running with ${preferredBackend}…`);
 
   const style = document.getElementById('pn-improve-modal-style')?.value || 'general';
@@ -287,10 +298,10 @@ const showError = (message) => {
   diff?.classList.add('pn-hidden');
   error?.classList.remove('pn-hidden');
   if (errorMsg) {
-    errorMsg.textContent = isMissingApiKey ? 'Gemini API Key Not Configured' : normalized;
+    errorMsg.textContent = isMissingApiKey ? 'Cloud API key not configured' : normalized;
   }
   if (isMissingApiKey && state.settings?.aiAutoFallback !== false) {
-    setRuntimeNote('Gemini unavailable. Local fallback is enabled in Settings.');
+    setRuntimeNote('Cloud AI unavailable. Local fallback is enabled in Settings.');
   } else if (normalized) {
     setRuntimeNote(normalized);
   }

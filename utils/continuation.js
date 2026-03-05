@@ -9,7 +9,7 @@ const CONTINUATION_TTL_MS = 180000;
 const FALLBACK_MESSAGE_COUNT = 6;
 const MAX_SOURCE_MESSAGES = 24;
 const LONG_CONVERSATION_THRESHOLD = 20;
-const LONG_NO_KEY_ADVISORY = 'Long conversation — summary quality may be limited. Add a Gemini key in Settings for better results.';
+const LONG_NO_KEY_ADVISORY = 'Long conversation: quality may be limited without a cloud API key.';
 
 const MODE_ALIASES = Object.freeze({
   full_summary: 'FULL_SUMMARY',
@@ -64,9 +64,28 @@ const buildFallback = (messages) => {
   ].join('\n');
 };
 
-const resolveGeminiKey = async (explicitKey) => {
+const resolveCloudKey = async (explicitKey) => {
   const fromArg = String(explicitKey || '').trim();
   if (fromArg) return fromArg;
+
+  let activeProvider = 'gemini';
+  try {
+    const snapshot = await chrome.storage.local.get(['promptiumSettings']);
+    const settings = snapshot?.promptiumSettings && typeof snapshot.promptiumSettings === 'object'
+      ? snapshot.promptiumSettings
+      : {};
+    activeProvider = String(settings?.activeProvider || 'gemini').trim().toLowerCase() || 'gemini';
+  } catch (_error) {
+    activeProvider = 'gemini';
+  }
+
+  if (window.SessionStorage?.getStoredProviderKey) {
+    try {
+      return String(await window.SessionStorage.getStoredProviderKey(activeProvider) || '').trim();
+    } catch (_error) {
+      return '';
+    }
+  }
 
   if (window.SessionStorage?.getStoredGeminiKey) {
     try {
@@ -100,13 +119,13 @@ const isLocalContinuationAvailable = async () => {
   }
 };
 
-const buildHandoff = async (messages, mode = 'FULL_SUMMARY', userNote = '', geminiKey = '') => {
+const buildHandoff = async (messages, mode = 'FULL_SUMMARY', userNote = '', cloudKey = '') => {
   const normalized = normalizeMessages(messages).slice(-MAX_SOURCE_MESSAGES);
   if (!normalized.length) {
     return { ok: false, error: 'no_messages' };
   }
 
-  const key = await resolveGeminiKey(geminiKey);
+  const key = await resolveCloudKey(cloudKey);
   const isLongConversation = normalized.length > LONG_CONVERSATION_THRESHOLD;
 
   if (isLongConversation && !key) {
@@ -168,7 +187,7 @@ const buildHandoff = async (messages, mode = 'FULL_SUMMARY', userNote = '', gemi
     return {
       ok: true,
       text,
-      backend: String(response?.backend || '').trim() || 'gemini',
+      backend: String(response?.backend || '').trim() || 'cloud',
       advisory: String(response?.advisory || '').trim() || undefined
     };
   } catch (_error) {

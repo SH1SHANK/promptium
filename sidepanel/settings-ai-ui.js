@@ -90,11 +90,57 @@ const localModelStatuses = {
   qwen3_0_6b: { status: 'not_downloaded', progress: 0, backend: 'webgpu', error: '', cpuMode: false }
 };
 
+const providerUiState = {
+  editingProviderId: 'gemini',
+  providerKeys: {},
+  providerValidation: {},
+  embeddingStatus: null,
+  embeddingConfirmModelId: ''
+};
+
+let MODEL_REGISTRY_RUNTIME = null;
+let EMBEDDING_MODELS_RUNTIME = null;
+const PROVIDER_VALIDATION_SESSION_KEY = 'promptiumProviderValidationState';
+
 let aiStatusHandler = null;
 let autoSaveTimer = null;
 let statusResetTimer = null;
 let autoSaveSourceId = '';
 let inlineSavedResetTimer = null;
+
+const loadModelRegistryRuntime = async () => {
+  if (MODEL_REGISTRY_RUNTIME && EMBEDDING_MODELS_RUNTIME) {
+    return { registry: MODEL_REGISTRY_RUNTIME, embeddings: EMBEDDING_MODELS_RUNTIME };
+  }
+
+  try {
+    const mod = await import(chrome.runtime.getURL('utils/model-registry.js'));
+    MODEL_REGISTRY_RUNTIME = mod.MODEL_REGISTRY || { providers: {} };
+    EMBEDDING_MODELS_RUNTIME = Array.isArray(mod.EMBEDDING_MODELS) ? mod.EMBEDDING_MODELS : [];
+  } catch (_error) {
+    MODEL_REGISTRY_RUNTIME = {
+      providers: {
+        gemini: {
+          id: 'gemini',
+          label: 'Google Gemini',
+          keyLabel: 'Gemini API Key',
+          keyPlaceholder: 'AIza...',
+          docsUrl: 'https://aistudio.google.com/apikey',
+          models: [{ id: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash Lite', default: true, speed: 'fast', note: 'Best balance' }]
+        }
+      }
+    };
+    EMBEDDING_MODELS_RUNTIME = [{ id: 'all-minilm-l6-v2', label: 'MiniLM-L6', size: '23MB', note: 'Default - fast, balanced', default: true }];
+  }
+
+  return { registry: MODEL_REGISTRY_RUNTIME, embeddings: EMBEDDING_MODELS_RUNTIME };
+};
+
+const persistProviderValidationState = async () => {
+  await chrome.storage.session.set({
+    [PROVIDER_VALIDATION_SESSION_KEY]: providerUiState.providerValidation
+  }).catch(() => {});
+};
 
 const EXPORT_FORMAT_ALIASES = Object.freeze({
   text: 'txt',
@@ -223,9 +269,26 @@ const normalizeSettings = (raw) => {
     continueSummary: localFeatureFlagsSource.continueSummary !== false,
     smartExportTitle: localFeatureFlagsSource.smartExportTitle === true
   };
+  const providerModelsSource = source.providerModels && typeof source.providerModels === 'object'
+    ? source.providerModels
+    : {};
+  const providerModels = {
+    gemini: String(providerModelsSource.gemini || DEFAULT_SETTINGS.providerModels.gemini).trim() || DEFAULT_SETTINGS.providerModels.gemini,
+    openai: String(providerModelsSource.openai || DEFAULT_SETTINGS.providerModels.openai).trim() || DEFAULT_SETTINGS.providerModels.openai,
+    anthropic: String(providerModelsSource.anthropic || DEFAULT_SETTINGS.providerModels.anthropic).trim() || DEFAULT_SETTINGS.providerModels.anthropic,
+    openrouter: String(providerModelsSource.openrouter || DEFAULT_SETTINGS.providerModels.openrouter).trim() || DEFAULT_SETTINGS.providerModels.openrouter
+  };
+  const activeProviderRaw = String(source.activeProvider || DEFAULT_SETTINGS.activeProvider || 'gemini').trim().toLowerCase();
+  const activeProvider = ['gemini', 'openai', 'anthropic', 'openrouter'].includes(activeProviderRaw)
+    ? activeProviderRaw
+    : 'gemini';
+  const embeddingModelId = String(source.embeddingModelId || DEFAULT_SETTINGS.embeddingModelId || 'all-minilm-l6-v2').trim() || 'all-minilm-l6-v2';
 
   return {
     enableAI: Boolean(source.enableAI),
+    activeProvider,
+    providerModels,
+    embeddingModelId,
     preferLocal,
     useLocalFallback,
     localModelId,
@@ -340,6 +403,14 @@ const load = async () => {
       legacyAutoRewriteOnSave: false
     });
   }
+
+  providerUiState.editingProviderId = String(state.settings?.activeProvider || 'gemini').trim().toLowerCase() || 'gemini';
+  const validationSnapshot = await chrome.storage.session.get([PROVIDER_VALIDATION_SESSION_KEY]).catch(() => ({}));
+  providerUiState.providerValidation = validationSnapshot?.[PROVIDER_VALIDATION_SESSION_KEY]
+    && typeof validationSnapshot[PROVIDER_VALIDATION_SESSION_KEY] === 'object'
+    ? validationSnapshot[PROVIDER_VALIDATION_SESSION_KEY]
+    : {};
+  await loadModelRegistryRuntime();
 };
 
 const save = async () => {
@@ -411,6 +482,25 @@ const getControls = () => ({
   localModelProgress: byId('pn-local-model-progress'),
   localModelProgressText: byId('pn-local-model-progress-text'),
   aiRoutingNote: byId('pn-ai-routing-note')
+  ,
+  providerTabs: byId('pn-provider-tabs'),
+  providerKey: byId('pn-provider-key'),
+  providerKeyToggle: byId('pn-provider-key-toggle'),
+  providerTest: byId('pn-provider-test'),
+  providerStatus: byId('pn-provider-status'),
+  providerDocs: byId('pn-provider-docs'),
+  providerSetPrimary: byId('pn-provider-set-primary'),
+  providerModels: byId('pn-provider-models'),
+  embeddingModels: byId('pn-embedding-models'),
+  embeddingConfirm: byId('pn-embedding-confirm'),
+  embeddingConfirmText: byId('pn-embedding-confirm-text'),
+  embeddingConfirmYes: byId('pn-embedding-confirm-yes'),
+  embeddingConfirmNo: byId('pn-embedding-confirm-no'),
+  embeddingReindexWrap: byId('pn-embedding-reindex-wrap'),
+  embeddingReindexProgress: byId('pn-embedding-reindex-progress'),
+  embeddingReindexText: byId('pn-embedding-reindex-text'),
+  searchSetupIndicator: byId('pn-search-setup-indicator'),
+  searchModeBadge: byId('pn-search-mode-badge')
 });
 
 const setSettingsStatus = (message, tone = '') => {
@@ -648,6 +738,8 @@ const renderControls = (settingsInput = state.settings) => {
   renderLocalModelStatus();
   updateLocalModelProgressUI();
   void refreshAiRoutingNote();
+  void renderProviderEditor();
+  void renderEmbeddingRows();
 
   if (window.PLATFORM_LABELS && s.platformLabels) {
     Object.entries(s.platformLabels).forEach(([key, label]) => {
@@ -712,6 +804,9 @@ const readControlsSnapshot = () => {
   const next = normalizeSettings({
     ...current,
     enableAI: controls.enableAI?.checked,
+    activeProvider: state.settings?.activeProvider || current.activeProvider,
+    providerModels: { ...(state.settings?.providerModels || current.providerModels || {}) },
+    embeddingModelId: state.settings?.embeddingModelId || current.embeddingModelId,
     geminiPrimary,
     preferLocal,
     useLocalFallback: controls.localFallback?.checked,
@@ -840,6 +935,12 @@ const setAiDisabledBadge = async () => {
 
   const modelPill = byId('pn-model-pill');
   if (modelPill) modelPill.classList.remove('pn-sv-model-pill--ready');
+  providerUiState.embeddingStatus = {
+    ...(providerUiState.embeddingStatus || {}),
+    status: 'error',
+    searchMode: 'keyword'
+  };
+  renderEmbeddingIndicator(providerUiState.embeddingStatus);
 };
 
 const updateLocalModelProgressUI = (payload = {}, backendOverride = '') => {
@@ -975,6 +1076,218 @@ const renderLocalModelStatus = () => {
   }
 };
 
+const getProviderEntries = async () => {
+  const { registry } = await loadModelRegistryRuntime();
+  return Object.values(registry?.providers || {});
+};
+
+const getEditingProvider = async () => {
+  const providers = await getProviderEntries();
+  const requested = String(providerUiState.editingProviderId || state.settings?.activeProvider || 'gemini').trim().toLowerCase();
+  return providers.find((entry) => entry.id === requested) || providers[0] || null;
+};
+
+const ensureProviderKeyLoaded = async (providerId) => {
+  const key = String(providerId || '').trim().toLowerCase();
+  if (!key) return '';
+  if (Object.prototype.hasOwnProperty.call(providerUiState.providerKeys, key)) {
+    return String(providerUiState.providerKeys[key] || '').trim();
+  }
+  const value = window.SessionStorage?.getStoredProviderKey
+    ? await window.SessionStorage.getStoredProviderKey(key).catch(() => '')
+    : (key === 'gemini' ? await window.SessionStorage.getStoredGeminiKey().catch(() => '') : '');
+  providerUiState.providerKeys[key] = String(value || '').trim();
+  return providerUiState.providerKeys[key];
+};
+
+const renderProviderTabs = async () => {
+  const controls = getControls();
+  const providers = await getProviderEntries();
+  if (!controls.providerTabs || !providers.length) return;
+  controls.providerTabs.innerHTML = '';
+
+  providers.forEach((provider) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'pn-provider-tab';
+    button.textContent = provider.label.replace('Google ', '').replace('Anthropic ', '');
+    if (provider.id === providerUiState.editingProviderId) button.classList.add('is-editing');
+    if (provider.id === state.settings.activeProvider) button.classList.add('is-primary');
+    button.dataset.providerTab = provider.id;
+    button.addEventListener('click', async () => {
+      const previousProvider = String(providerUiState.editingProviderId || '').trim().toLowerCase();
+      if (previousProvider) {
+        providerUiState.providerKeys[previousProvider] = String(getControls().providerKey?.value || '').trim();
+      }
+      providerUiState.editingProviderId = provider.id;
+      await renderProviderEditor();
+    });
+    controls.providerTabs.appendChild(button);
+  });
+};
+
+const setProviderValidationStatus = (status = 'idle', detail = '') => {
+  const controls = getControls();
+  if (!controls.providerStatus) return;
+  controls.providerStatus.classList.remove('pn-status-ok', 'pn-status-error', 'pn-status-info');
+  const label = String(detail || '').trim();
+  if (status === 'checking') {
+    controls.providerStatus.textContent = 'Status: checking connection...';
+    controls.providerStatus.classList.add('pn-status-info');
+    return;
+  }
+  if (status === 'connected') {
+    controls.providerStatus.textContent = 'Status: connected';
+    controls.providerStatus.classList.add('pn-status-ok');
+    return;
+  }
+  if (status === 'invalid') {
+    controls.providerStatus.textContent = `Status: ${label || 'invalid key'}`;
+    controls.providerStatus.classList.add('pn-status-error');
+    return;
+  }
+  controls.providerStatus.textContent = 'Status: idle';
+};
+
+const renderProviderModels = async (provider) => {
+  const controls = getControls();
+  if (!controls.providerModels || !provider) return;
+  controls.providerModels.innerHTML = '';
+
+  const selectedModelId = String(state.settings?.providerModels?.[provider.id] || provider.models?.find((row) => row.default)?.id || '').trim();
+  (provider.models || []).forEach((model) => {
+    const row = document.createElement('label');
+    row.className = 'pn-provider-model-row';
+    row.innerHTML = `
+      <div class="pn-provider-model-row__meta">
+        <span class="pn-provider-model-row__title">${escapeHtml(model.label)}</span>
+        <span class="pn-provider-model-row__note">${escapeHtml(model.note || '')}</span>
+        <span class="pn-provider-model-row__speed">${escapeHtml(model.speed || '')}</span>
+      </div>
+    `;
+    const radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = `pn-provider-model-${provider.id}`;
+    radio.value = String(model.id || '');
+    radio.checked = model.id === selectedModelId;
+    radio.addEventListener('change', () => {
+      void (async () => {
+        state.settings.providerModels = {
+          ...(state.settings.providerModels || {}),
+          [provider.id]: String(model.id || '')
+        };
+        await save();
+        flashAutoSaveStatus('Model updated.', 'ok');
+        await syncSaveState();
+      })();
+    });
+    row.appendChild(radio);
+    controls.providerModels.appendChild(row);
+  });
+};
+
+const renderProviderEditor = async () => {
+  const controls = getControls();
+  const provider = await getEditingProvider();
+  if (!provider) return;
+  providerUiState.editingProviderId = provider.id;
+
+  await renderProviderTabs();
+  await ensureProviderKeyLoaded(provider.id);
+  if (controls.providerKey) {
+    controls.providerKey.placeholder = String(provider.keyPlaceholder || '');
+    controls.providerKey.value = String(providerUiState.providerKeys[provider.id] || '');
+  }
+  if (controls.providerDocs) {
+    controls.providerDocs.href = String(provider.docsUrl || '#');
+  }
+  if (controls.providerSetPrimary) {
+    controls.providerSetPrimary.textContent = provider.id === state.settings.activeProvider
+      ? 'Primary provider'
+      : 'Use this provider';
+  }
+
+  const status = providerUiState.providerValidation[provider.id];
+  if (!status) {
+    setProviderValidationStatus('idle');
+  } else {
+    setProviderValidationStatus(status.state, status.message);
+  }
+
+  await renderProviderModels(provider);
+};
+
+const renderEmbeddingIndicator = (embeddingStatus = null) => {
+  const controls = getControls();
+  if (!controls.searchSetupIndicator || !controls.searchModeBadge) return;
+  const status = embeddingStatus && typeof embeddingStatus === 'object'
+    ? embeddingStatus
+    : providerUiState.embeddingStatus;
+  const current = status || {};
+  const isBusy = ['downloading', 'loading'].includes(String(current.status || '').toLowerCase())
+    || Boolean(current?.reindex?.running);
+  controls.searchSetupIndicator.classList.toggle('pn-hidden', !isBusy);
+
+  const semanticReady = String(current.searchMode || '').toLowerCase() === 'semantic'
+    && String(current.status || '').toLowerCase() === 'ready';
+  controls.searchModeBadge.classList.toggle('pn-hidden', semanticReady);
+};
+
+const renderEmbeddingRows = async () => {
+  const controls = getControls();
+  if (!controls.embeddingModels) return;
+  const { embeddings } = await loadModelRegistryRuntime();
+  const status = providerUiState.embeddingStatus || await window.AIBridge.getEmbeddingStatus().catch(() => null) || {};
+  providerUiState.embeddingStatus = status;
+  const downloaded = new Set(Array.isArray(status.downloadedModelIds) ? status.downloadedModelIds : []);
+  const activeModelId = String(status.activeModelId || state.settings.embeddingModelId || 'all-minilm-l6-v2');
+
+  controls.embeddingModels.innerHTML = '';
+  (embeddings || []).forEach((model) => {
+    const row = document.createElement('div');
+    row.className = 'pn-embedding-row';
+    const downloadingModelId = String(status.modelId || '').trim();
+    const isDownloadingThis = String(status.status || '').toLowerCase() === 'downloading' && downloadingModelId === model.id;
+    const rowStatus = (() => {
+      if (isDownloadingThis) return 'downloading';
+      if (model.id === activeModelId && String(status.status || '').toLowerCase() === 'ready') return 'active';
+      if (model.id === activeModelId && Boolean(status?.reindex?.running)) return 'switching';
+      if (downloaded.has(model.id)) return 'downloaded';
+      return 'download';
+    })();
+
+    const badgeText = rowStatus === 'active'
+      ? 'Active'
+      : rowStatus === 'switching'
+        ? 'Switching...'
+        : rowStatus === 'downloading'
+          ? `Downloading ${Math.max(0, Math.min(100, Number(status.progress || 0)))}%`
+        : rowStatus === 'downloaded'
+          ? 'Ready'
+          : 'Download';
+    row.innerHTML = `
+      <div class="pn-embedding-row__meta">
+        <div class="pn-embedding-row__title">${escapeHtml(model.label)} <span class="pn-provider-model-row__speed">${escapeHtml(model.size || '')}</span></div>
+        <div class="pn-embedding-row__note">${escapeHtml(model.note || '')}</div>
+      </div>
+      <button type="button" class="pn-embedding-badge ${rowStatus === 'active' ? 'is-active' : ''}" data-embedding-model="${escapeHtml(model.id)}">${escapeHtml(badgeText)}</button>
+    `;
+    controls.embeddingModels.appendChild(row);
+  });
+
+  if (controls.embeddingReindexWrap && controls.embeddingReindexProgress && controls.embeddingReindexText) {
+    const reindex = status?.reindex || {};
+    const running = Boolean(reindex.running);
+    controls.embeddingReindexWrap.classList.toggle('pn-hidden', !running);
+    controls.embeddingReindexProgress.value = Number(reindex.progress || 0);
+    controls.embeddingReindexText.textContent = running
+      ? `Re-indexing ${Number(reindex.done || 0)} / ${Number(reindex.total || 0)} prompts...`
+      : 'Re-indexing complete.';
+  }
+
+  renderEmbeddingIndicator(status);
+};
+
 const refreshAiRoutingNote = async () => {
   const controls = getControls();
   if (!controls.aiRoutingNote) return;
@@ -986,25 +1299,36 @@ const refreshAiRoutingNote = async () => {
 
   const preferLocal = state.settings?.preferLocal === true;
   const autoFallback = state.settings?.useLocalFallback !== false;
-  const typedKey = String(byId('setting-gemini-key')?.value || '').trim();
-  const storedKey = String(await window.SessionStorage.getStoredGeminiKey()).trim();
-  const hasGeminiKey = Boolean(typedKey || storedKey);
+  const activeProvider = String(state.settings?.activeProvider || 'gemini').trim().toLowerCase();
+  const providerLabel = ({
+    gemini: 'Gemini',
+    openai: 'OpenAI',
+    anthropic: 'Claude',
+    openrouter: 'OpenRouter'
+  })[activeProvider] || 'Cloud';
+  const typedKey = String(getControls().providerKey?.value || '').trim();
+  const storedKey = String(
+    window.SessionStorage?.getStoredProviderKey
+      ? await window.SessionStorage.getStoredProviderKey(activeProvider).catch(() => '')
+      : await window.SessionStorage.getStoredGeminiKey().catch(() => '')
+  ).trim();
+  const hasProviderKey = Boolean(typedKey || storedKey);
 
   if (preferLocal) {
     controls.aiRoutingNote.textContent = 'Active backend: Local model first.';
     return;
   }
 
-  if (hasGeminiKey) {
+  if (hasProviderKey) {
     controls.aiRoutingNote.textContent = autoFallback
-      ? 'Active backend: Gemini API. Auto-fallback to local model is enabled.'
-      : 'Active backend: Gemini API.';
+      ? `Active backend: ${providerLabel}. Auto-fallback to local model is enabled.`
+      : `Active backend: ${providerLabel}.`;
     return;
   }
 
   controls.aiRoutingNote.textContent = autoFallback
-    ? 'Gemini key not set. Promptium will auto-fallback to the local model.'
-    : 'Gemini selected without API key. Add key or switch to Local Model.';
+    ? `${providerLabel} key not set. Promptium will auto-fallback to the local model.`
+    : `${providerLabel} selected without API key. Add key or switch to Local Model.`;
 };
 
 const syncAiState = async () => {
@@ -1040,6 +1364,37 @@ const syncAiState = async () => {
       renderLocalModelStatus();
       return;
     }
+
+    if (msg?.type === 'AI_EMBEDDING_STATUS' || msg?.type === 'AI_EMBEDDING_PROGRESS') {
+      providerUiState.embeddingStatus = {
+        ...(providerUiState.embeddingStatus || {}),
+        ...msg
+      };
+      void renderEmbeddingRows();
+      return;
+    }
+
+    if (msg?.type === 'AI_EMBEDDING_REINDEX_PROGRESS') {
+      providerUiState.embeddingStatus = {
+        ...(providerUiState.embeddingStatus || {}),
+        reindex: {
+          ...(providerUiState.embeddingStatus?.reindex || {}),
+          ...msg
+        }
+      };
+      void renderEmbeddingRows();
+      return;
+    }
+
+    if (msg?.type === 'AI_SEARCH_MODE') {
+      providerUiState.embeddingStatus = {
+        ...(providerUiState.embeddingStatus || {}),
+        searchMode: String(msg.mode || 'keyword')
+      };
+      renderEmbeddingIndicator(providerUiState.embeddingStatus);
+      const spark = byId('pn-search-spark');
+      spark?.classList.toggle('pn-hidden', String(msg.mode || '').toLowerCase() !== 'semantic');
+    }
   };
   chrome.runtime.onMessage.addListener(aiStatusHandler);
 
@@ -1056,6 +1411,20 @@ const syncAiState = async () => {
     updateLocalModelProgressUI(localModelStatuses[modelId] || localStatus);
   }
 
+  const [embeddingStatus, reindexStatus] = await Promise.all([
+    window.AIBridge.getEmbeddingStatus().catch(() => null),
+    window.AIBridge.getEmbeddingReindexStatus().catch(() => null)
+  ]);
+  if (embeddingStatus && typeof embeddingStatus === 'object') {
+    providerUiState.embeddingStatus = {
+      ...embeddingStatus,
+      reindex: reindexStatus && typeof reindexStatus === 'object'
+        ? reindexStatus
+        : embeddingStatus.reindex
+    };
+  }
+  await renderEmbeddingRows();
+
   state.aiReady = true;
   if (aiBar) {
     aiBar.classList.remove('pn-ai-bar--loading');
@@ -1064,7 +1433,9 @@ const syncAiState = async () => {
   const progressText = byId('ai-progress-text');
   if (progressText) progressText.textContent = '✦ Ready';
   byId('pn-model-pill')?.classList.add('pn-sv-model-pill--ready');
-  byId('pn-search-spark')?.classList.remove('pn-hidden');
+  const semanticReady = String(providerUiState.embeddingStatus?.searchMode || '').toLowerCase() === 'semantic'
+    && String(providerUiState.embeddingStatus?.status || '').toLowerCase() === 'ready';
+  byId('pn-search-spark')?.classList.toggle('pn-hidden', !semanticReady);
   retryButton?.classList.add('pn-hidden');
 
   const statusNode = byId('ai-status');
@@ -1088,9 +1459,14 @@ const syncSaveState = async () => {
   if (!saveButton) return;
 
   const draft = readControlsSnapshot();
-  const promptiumGeminiKey = await window.SessionStorage.getStoredGeminiKey();
-  const currentKey = String(byId('setting-gemini-key')?.value || '').trim();
-  const storedKey = String(promptiumGeminiKey || '').trim();
+  const provider = await getEditingProvider();
+  const providerId = String(provider?.id || 'gemini');
+  const currentKey = String(getControls().providerKey?.value || providerUiState.providerKeys?.[providerId] || '').trim();
+  const storedKey = String(
+    window.SessionStorage?.getStoredProviderKey
+      ? await window.SessionStorage.getStoredProviderKey(providerId).catch(() => '')
+      : await window.SessionStorage.getStoredGeminiKey().catch(() => '')
+  ).trim();
 
   const hasChanges = !areSettingsEqual(draft, state.settings) || currentKey !== storedKey;
   saveButton.disabled = !hasChanges;
@@ -1149,9 +1525,18 @@ const saveFromPanel = async () => {
   state.settings = readControlsSnapshot();
   await save();
 
-  const geminiKeyInput = byId('setting-gemini-key');
-  if (geminiKeyInput) {
-    await window.SessionStorage.setStoredGeminiKey(geminiKeyInput.value);
+  const editingProvider = await getEditingProvider();
+  if (editingProvider) {
+    const controls = getControls();
+    providerUiState.providerKeys[editingProvider.id] = String(controls.providerKey?.value || '').trim();
+  }
+
+  if (window.SessionStorage?.setStoredProviderKey) {
+    const entries = Object.entries(providerUiState.providerKeys || {});
+    await Promise.all(entries.map(([providerId, key]) => window.SessionStorage.setStoredProviderKey(providerId, key)));
+  } else {
+    const geminiKey = String(providerUiState.providerKeys?.gemini || '').trim();
+    await window.SessionStorage.setStoredGeminiKey(geminiKey);
   }
 
   await persistRuntimeAfterSave();
@@ -1172,7 +1557,8 @@ const resetDraft = async () => {
     settingsMigratedV2: true,
     legacyAutoRewriteOnSave: false
   });
-  const keyInput = byId('setting-gemini-key');
+  providerUiState.providerKeys = {};
+  const keyInput = getControls().providerKey;
   if (keyInput) keyInput.value = '';
   setSettingsStatus('Defaults loaded. Save AI/API changes to apply.', 'info');
   await syncSaveState();
@@ -1514,46 +1900,66 @@ const formatShortcutFromEvent = (event) => {
 };
 
 const bindEvents = () => {
-  byId('toggle-key-vis')?.addEventListener('click', () => {
-    const keyInput = byId('setting-gemini-key');
+  getControls().providerKeyToggle?.addEventListener('click', () => {
+    const keyInput = getControls().providerKey;
     if (keyInput) keyInput.type = keyInput.type === 'password' ? 'text' : 'password';
   });
 
-  byId('check-api-key')?.addEventListener('click', async () => {
-    const btn = byId('check-api-key');
-    const key = String(byId('setting-gemini-key')?.value || '').trim();
+  getControls().providerSetPrimary?.addEventListener('click', async () => {
+    const provider = await getEditingProvider();
+    if (!provider) return;
+    state.settings.activeProvider = provider.id;
+    await save();
+    await renderProviderEditor();
+    await refreshAiRoutingNote();
+    flashAutoSaveStatus('Primary provider updated.', 'ok');
+    await syncSaveState();
+  });
+
+  getControls().providerTest?.addEventListener('click', async () => {
+    const btn = getControls().providerTest;
+    const provider = await getEditingProvider();
     if (!btn) return;
+    if (!provider) return;
+
+    const key = String(getControls().providerKey?.value || '').trim();
+    providerUiState.providerKeys[provider.id] = key;
 
     if (!key) {
-      btn.textContent = 'No key';
-      btn.classList.add('pn-status-error');
-      setTimeout(() => {
-        btn.textContent = 'Check';
-        btn.classList.remove('pn-status-error', 'pn-status-ok');
-      }, UI_FEEDBACK_MS.API_CHECK_RESET_SHORT);
+      providerUiState.providerValidation[provider.id] = { state: 'invalid', message: 'missing key' };
+      setProviderValidationStatus('invalid', 'missing key');
+      await persistProviderValidationState();
       return;
     }
 
-    btn.textContent = '...';
-    btn.classList.remove('pn-status-error', 'pn-status-ok');
+    setProviderValidationStatus('checking');
+    btn.disabled = true;
     try {
-      const res = await chrome.runtime.sendMessage({ action: 'VALIDATE_GEMINI_KEY', key });
-      if (res?.ok) {
-        btn.textContent = '✓ Valid';
-        btn.classList.add('pn-status-ok');
+      const selectedModel = String(state.settings?.providerModels?.[provider.id] || provider.models?.find((entry) => entry.default)?.id || '').trim();
+      const res = await window.AIBridge.validateProviderKey(provider.id, key, selectedModel);
+      if (res?.ok === true) {
+        providerUiState.providerValidation[provider.id] = { state: 'connected', message: 'connected' };
+        setProviderValidationStatus('connected');
       } else {
-        btn.textContent = '✗ Invalid';
-        btn.classList.add('pn-status-error');
+        const category = String(res?.category || '').trim().toLowerCase();
+        const message = category === 'invalid_key'
+          ? 'invalid key'
+          : category === 'rate_limited'
+            ? 'rate limited'
+            : category === 'network_error'
+              ? 'network error'
+              : 'provider error';
+        providerUiState.providerValidation[provider.id] = { state: 'invalid', message };
+        setProviderValidationStatus('invalid', message);
       }
+      await persistProviderValidationState();
     } catch (_error) {
-      btn.textContent = '✗ Error';
-      btn.classList.add('pn-status-error');
+      providerUiState.providerValidation[provider.id] = { state: 'invalid', message: 'network error' };
+      setProviderValidationStatus('invalid', 'network error');
+      await persistProviderValidationState();
+    } finally {
+      btn.disabled = false;
     }
-
-    setTimeout(() => {
-      btn.textContent = 'Check';
-      btn.classList.remove('pn-status-error', 'pn-status-ok');
-    }, UI_FEEDBACK_MS.API_CHECK_RESET_LONG);
   });
 
   byId('pn-ai-retry-btn')?.addEventListener('click', () => {
@@ -1637,7 +2043,17 @@ const bindEvents = () => {
       legacyAutoRewriteOnSave: false
     });
     await save();
-    await window.SessionStorage.setStoredGeminiKey('');
+    if (window.SessionStorage?.setStoredProviderKey) {
+      await Promise.all([
+        window.SessionStorage.setStoredProviderKey('gemini', ''),
+        window.SessionStorage.setStoredProviderKey('openai', ''),
+        window.SessionStorage.setStoredProviderKey('anthropic', ''),
+        window.SessionStorage.setStoredProviderKey('openrouter', '')
+      ]);
+    } else {
+      await window.SessionStorage.setStoredGeminiKey('');
+    }
+    providerUiState.providerKeys = {};
     renderControls(state.settings);
     await persistRuntimeAfterSave();
     await syncAiState();
@@ -1654,6 +2070,60 @@ const bindEvents = () => {
 
   byId('pn-settings-back-btn')?.addEventListener('click', () => {
     renderSettingsTab('');
+  });
+
+  getControls().providerKey?.addEventListener('input', () => {
+    const providerId = String(providerUiState.editingProviderId || 'gemini').trim().toLowerCase();
+    providerUiState.providerKeys[providerId] = String(getControls().providerKey?.value || '').trim();
+    void syncSaveState();
+  });
+
+  getControls().embeddingModels?.addEventListener('click', async (event) => {
+    const button = event.target?.closest?.('[data-embedding-model]');
+    if (!button) return;
+    const modelId = String(button.getAttribute('data-embedding-model') || '').trim();
+    if (!modelId) return;
+    const downloadingModelId = String(providerUiState.embeddingStatus?.modelId || '').trim();
+    if (String(providerUiState.embeddingStatus?.status || '').toLowerCase() === 'downloading' && downloadingModelId === modelId) {
+      return;
+    }
+    if (modelId === String(state.settings.embeddingModelId || '').trim()) return;
+    providerUiState.embeddingConfirmModelId = modelId;
+    const { embeddings } = await loadModelRegistryRuntime();
+    const model = (embeddings || []).find((entry) => entry.id === modelId);
+    const controls = getControls();
+    if (controls.embeddingConfirm && controls.embeddingConfirmText) {
+      controls.embeddingConfirmText.textContent = `Switch to ${model?.label || modelId}? (${model?.size || ''} download)`;
+      controls.embeddingConfirm.classList.remove('pn-hidden');
+    }
+  });
+
+  getControls().embeddingConfirmNo?.addEventListener('click', () => {
+    providerUiState.embeddingConfirmModelId = '';
+    getControls().embeddingConfirm?.classList.add('pn-hidden');
+  });
+
+  getControls().embeddingConfirmYes?.addEventListener('click', async () => {
+    const targetModelId = String(providerUiState.embeddingConfirmModelId || '').trim();
+    if (!targetModelId) return;
+    getControls().embeddingConfirmYes.disabled = true;
+    try {
+      const switched = await window.AIBridge.switchEmbeddingModel(targetModelId);
+      if (switched?.ok) {
+        state.settings.embeddingModelId = targetModelId;
+        await save();
+        flashAutoSaveStatus('Search updated with new model.', 'ok');
+      } else {
+        flashAutoSaveStatus(switched?.error || 'Model switch failed.', 'error');
+      }
+      providerUiState.embeddingStatus = await window.AIBridge.getEmbeddingStatus().catch(() => providerUiState.embeddingStatus);
+      await renderEmbeddingRows();
+      await syncSaveState();
+    } finally {
+      getControls().embeddingConfirmYes.disabled = false;
+      providerUiState.embeddingConfirmModelId = '';
+      getControls().embeddingConfirm?.classList.add('pn-hidden');
+    }
   });
 
   const aiControlIds = [
@@ -1678,14 +2148,13 @@ const bindEvents = () => {
     'setting-export-format',
     'setting-export-date',
     'setting-export-platform',
-    'setting-user-context',
-    'setting-gemini-key'
+    'setting-user-context'
   ];
 
   aiControlIds.forEach((id) => {
     const node = byId(id);
     if (!node) return;
-    const eventName = id === 'setting-user-context' || id === 'setting-gemini-key' ? 'input' : 'change';
+    const eventName = id === 'setting-user-context' ? 'input' : 'change';
     node.addEventListener(eventName, () => {
       if (id === 'setting-ai-backend') {
         const controls = getControls();
