@@ -246,6 +246,86 @@
 }
 
 /* ===========================
+   SIDEPANEL ONBOARDING BRIDGE
+   =========================== */
+
+.pn-card-sub {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, #596178);
+  margin: 0 0 8px;
+  text-align: center;
+}
+
+.pn-card-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.1));
+  background: var(--bg-elevated, #181b24);
+  color: var(--text-primary, #fafafa);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+
+.pn-card-icon--violet {
+  color: #a78bfa;
+}
+
+.pn-card-icon--mint {
+  color: #34d399;
+}
+
+.pn-card-icon--pink {
+  color: #f472b6;
+}
+
+.pn-card-icon--amber {
+  color: #fbbf24;
+}
+
+.pn-card-icon--green {
+  color: #22c55e;
+}
+
+.pn-onboard-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.pn-onboard-btn {
+  width: min(240px, 92%);
+  min-height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.1));
+  background: var(--bg-elevated, #181b24);
+  color: var(--text-secondary, #9ca3b5);
+  font-family: var(--font-body, sans-serif);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    color 0.18s ease,
+    background 0.18s ease;
+}
+
+.pn-onboard-btn:hover {
+  color: var(--text-primary, #fafafa);
+  border-color: rgba(var(--pn-ob-accent-rgb), 0.4);
+  background: rgba(var(--pn-ob-accent-rgb), 0.1);
+}
+
+/* ===========================
    TEXT — HINT / MONO (typeOut)
    =========================== */
 

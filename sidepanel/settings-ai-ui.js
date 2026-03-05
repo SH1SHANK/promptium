@@ -1856,8 +1856,7 @@ const syncAiState = async () => {
       renderEmbeddingIndicator(providerUiState.embeddingStatus);
       updateAiSetupFromEmbeddingStatus(providerUiState.embeddingStatus);
       void refreshAiControlCenter({ includeProvider: false });
-      const spark = byId('pn-search-spark');
-      spark?.classList.toggle('pn-hidden', String(msg.mode || '').toLowerCase() !== 'semantic');
+      byId('pn-search-spark')?.classList.add('pn-hidden');
     }
   };
   chrome.runtime.onMessage.addListener(aiStatusHandler);
@@ -1902,9 +1901,7 @@ const syncAiState = async () => {
   const progressText = byId('ai-progress-text');
   if (progressText) progressText.textContent = '✦ Ready';
   byId('pn-model-pill')?.classList.add('pn-sv-model-pill--ready');
-  const semanticReady = String(providerUiState.embeddingStatus?.searchMode || '').toLowerCase() === 'semantic'
-    && String(providerUiState.embeddingStatus?.status || '').toLowerCase() === 'ready';
-  byId('pn-search-spark')?.classList.toggle('pn-hidden', !semanticReady);
+  byId('pn-search-spark')?.classList.add('pn-hidden');
   retryButton?.classList.add('pn-hidden');
 
   const statusNode = byId('ai-status');

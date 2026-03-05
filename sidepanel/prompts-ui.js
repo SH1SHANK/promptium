@@ -1,1074 +1,1325 @@
 (() => {
-/**
- * File: sidepanel/prompts-ui.js
- * Purpose: Prompt list rendering, filtering, search controls, and smart suggestions.
- */
+  /**
+   * File: sidepanel/prompts-ui.js
+   * Purpose: Prompt list rendering, filtering, search controls, and smart suggestions.
+   */
 
-const { state, UI_FEEDBACK_MS } = window.SidepanelState;
+  const { state, UI_FEEDBACK_MS } = window.SidepanelState;
 
-const callbacks = {
-  onOpenImprove: null,
-  onPromptsMutated: null
-};
+  const callbacks = {
+    onOpenImprove: null,
+    onPromptsMutated: null,
+  };
 
-const TEMPLATE_FILTER_DEFAULT = 'all';
-let activeTemplateFilter = TEMPLATE_FILTER_DEFAULT;
-let templateFiltersBound = false;
-let curatedExpanded = false;
-let hoverTooltipNode = null;
-let hoverTimer = null;
-let hoverAnchor = null;
-let templateFilterHome = null;
-let templateFilterHomeNext = null;
-const isCardMenuOpen = () => Boolean(document.querySelector('details.pn-card-menu[open]'));
+  const TEMPLATE_FILTER_DEFAULT = "all";
+  let activeTemplateFilter = TEMPLATE_FILTER_DEFAULT;
+  let templateFiltersBound = false;
+  let curatedExpanded = false;
+  let curatedToggledByUser = false;
+  let continueExpanded = false;
+  let hoverTooltipNode = null;
+  let hoverTimer = null;
+  let hoverAnchor = null;
+  let templateFilterHome = null;
+  let templateFilterHomeNext = null;
+  const isCardMenuOpen = () =>
+    Boolean(document.querySelector("details.pn-card-menu[open]"));
 
-const getTemplateFilterBar = () => document.getElementById('pn-template-filters');
+  const getTemplateFilterBar = () =>
+    document.getElementById("pn-template-filters");
 
-const ensureTemplateFilterHome = () => {
-  const filterBar = getTemplateFilterBar();
-  if (!filterBar || templateFilterHome) return;
-  templateFilterHome = filterBar.parentElement;
-  templateFilterHomeNext = filterBar.nextElementSibling;
-};
+  const ensureTemplateFilterHome = () => {
+    const filterBar = getTemplateFilterBar();
+    if (!filterBar || templateFilterHome) return;
+    templateFilterHome = filterBar.parentElement;
+    templateFilterHomeNext = filterBar.nextElementSibling;
+  };
 
-const restoreTemplateFilterHome = () => {
-  const filterBar = getTemplateFilterBar();
-  ensureTemplateFilterHome();
-  if (!filterBar || !templateFilterHome) return;
-  if (filterBar.parentElement === templateFilterHome) {
-    filterBar.classList.remove('pn-template-filters--in-divider');
-    return;
-  }
+  const restoreTemplateFilterHome = () => {
+    const filterBar = getTemplateFilterBar();
+    ensureTemplateFilterHome();
+    if (!filterBar || !templateFilterHome) return;
+    if (filterBar.parentElement === templateFilterHome) {
+      filterBar.classList.remove("pn-template-filters--in-divider");
+      return;
+    }
 
-  if (templateFilterHomeNext && templateFilterHomeNext.parentElement === templateFilterHome) {
-    templateFilterHome.insertBefore(filterBar, templateFilterHomeNext);
-  } else {
-    templateFilterHome.appendChild(filterBar);
-  }
-  filterBar.classList.remove('pn-template-filters--in-divider');
-};
+    if (
+      templateFilterHomeNext &&
+      templateFilterHomeNext.parentElement === templateFilterHome
+    ) {
+      templateFilterHome.insertBefore(filterBar, templateFilterHomeNext);
+    } else {
+      templateFilterHome.appendChild(filterBar);
+    }
+    filterBar.classList.remove("pn-template-filters--in-divider");
+  };
 
-const getHoverDelay = () => {
-  const raw = Number(state.settings?.hoverPreviewDelay);
-  if (!Number.isFinite(raw)) return 400;
-  return Math.min(800, Math.max(200, raw));
-};
+  const getHoverDelay = () => {
+    const raw = Number(state.settings?.hoverPreviewDelay);
+    if (!Number.isFinite(raw)) return 400;
+    return Math.min(800, Math.max(200, raw));
+  };
 
-const hoverPreviewEnabled = () => state.settings?.hoverPreviewEnabled !== false;
+  const hoverPreviewEnabled = () =>
+    state.settings?.hoverPreviewEnabled !== false;
 
-const ensureHoverTooltip = () => {
-  if (hoverTooltipNode && hoverTooltipNode.isConnected) {
-    return hoverTooltipNode;
-  }
+  const ensureHoverTooltip = () => {
+    if (hoverTooltipNode && hoverTooltipNode.isConnected) {
+      return hoverTooltipNode;
+    }
 
-  const node = document.createElement('div');
-  node.id = 'pn-prompt-hover-preview';
-  node.className = 'pn-prompt-hover-preview pn-hidden';
-  node.setAttribute('role', 'tooltip');
-  document.body.appendChild(node);
-  hoverTooltipNode = node;
-  return node;
-};
+    const node = document.createElement("div");
+    node.id = "pn-prompt-hover-preview";
+    node.className = "pn-prompt-hover-preview pn-hidden";
+    node.setAttribute("role", "tooltip");
+    document.body.appendChild(node);
+    hoverTooltipNode = node;
+    return node;
+  };
 
-const hideHoverPreview = () => {
-  if (hoverTimer) {
-    clearTimeout(hoverTimer);
-    hoverTimer = null;
-  }
-  hoverAnchor = null;
-  hoverTooltipNode?.classList.add('pn-hidden');
-};
+  const hideHoverPreview = () => {
+    if (hoverTimer) {
+      clearTimeout(hoverTimer);
+      hoverTimer = null;
+    }
+    hoverAnchor = null;
+    hoverTooltipNode?.classList.add("pn-hidden");
+  };
 
-const highlightTemplateVars = (text) => escapeHtml(String(text || ''))
-  .replace(/\[([^\[\]]+)\]/g, '<span class="pn-preview-var">[$1]</span>');
+  const highlightTemplateVars = (text) =>
+    escapeHtml(String(text || "")).replace(
+      /\[([^\[\]]+)\]/g,
+      '<span class="pn-preview-var">[$1]</span>',
+    );
 
-const positionHoverPreview = (anchor, tooltip) => {
-  const rect = anchor.getBoundingClientRect();
-  const tipRect = tooltip.getBoundingClientRect();
-  const margin = 12;
+  const positionHoverPreview = (anchor, tooltip) => {
+    const rect = anchor.getBoundingClientRect();
+    const tipRect = tooltip.getBoundingClientRect();
+    const margin = 12;
 
-  let top = rect.top + 6;
-  const shouldFlipUp = rect.top > (window.innerHeight / 2);
-  if (shouldFlipUp) {
-    top = rect.bottom - tipRect.height - 6;
-  }
-  top = Math.max(margin, Math.min(window.innerHeight - tipRect.height - margin, top));
+    let top = rect.top + 6;
+    const shouldFlipUp = rect.top > window.innerHeight / 2;
+    if (shouldFlipUp) {
+      top = rect.bottom - tipRect.height - 6;
+    }
+    top = Math.max(
+      margin,
+      Math.min(window.innerHeight - tipRect.height - margin, top),
+    );
 
-  let left = rect.left + 10;
-  if (left + tipRect.width > window.innerWidth - margin) {
-    left = window.innerWidth - tipRect.width - margin;
-  }
-  left = Math.max(margin, left);
+    let left = rect.left + 10;
+    if (left + tipRect.width > window.innerWidth - margin) {
+      left = window.innerWidth - tipRect.width - margin;
+    }
+    left = Math.max(margin, left);
 
-  tooltip.style.top = `${top}px`;
-  tooltip.style.left = `${left}px`;
-};
+    tooltip.style.top = `${top}px`;
+    tooltip.style.left = `${left}px`;
+  };
 
-const showHoverPreview = (anchor) => {
-  if (!hoverPreviewEnabled()) {
-    return;
-  }
-  if (isCardMenuOpen()) {
-    return;
-  }
+  const showHoverPreview = (anchor) => {
+    if (!hoverPreviewEnabled()) {
+      return;
+    }
+    if (isCardMenuOpen()) {
+      return;
+    }
 
-  const text = String(anchor?.dataset?.preview || '').trim();
-  if (!text) {
-    return;
-  }
+    const text = String(anchor?.dataset?.preview || "").trim();
+    if (!text) {
+      return;
+    }
 
-  const tooltip = ensureHoverTooltip();
-  tooltip.innerHTML = `
+    const tooltip = ensureHoverTooltip();
+    tooltip.innerHTML = `
     <div class="pn-preview-title">Prompt Preview</div>
     <div class="pn-preview-body">${highlightTemplateVars(text)}</div>
   `;
-  tooltip.classList.remove('pn-hidden');
-  positionHoverPreview(anchor, tooltip);
-};
+    tooltip.classList.remove("pn-hidden");
+    positionHoverPreview(anchor, tooltip);
+  };
 
-const bindHoverPreview = (card) => {
-  if (!(card instanceof HTMLElement)) return;
+  const bindHoverPreview = (card) => {
+    if (!(card instanceof HTMLElement)) return;
 
-  card.addEventListener('mouseenter', () => {
-    if (card.classList.contains('pn-hover-preview-paused')) return;
-    if (isCardMenuOpen()) return;
-    if (!hoverPreviewEnabled()) return;
-    hoverAnchor = card;
-    if (hoverTimer) clearTimeout(hoverTimer);
-    hoverTimer = setTimeout(() => {
-      if (hoverAnchor !== card) return;
-      showHoverPreview(card);
-    }, getHoverDelay());
-  });
-
-  card.addEventListener('mouseleave', () => {
-    hideHoverPreview();
-  });
-};
-
-if (typeof window !== 'undefined' && !window.__PN_PROMPT_PREVIEW_BOUND) {
-  window.addEventListener('scroll', hideHoverPreview, { passive: true });
-  document.addEventListener('scroll', hideHoverPreview, { passive: true, capture: true });
-  window.__PN_PROMPT_PREVIEW_BOUND = true;
-}
-
-const normalizePromptText = (text) => {
-  if (window.TemplateParser?.normalizeLegacy) {
-    return window.TemplateParser.normalizeLegacy(text);
-  }
-  return String(text || '');
-};
-
-const getTemplateVars = (text) => {
-  const normalized = normalizePromptText(text);
-  if (window.TemplateParser?.parse) {
-    return window.TemplateParser.parse(normalized);
-  }
-  return [];
-};
-
-const sidepanelKeywordFilter = async (query, prompts) => {
-  const normalized = String(query || '').trim().toLowerCase();
-
-  if (!normalized) {
-    return prompts;
-  }
-
-  return prompts.filter((prompt) => {
-    const titleMatch = String(prompt.title || '').toLowerCase().includes(normalized);
-    const textMatch = normalizePromptText(prompt.text).toLowerCase().includes(normalized);
-    const tagsMatch = (prompt.tags || []).join(' ').toLowerCase().includes(normalized);
-    return titleMatch || textMatch || tagsMatch;
-  });
-};
-
-const filterPrompts = async (filter, prompts) => {
-  const normalized = String(filter || '').trim();
-
-  if (!normalized) {
-    state.semanticResults = null;
-    return prompts;
-  }
-
-  const keywordResults = await sidepanelKeywordFilter(normalized, prompts);
-
-  if (state.aiReady && state.settings?.enableAI && state.settings?.semanticSearch) {
-    try {
-      const response = await window.AIBridge.search(normalized);
-      if (response?.results) {
-        state.semanticResults = new Map(response.results.map((r) => [r.id, r]));
-
-        const promptMap = new Map(prompts.map((p) => [p.id, p]));
-        const seen = new Set();
-        const merged = [];
-
-        for (const result of response.results) {
-          if (promptMap.has(result.id)) {
-            merged.push(promptMap.get(result.id));
-            seen.add(result.id);
-          }
-        }
-
-        for (const prompt of keywordResults) {
-          if (!seen.has(prompt.id)) {
-            merged.push(prompt);
-          }
-        }
-
-        return merged;
-      }
-    } catch (_) {
-      // Fall through to keyword results.
-    }
-  }
-
-  state.semanticResults = null;
-  return keywordResults;
-};
-
-const ensureCardMenuDismissHandlers = () => {
-  if (window.__PN_SIDEPANEL_CARD_MENU_BOUND) return;
-
-  document.addEventListener('click', (event) => {
-    const target = event.target instanceof Element ? event.target : null;
-    document.querySelectorAll('details.pn-card-menu[open]').forEach((menu) => {
-      if (!target || !menu.contains(target)) {
-        menu.open = false;
-      }
+    card.addEventListener("mouseenter", () => {
+      if (card.classList.contains("pn-hover-preview-paused")) return;
+      if (isCardMenuOpen()) return;
+      if (!hoverPreviewEnabled()) return;
+      hoverAnchor = card;
+      if (hoverTimer) clearTimeout(hoverTimer);
+      hoverTimer = setTimeout(() => {
+        if (hoverAnchor !== card) return;
+        showHoverPreview(card);
+      }, getHoverDelay());
     });
-  });
 
-  document.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape') return;
-    document.querySelectorAll('details.pn-card-menu[open]').forEach((menu) => {
-      menu.open = false;
-    });
-  });
-
-  window.__PN_SIDEPANEL_CARD_MENU_BOUND = true;
-};
-
-const createCardMenu = (items = [], ownerCard = null) => {
-  ensureCardMenuDismissHandlers();
-  const menu = document.createElement('details');
-  menu.className = 'pn-card-menu';
-
-  const summary = document.createElement('summary');
-  summary.className = 'pn-card-menu__trigger';
-  summary.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="6" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="12" cy="18" r="1.4"></circle></svg>More';
-  summary.title = 'Open additional actions';
-  menu.appendChild(summary);
-
-  const list = document.createElement('div');
-  list.className = 'pn-card-menu__list';
-
-  items.forEach((item) => {
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.className = 'pn-card-menu__item';
-    if (item.tone === 'danger') row.classList.add('pn-card-menu__item--danger');
-    row.textContent = String(item.label || 'Action');
-    row.title = String(item.title || item.label || '').trim();
-    row.disabled = Boolean(item.disabled);
-    row.addEventListener('click', () => {
-      menu.open = false;
-      if (typeof item.onSelect === 'function') {
-        void item.onSelect();
-      }
-    });
-    list.appendChild(row);
-  });
-
-  menu.appendChild(list);
-
-  menu.addEventListener('toggle', () => {
-    if (menu.open) {
+    card.addEventListener("mouseleave", () => {
       hideHoverPreview();
-      ownerCard?.classList.add('pn-hover-preview-paused');
-      return;
-    }
-    ownerCard?.classList.remove('pn-hover-preview-paused');
-  });
-
-  menu.addEventListener('pointerenter', () => {
-    hideHoverPreview();
-  });
-
-  return menu;
-};
-
-const buildInjectActions = async ({ actions, canInject, prompt, hasVars, doInject }) => {
-  const useButton = document.createElement('button');
-  useButton.className = 'pn-btn pn-btn--primary';
-  useButton.type = 'button';
-  useButton.innerHTML = '<svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" class=\"pn-btn-icon\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15 3h6v6\"></path><path d=\"M10 14L21 3\"></path><path d=\"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6\"></path></svg>Use →';
-  useButton.classList.add('pn-card-actions__primary');
-  useButton.title = hasVars
-    ? 'Inject as-is, remove optional placeholders, and keep required [brackets] visible in chat.'
-    : 'Inject this prompt into the active chat input.';
-
-  if (!canInject) {
-    useButton.disabled = true;
-    useButton.title = 'Open a supported LLM tab first, then inject.';
-  } else {
-    useButton.addEventListener('click', () => {
-      void (async () => {
-        if (!hasVars) {
-          await doInject(prompt.text, false);
-          return;
-        }
-        const rawText = window.TemplateParser?.fill
-          ? window.TemplateParser.fill(prompt.text, {})
-          : prompt.text;
-        await doInject(rawText, true);
-      })();
     });
-  }
-
-  actions.appendChild(useButton);
-
-  if (!hasVars) {
-    return;
-  }
-
-  const fillButton = document.createElement('button');
-  fillButton.className = 'pn-btn pn-btn--ghost';
-  fillButton.type = 'button';
-  fillButton.innerHTML = 'Fill in';
-  fillButton.title = 'Open fill form before injecting.';
-
-  if (!canInject) {
-    fillButton.disabled = true;
-  } else {
-    fillButton.addEventListener('click', () => {
-      void (async () => {
-        if (!window.TemplateFill?.showFillForm) {
-          await doInject(prompt.text, false);
-          return;
-        }
-        window.TemplateFill.showFillForm(
-          { title: prompt.title, text: prompt.text },
-          (filledText) => {
-            void doInject(filledText, false);
-          },
-          () => {}
-        );
-      })();
-    });
-  }
-
-  actions.appendChild(fillButton);
-};
-
-const createPromptCard = async (rawPrompt, activeFilter, canInject, options = {}) => {
-  const prompt = {
-    ...rawPrompt,
-    text: normalizePromptText(rawPrompt.text)
   };
 
-  const card = document.createElement('article');
-  card.className = 'pn-prompt-card';
-  if (prompt?.id) {
-    card.dataset.promptId = String(prompt.id);
-  }
-  card.dataset.preview = prompt.text;
-  if (options.isCurated) {
-    card.classList.add('pn-template-card');
-    card.dataset.templateCategory = String(prompt.category || 'general');
+  if (typeof window !== "undefined" && !window.__PN_PROMPT_PREVIEW_BOUND) {
+    window.addEventListener("scroll", hideHoverPreview, { passive: true });
+    document.addEventListener("scroll", hideHoverPreview, {
+      passive: true,
+      capture: true,
+    });
+    window.__PN_PROMPT_PREVIEW_BOUND = true;
   }
 
-  const vars = getTemplateVars(prompt.text);
-  const hasTemplateVars = vars.length > 0;
+  const normalizePromptText = (text) => {
+    if (window.TemplateParser?.normalizeLegacy) {
+      return window.TemplateParser.normalizeLegacy(text);
+    }
+    return String(text || "");
+  };
 
-  const title = document.createElement('h3');
-  title.className = 'pn-card-title';
-  title.textContent = prompt.title;
+  const getTemplateVars = (text) => {
+    const normalized = normalizePromptText(text);
+    if (window.TemplateParser?.parse) {
+      return window.TemplateParser.parse(normalized);
+    }
+    return [];
+  };
 
-  if (prompt.isTemplate && !hasTemplateVars) {
-    const badge = document.createElement('span');
-    badge.className = 'pn-template-var-badge';
-    badge.textContent = 'Fill-in';
-    title.appendChild(badge);
-  }
+  const sidepanelKeywordFilter = async (query, prompts) => {
+    const normalized = String(query || "")
+      .trim()
+      .toLowerCase();
 
-  if (hasTemplateVars) {
-    const varsBadge = document.createElement('span');
-    varsBadge.className = 'pn-template-var-badge';
-    varsBadge.textContent = 'Fill-in';
-    varsBadge.title = `${vars.length} fill-in blank${vars.length === 1 ? '' : 's'}. Use [name] required, [name?] optional.`;
-    title.appendChild(varsBadge);
-  }
+    if (!normalized) {
+      return prompts;
+    }
 
-  const text = document.createElement('p');
-  text.className = 'pn-card-text';
-  text.textContent = prompt.text;
+    return prompts.filter((prompt) => {
+      const titleMatch = String(prompt.title || "")
+        .toLowerCase()
+        .includes(normalized);
+      const textMatch = normalizePromptText(prompt.text)
+        .toLowerCase()
+        .includes(normalized);
+      const tagsMatch = (prompt.tags || [])
+        .join(" ")
+        .toLowerCase()
+        .includes(normalized);
+      return titleMatch || textMatch || tagsMatch;
+    });
+  };
 
-  const clarityScore = Number(prompt?.clarityScore);
-  const clarityExplanation = String(prompt?.clarityExplanation || '').trim();
-  const hasClarity = Number.isFinite(clarityScore) && clarityScore >= 0 && clarityScore <= 100;
+  const filterPrompts = async (filter, prompts) => {
+    const normalized = String(filter || "").trim();
 
-  let clarity = null;
-  if (hasClarity) {
-    clarity = document.createElement('p');
-    clarity.className = 'pn-card-clarity';
-    clarity.textContent = `Clarity ${Math.round(clarityScore)}/100${clarityExplanation ? ` • ${clarityExplanation}` : ''}`;
-  }
+    if (!normalized) {
+      state.semanticResults = null;
+      return prompts;
+    }
 
-  const tagsWrap = document.createElement('div');
-  tagsWrap.className = 'pn-tag-wrap';
-  let tagsExpanded = false;
-  const renderTags = () => {
-    tagsWrap.innerHTML = '';
-    const tags = Array.isArray(prompt.tags) ? prompt.tags : [];
-    const visible = tagsExpanded ? tags : tags.slice(0, 8);
+    const keywordResults = await sidepanelKeywordFilter(normalized, prompts);
 
-    visible.forEach((tag) => {
-      const pill = createTagPill(tag);
-      pill.classList.add('pn-tag-pill--clickable');
-      pill.title = `Filter by #${tag}`;
-      pill.addEventListener('click', () => {
-        const search = document.getElementById('prompt-search');
-        if (search) {
-          search.value = tag;
+    if (
+      state.aiReady &&
+      state.settings?.enableAI &&
+      state.settings?.semanticSearch
+    ) {
+      try {
+        const response = await window.AIBridge.search(normalized);
+        if (response?.results) {
+          state.semanticResults = new Map(
+            response.results.map((r) => [r.id, r]),
+          );
+
+          const promptMap = new Map(prompts.map((p) => [p.id, p]));
+          const seen = new Set();
+          const merged = [];
+
+          for (const result of response.results) {
+            if (promptMap.has(result.id)) {
+              merged.push(promptMap.get(result.id));
+              seen.add(result.id);
+            }
+          }
+
+          for (const prompt of keywordResults) {
+            if (!seen.has(prompt.id)) {
+              merged.push(prompt);
+            }
+          }
+
+          return merged;
         }
-        void render(tag);
+      } catch (_) {
+        // Fall through to keyword results.
+      }
+    }
+
+    state.semanticResults = null;
+    return keywordResults;
+  };
+
+  const ensureCardMenuDismissHandlers = () => {
+    if (window.__PN_SIDEPANEL_CARD_MENU_BOUND) return;
+
+    document.addEventListener("click", (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      document
+        .querySelectorAll("details.pn-card-menu[open]")
+        .forEach((menu) => {
+          if (!target || !menu.contains(target)) {
+            menu.open = false;
+          }
+        });
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      document
+        .querySelectorAll("details.pn-card-menu[open]")
+        .forEach((menu) => {
+          menu.open = false;
+        });
+    });
+
+    window.__PN_SIDEPANEL_CARD_MENU_BOUND = true;
+  };
+
+  const createCardMenu = (items = [], ownerCard = null) => {
+    ensureCardMenuDismissHandlers();
+    const menu = document.createElement("details");
+    menu.className = "pn-card-menu";
+
+    const summary = document.createElement("summary");
+    summary.className = "pn-card-menu__trigger";
+    summary.innerHTML =
+      '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="6" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="12" cy="18" r="1.4"></circle></svg>More';
+    summary.title = "Open additional actions";
+    menu.appendChild(summary);
+
+    const list = document.createElement("div");
+    list.className = "pn-card-menu__list";
+
+    items.forEach((item) => {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "pn-card-menu__item";
+      if (item.tone === "danger")
+        row.classList.add("pn-card-menu__item--danger");
+      row.textContent = String(item.label || "Action");
+      row.title = String(item.title || item.label || "").trim();
+      row.disabled = Boolean(item.disabled);
+      row.addEventListener("click", () => {
+        menu.open = false;
+        if (typeof item.onSelect === "function") {
+          void item.onSelect();
+        }
       });
-      tagsWrap.appendChild(pill);
+      list.appendChild(row);
     });
 
-    if (!tagsExpanded && tags.length > 8) {
-      const more = document.createElement('button');
-      more.type = 'button';
-      more.className = 'pn-tag-pill pn-tag-pill--clickable';
-      more.textContent = `+${tags.length - 8} more`;
-      more.title = 'Show all tags';
-      more.addEventListener('click', () => {
-        tagsExpanded = true;
-        renderTags();
-      });
-      tagsWrap.appendChild(more);
-    }
+    menu.appendChild(list);
+
+    menu.addEventListener("toggle", () => {
+      if (menu.open) {
+        hideHoverPreview();
+        ownerCard?.classList.add("pn-hover-preview-paused");
+        return;
+      }
+      ownerCard?.classList.remove("pn-hover-preview-paused");
+    });
+
+    menu.addEventListener("pointerenter", () => {
+      hideHoverPreview();
+    });
+
+    return menu;
   };
 
-  renderTags();
-
-  const actions = document.createElement('div');
-  actions.className = 'pn-card-actions';
-
-  const doInject = async (textToInject, injectedAsIs = false) => {
-    const response = await sendToActiveTab({ action: 'injectPrompt', text: textToInject });
-
-    if (!response?.ok) {
-      await showToast(response?.error || 'Inject failed.');
-      return;
-    }
-
-    if (injectedAsIs) {
-      await showToast('Injected — fill in the [brackets] in the chat');
-      return;
-    }
-
-    await showToast('Injected. Undo in chat.');
-  };
-
-  await buildInjectActions({
+  const buildInjectActions = async ({
     actions,
     canInject,
     prompt,
-    hasVars: hasTemplateVars,
-    doInject
-  });
+    hasVars,
+    doInject,
+  }) => {
+    const useButton = document.createElement("button");
+    useButton.className = "pn-btn pn-btn--primary";
+    useButton.type = "button";
+    useButton.innerHTML =
+      '<svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" class=\"pn-btn-icon\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15 3h6v6\"></path><path d=\"M10 14L21 3\"></path><path d=\"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6\"></path></svg>Use →';
+    useButton.classList.add("pn-card-actions__primary");
+    useButton.title = hasVars
+      ? "Inject as-is, remove optional placeholders, and keep required [brackets] visible in chat."
+      : "Inject this prompt into the active chat input.";
 
-  if (options.isCurated) {
-    const overflow = createCardMenu([
-      {
-        label: 'Save to Library',
-        title: 'Save this template to your personal prompt library.',
-        onSelect: async () => {
-        const saved = await window.Store.savePrompt({
-          title: prompt.title,
-          text: prompt.text,
-          tags: prompt.tags,
-          category: prompt.category
-        });
-        if (saved) {
-          await showToast('Template saved to library.');
-        } else {
-          await showToast('Template save failed.');
-        }
-        }
-      }
-    ], card);
-    actions.appendChild(overflow);
-  } else {
-    const overflow = createCardMenu([
-      {
-        label: 'Improve Prompt',
-        title: state.settings?.polishWithGemini === false
-          ? 'Enable Polish button in Settings to use this.'
-          : 'Open AI improve mode for this prompt.',
-        disabled: state.settings?.polishWithGemini === false,
-        onSelect: async () => {
-          if (typeof callbacks.onOpenImprove === 'function') {
-            await callbacks.onOpenImprove(prompt.id, prompt.text, prompt.tags || []);
-          }
-        }
-      },
-      {
-        label: 'Delete Prompt',
-        title: 'Delete this prompt from your library.',
-        tone: 'danger',
-        onSelect: async () => {
-          const deleted = await window.Store.deletePrompt(prompt.id);
-
-          if (!deleted) {
-            await showToast('Delete failed.');
+    if (!canInject) {
+      useButton.disabled = true;
+      useButton.title = "Open a supported LLM tab first, then inject.";
+    } else {
+      useButton.addEventListener("click", () => {
+        void (async () => {
+          if (!hasVars) {
+            await doInject(prompt.text, false);
             return;
           }
+          const rawText = window.TemplateParser?.fill
+            ? window.TemplateParser.fill(prompt.text, {})
+            : prompt.text;
+          await doInject(rawText, true);
+        })();
+      });
+    }
 
-          if (state.aiReady) {
-            void window.AIBridge.cacheRemove(prompt.id);
-          }
+    actions.appendChild(useButton);
 
-          await render(activeFilter);
-          if (typeof callbacks.onPromptsMutated === 'function') {
-            await callbacks.onPromptsMutated(activeFilter);
-          }
-        }
-      }
-    ], card);
-    actions.appendChild(overflow);
-  }
-
-  if (typeof prompt._semanticScore === 'number') {
-    const relevance = document.createElement('p');
-    relevance.className = 'pn-relevance';
-    relevance.textContent = `Relevance: ${(prompt._semanticScore * 100).toFixed(0)}%`;
-    card.appendChild(relevance);
-  }
-
-  if (state.semanticResults?.get(prompt.id)?.semanticOnly) {
-    const spark = document.createElement('span');
-    spark.className = 'pn-spark';
-    spark.title = 'Found by meaning';
-    spark.textContent = '✦';
-    title.appendChild(spark);
-  }
-
-  card.appendChild(title);
-  card.appendChild(text);
-  if (clarity) card.appendChild(clarity);
-  card.appendChild(tagsWrap);
-  card.appendChild(actions);
-  bindHoverPreview(card);
-  return card;
-};
-
-const updateTemplateFilterVisibility = (show) => {
-  const filterBar = getTemplateFilterBar();
-  if (!filterBar) return;
-  filterBar.classList.toggle('pn-hidden', !show);
-};
-
-const setActiveFilter = (filter) => {
-  const targetFilter = String(filter || TEMPLATE_FILTER_DEFAULT).trim() || TEMPLATE_FILTER_DEFAULT;
-  activeTemplateFilter = targetFilter;
-
-  const filterBar = getTemplateFilterBar();
-  if (!filterBar) return;
-
-  filterBar.querySelectorAll('.pn-filter-chip').forEach((chip) => {
-    const active = chip.dataset.filter === targetFilter;
-    chip.classList.toggle('active', active);
-    chip.setAttribute('aria-selected', active ? 'true' : 'false');
-  });
-
-  const cards = document.querySelectorAll('.pn-template-card[data-template-category]');
-  let visibleCount = 0;
-
-  cards.forEach((card) => {
-    const match = targetFilter === TEMPLATE_FILTER_DEFAULT || card.dataset.templateCategory === targetFilter;
-    card.classList.toggle('pn-hidden', !match);
-    if (match) visibleCount += 1;
-  });
-
-  const countEl = document.getElementById('pn-template-count');
-  if (countEl) {
-    countEl.textContent = targetFilter === TEMPLATE_FILTER_DEFAULT
-      ? ''
-      : `${visibleCount} template${visibleCount === 1 ? '' : 's'}`;
-  }
-};
-
-const resetTemplateFilter = () => {
-  activeTemplateFilter = TEMPLATE_FILTER_DEFAULT;
-  setActiveFilter(TEMPLATE_FILTER_DEFAULT);
-};
-
-const bindTemplateFilters = () => {
-  if (templateFiltersBound) return;
-  templateFiltersBound = true;
-
-  const filterBar = getTemplateFilterBar();
-  if (!filterBar) return;
-
-  filterBar.addEventListener('click', (event) => {
-    const chip = event.target.closest('.pn-filter-chip');
-    if (!chip) return;
-
-    const filter = chip.dataset.filter;
-    if (!filter) return;
-
-    if (chip.classList.contains('active') && filter !== TEMPLATE_FILTER_DEFAULT) {
-      setActiveFilter(TEMPLATE_FILTER_DEFAULT);
+    if (!hasVars) {
       return;
     }
 
-    setActiveFilter(filter);
-  });
-};
+    const fillButton = document.createElement("button");
+    fillButton.className = "pn-btn pn-btn--ghost";
+    fillButton.type = "button";
+    fillButton.innerHTML = "Fill in";
+    fillButton.title = "Open fill form before injecting.";
 
-const render = async (filter = '') => {
-  const container = byId('prompt-list');
+    if (!canInject) {
+      fillButton.disabled = true;
+    } else {
+      fillButton.addEventListener("click", () => {
+        void (async () => {
+          if (!window.TemplateFill?.showFillForm) {
+            await doInject(prompt.text, false);
+            return;
+          }
+          window.TemplateFill.showFillForm(
+            { title: prompt.title, text: prompt.text },
+            (filledText) => {
+              void doInject(filledText, false);
+            },
+            () => {},
+          );
+        })();
+      });
+    }
 
-  if (!container) {
-    return;
-  }
+    actions.appendChild(fillButton);
+  };
 
-  bindTemplateFilters();
-  restoreTemplateFilterHome();
+  const createPromptCard = async (
+    rawPrompt,
+    activeFilter,
+    canInject,
+    options = {},
+  ) => {
+    const prompt = {
+      ...rawPrompt,
+      text: normalizePromptText(rawPrompt.text),
+    };
 
-  const promptsRaw = await window.Store.getPrompts();
-  const prompts = promptsRaw.map((prompt) => ({
-    ...prompt,
-    text: normalizePromptText(prompt.text)
-  }));
+    const card = document.createElement("article");
+    card.className = "pn-prompt-card";
+    if (prompt?.id) {
+      card.dataset.promptId = String(prompt.id);
+    }
+    card.dataset.preview = prompt.text;
+    if (options.isCurated) {
+      card.classList.add("pn-template-card");
+      card.dataset.templateCategory = String(prompt.category || "general");
+    }
 
-  const filtered = await filterPrompts(filter, prompts);
-  const tabContext = await getActiveTabContext();
-  let templates = window.PromptTemplates ? window.PromptTemplates.getTemplates(filter) : [];
-  templates = templates.map((template) => ({
-    ...template,
-    text: normalizePromptText(template.text)
-  }));
+    const vars = getTemplateVars(prompt.text);
+    const hasTemplateVars = vars.length > 0;
 
-  const savedSignatures = new Set(prompts.map((p) => `${String(p.title || '').trim()}|${String(p.text || '').trim()}`));
-  templates = templates.filter((t) => !savedSignatures.has(`${String(t.title || '').trim()}|${String(t.text || '').trim()}`));
-  const hasUserPrompts = prompts.length > 0;
+    const title = document.createElement("h3");
+    title.className = "pn-card-title";
+    title.textContent = prompt.title;
 
-  container.innerHTML = '';
-  await renderBridgeStrip();
+    if (prompt.isTemplate && !hasTemplateVars) {
+      const badge = document.createElement("span");
+      badge.className = "pn-template-var-badge";
+      badge.textContent = "Fill-in";
+      title.appendChild(badge);
+    }
 
-  if (!hasUserPrompts) {
-    container.appendChild(createEmptyState({
-      title: 'No prompts yet',
-      message: templates.length
-        ? 'Your prompt library is empty. Add your own prompts or start from curated templates.'
-        : 'Start your library by creating your first prompt.',
-      actionLabel: 'Add your first prompt',
-      onAction: () => {
-        if (window.PromptForm?.open) {
-          void window.PromptForm.open();
-        }
+    if (hasTemplateVars) {
+      const varsBadge = document.createElement("span");
+      varsBadge.className = "pn-template-var-badge";
+      varsBadge.textContent = "Fill-in";
+      varsBadge.title = `${vars.length} fill-in blank${vars.length === 1 ? "" : "s"}. Use [name] required, [name?] optional.`;
+      title.appendChild(varsBadge);
+    }
+
+    const text = document.createElement("p");
+    text.className = "pn-card-text";
+    text.textContent = prompt.text;
+
+    const clarityScore = Number(prompt?.clarityScore);
+    const clarityExplanation = String(prompt?.clarityExplanation || "").trim();
+    const hasClarity =
+      Number.isFinite(clarityScore) && clarityScore >= 0 && clarityScore <= 100;
+
+    let clarity = null;
+    if (hasClarity) {
+      clarity = document.createElement("p");
+      clarity.className = "pn-card-clarity";
+      clarity.textContent = `Clarity ${Math.round(clarityScore)}/100${clarityExplanation ? ` • ${clarityExplanation}` : ""}`;
+    }
+
+    const tagsWrap = document.createElement("div");
+    tagsWrap.className = "pn-tag-wrap";
+    let tagsExpanded = false;
+    const renderTags = () => {
+      tagsWrap.innerHTML = "";
+      const tags = Array.isArray(prompt.tags) ? prompt.tags : [];
+      const visible = tagsExpanded ? tags : tags.slice(0, 8);
+
+      visible.forEach((tag) => {
+        const pill = createTagPill(tag);
+        pill.classList.add("pn-tag-pill--clickable");
+        pill.title = `Filter by #${tag}`;
+        pill.addEventListener("click", () => {
+          const search = document.getElementById("prompt-search");
+          if (search) {
+            search.value = tag;
+          }
+          void render(tag);
+        });
+        tagsWrap.appendChild(pill);
+      });
+
+      if (!tagsExpanded && tags.length > 8) {
+        const more = document.createElement("button");
+        more.type = "button";
+        more.className = "pn-tag-pill pn-tag-pill--clickable";
+        more.textContent = `+${tags.length - 8} more`;
+        more.title = "Show all tags";
+        more.addEventListener("click", () => {
+          tagsExpanded = true;
+          renderTags();
+        });
+        tagsWrap.appendChild(more);
       }
+    };
+
+    renderTags();
+
+    const actions = document.createElement("div");
+    actions.className = "pn-card-actions";
+
+    const doInject = async (textToInject, injectedAsIs = false) => {
+      const response = await sendToActiveTab({
+        action: "injectPrompt",
+        text: textToInject,
+      });
+
+      if (!response?.ok) {
+        await showToast(response?.error || "Inject failed.");
+        return;
+      }
+
+      if (injectedAsIs) {
+        await showToast("Injected — fill in the [brackets] in the chat");
+        return;
+      }
+
+      await showToast("Injected. Undo in chat.");
+    };
+
+    await buildInjectActions({
+      actions,
+      canInject,
+      prompt,
+      hasVars: hasTemplateVars,
+      doInject,
+    });
+
+    if (options.isCurated) {
+      const overflow = createCardMenu(
+        [
+          {
+            label: "Save to Library",
+            title: "Save this template to your personal prompt library.",
+            onSelect: async () => {
+              const saved = await window.Store.savePrompt({
+                title: prompt.title,
+                text: prompt.text,
+                tags: prompt.tags,
+                category: prompt.category,
+              });
+              if (saved) {
+                await showToast("Template saved to library.");
+              } else {
+                await showToast("Template save failed.");
+              }
+            },
+          },
+        ],
+        card,
+      );
+      actions.appendChild(overflow);
+    } else {
+      const overflow = createCardMenu(
+        [
+          {
+            label: "Improve Prompt",
+            title:
+              state.settings?.polishWithGemini === false
+                ? "Enable Polish button in Settings to use this."
+                : "Open AI improve mode for this prompt.",
+            disabled: state.settings?.polishWithGemini === false,
+            onSelect: async () => {
+              if (typeof callbacks.onOpenImprove === "function") {
+                await callbacks.onOpenImprove(
+                  prompt.id,
+                  prompt.text,
+                  prompt.tags || [],
+                );
+              }
+            },
+          },
+          {
+            label: "Delete Prompt",
+            title: "Delete this prompt from your library.",
+            tone: "danger",
+            onSelect: async () => {
+              const deleted = await window.Store.deletePrompt(prompt.id);
+
+              if (!deleted) {
+                await showToast("Delete failed.");
+                return;
+              }
+
+              if (state.aiReady) {
+                void window.AIBridge.cacheRemove(prompt.id);
+              }
+
+              await render(activeFilter);
+              if (typeof callbacks.onPromptsMutated === "function") {
+                await callbacks.onPromptsMutated(activeFilter);
+              }
+            },
+          },
+        ],
+        card,
+      );
+      actions.appendChild(overflow);
+    }
+
+    if (typeof prompt._semanticScore === "number") {
+      const relevance = document.createElement("p");
+      relevance.className = "pn-relevance";
+      relevance.textContent = `Relevance: ${(prompt._semanticScore * 100).toFixed(0)}%`;
+      card.appendChild(relevance);
+    }
+
+    if (state.semanticResults?.get(prompt.id)?.semanticOnly) {
+      const spark = document.createElement("span");
+      spark.className = "pn-spark";
+      spark.title = "Found by meaning";
+      spark.textContent = "✦";
+      title.appendChild(spark);
+    }
+
+    card.appendChild(title);
+    card.appendChild(text);
+    if (clarity) card.appendChild(clarity);
+    card.appendChild(tagsWrap);
+    card.appendChild(actions);
+    bindHoverPreview(card);
+    return card;
+  };
+
+  const updateTemplateFilterVisibility = (show) => {
+    const filterBar = getTemplateFilterBar();
+    if (!filterBar) return;
+    filterBar.classList.toggle("pn-hidden", !show);
+  };
+
+  const setActiveFilter = (filter) => {
+    const targetFilter =
+      String(filter || TEMPLATE_FILTER_DEFAULT).trim() ||
+      TEMPLATE_FILTER_DEFAULT;
+    activeTemplateFilter = targetFilter;
+
+    const filterBar = getTemplateFilterBar();
+    if (!filterBar) return;
+
+    filterBar.querySelectorAll(".pn-filter-chip").forEach((chip) => {
+      const active = chip.dataset.filter === targetFilter;
+      chip.classList.toggle("active", active);
+      chip.setAttribute("aria-selected", active ? "true" : "false");
+    });
+
+    const cards = document.querySelectorAll(
+      ".pn-template-card[data-template-category]",
+    );
+    let visibleCount = 0;
+
+    cards.forEach((card) => {
+      const match =
+        targetFilter === TEMPLATE_FILTER_DEFAULT ||
+        card.dataset.templateCategory === targetFilter;
+      card.classList.toggle("pn-hidden", !match);
+      if (match) visibleCount += 1;
+    });
+
+    const countEl = document.getElementById("pn-template-count");
+    if (countEl) {
+      countEl.textContent =
+        targetFilter === TEMPLATE_FILTER_DEFAULT
+          ? ""
+          : `${visibleCount} template${visibleCount === 1 ? "" : "s"}`;
+    }
+  };
+
+  const resetTemplateFilter = () => {
+    activeTemplateFilter = TEMPLATE_FILTER_DEFAULT;
+    setActiveFilter(TEMPLATE_FILTER_DEFAULT);
+  };
+
+  const bindTemplateFilters = () => {
+    if (templateFiltersBound) return;
+    templateFiltersBound = true;
+
+    const filterBar = getTemplateFilterBar();
+    if (!filterBar) return;
+
+    filterBar.addEventListener("click", (event) => {
+      const chip = event.target.closest(".pn-filter-chip");
+      if (!chip) return;
+
+      const filter = chip.dataset.filter;
+      if (!filter) return;
+
+      if (
+        chip.classList.contains("active") &&
+        filter !== TEMPLATE_FILTER_DEFAULT
+      ) {
+        setActiveFilter(TEMPLATE_FILTER_DEFAULT);
+        return;
+      }
+
+      setActiveFilter(filter);
+    });
+  };
+
+  const createSectionHeader = ({ title, meta = "" }) => {
+    const header = document.createElement("div");
+    header.className = "pn-prompts-section__head";
+
+    const titleNode = document.createElement("h3");
+    titleNode.className = "pn-prompts-section__title";
+    titleNode.textContent = String(title || "").trim();
+    header.appendChild(titleNode);
+
+    const cleanMeta = String(meta || "").trim();
+    if (cleanMeta) {
+      const metaNode = document.createElement("p");
+      metaNode.className = "pn-prompts-section__meta";
+      metaNode.textContent = cleanMeta;
+      header.appendChild(metaNode);
+    }
+
+    return header;
+  };
+
+  const render = async (filter = "") => {
+    const container = byId("prompt-list");
+
+    if (!container) {
+      return;
+    }
+
+    bindTemplateFilters();
+    restoreTemplateFilterHome();
+
+    const promptsRaw = await window.Store.getPrompts();
+    const prompts = promptsRaw.map((prompt) => ({
+      ...prompt,
+      text: normalizePromptText(prompt.text),
     }));
-    if (!templates.length) {
+
+    const filtered = await filterPrompts(filter, prompts);
+    const tabContext = await getActiveTabContext();
+    let templates = window.PromptTemplates
+      ? window.PromptTemplates.getTemplates(filter)
+      : [];
+    templates = templates.map((template) => ({
+      ...template,
+      text: normalizePromptText(template.text),
+    }));
+
+    const savedSignatures = new Set(
+      prompts.map(
+        (p) => `${String(p.title || "").trim()}|${String(p.text || "").trim()}`,
+      ),
+    );
+    templates = templates.filter(
+      (t) =>
+        !savedSignatures.has(
+          `${String(t.title || "").trim()}|${String(t.text || "").trim()}`,
+        ),
+    );
+    const hasUserPrompts = prompts.length > 0;
+
+    container.innerHTML = "";
+    container.classList.add("pn-prompts-layout");
+    await renderBridgeStrip();
+
+    if (!hasUserPrompts) {
+      container.appendChild(
+        createEmptyState({
+          title: "No prompts yet",
+          message: templates.length
+            ? "Your prompt library is empty. Add your own prompts or start from curated templates."
+            : "Start your library by creating your first prompt.",
+          actionLabel: "Add your first prompt",
+          onAction: () => {
+            if (window.PromptForm?.open) {
+              void window.PromptForm.open();
+            }
+          },
+        }),
+      );
+      if (!templates.length) {
+        updateTemplateFilterVisibility(false);
+        return;
+      }
+    }
+
+    if (hasUserPrompts && !filtered.length && !templates.length) {
+      container.appendChild(
+        createEmptyState({
+          title: "No results found",
+          message: "Try a broader query or remove active filters.",
+          actionLabel: "Clear Filters",
+          onAction: () => {
+            const searchInput = document.getElementById("prompt-search");
+            if (searchInput) {
+              searchInput.value = "";
+            }
+            void render("");
+          },
+        }),
+      );
       updateTemplateFilterVisibility(false);
       return;
     }
-  }
 
-  if (hasUserPrompts && !filtered.length && !templates.length) {
-    container.appendChild(createEmptyState({
-      title: 'No results found',
-      message: 'Try a broader query or remove active filters.',
-      actionLabel: 'Clear Filters',
-      onAction: () => {
-        const searchInput = document.getElementById('prompt-search');
-        if (searchInput) {
-          searchInput.value = '';
-        }
-        void render('');
+    if (hasUserPrompts) {
+      const librarySection = document.createElement("section");
+      librarySection.className =
+        "pn-prompts-section pn-prompts-section--library";
+      librarySection.appendChild(
+        createSectionHeader({
+          title: "Prompt Library",
+          meta: `${filtered.length} prompt${filtered.length === 1 ? "" : "s"}`,
+        }),
+      );
+
+      const libraryList = document.createElement("div");
+      libraryList.className = "pn-list pn-list--library";
+
+      for (const prompt of filtered) {
+        libraryList.appendChild(
+          await createPromptCard(
+            prompt,
+            String(filter || "").trim(),
+            tabContext.supported,
+          ),
+        );
       }
-    }));
-    updateTemplateFilterVisibility(false);
-    return;
-  }
 
-  if (hasUserPrompts) {
-    for (const prompt of filtered) {
-      container.appendChild(await createPromptCard(prompt, String(filter || '').trim(), tabContext.supported));
+      librarySection.appendChild(libraryList);
+      container.appendChild(librarySection);
     }
-  }
 
-  if (templates.length > 0) {
-    const divider = document.createElement('div');
-    divider.className = 'pn-template-divider';
+    if (templates.length > 0) {
+      const divider = document.createElement("section");
+      divider.className =
+        "pn-template-divider pn-prompts-section pn-prompts-section--curated";
 
-    const header = document.createElement('button');
-    header.className = 'pn-template-header';
-    header.type = 'button';
-    header.innerHTML = `
-      <span>Curated Templates (${templates.length}) <span id="pn-template-count" class="pn-template-count"></span></span>
+      const header = document.createElement("button");
+      header.className = "pn-template-header";
+      header.type = "button";
+      header.innerHTML = `
+      <span class="pn-template-header__copy">
+        <span class="pn-template-header__title">Curated Templates</span>
+        <span class="pn-template-header__meta">${templates.length} templates <span id="pn-template-count" class="pn-template-count"></span></span>
+      </span>
       <svg class="pn-template-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <polyline points="6 9 12 15 18 9"></polyline>
       </svg>
     `;
 
-    const tempsContainer = document.createElement('div');
-    tempsContainer.className = 'pn-template-grid';
-    const isFiltered = String(filter || '').trim().length > 0;
-    if (!isFiltered) {
-      tempsContainer.dataset.collapsed = 'true';
-      header.classList.add('collapsed');
-      curatedExpanded = false;
-    } else {
-      curatedExpanded = true;
-    }
+      const tempsContainer = document.createElement("div");
+      tempsContainer.className = "pn-template-grid pn-list";
+      const isFiltered = String(filter || "").trim().length > 0;
+      if (!isFiltered) {
+        tempsContainer.dataset.collapsed = "true";
+        header.classList.add("collapsed");
+        curatedExpanded = false;
+      } else {
+        curatedExpanded = true;
+      }
 
-    header.addEventListener('click', () => {
-      const isCollapsed = tempsContainer.dataset.collapsed === 'true';
-      tempsContainer.dataset.collapsed = isCollapsed ? 'false' : 'true';
-      header.classList.toggle('collapsed', !isCollapsed);
-      curatedExpanded = !isCollapsed;
-      updateTemplateFilterVisibility(curatedExpanded && templates.length > 0);
+      header.addEventListener("click", () => {
+        const isCollapsed = tempsContainer.dataset.collapsed === "true";
+        tempsContainer.dataset.collapsed = isCollapsed ? "false" : "true";
+        header.classList.toggle("collapsed", !isCollapsed);
+        curatedExpanded = !isCollapsed;
+        curatedToggledByUser = true;
+        updateTemplateFilterVisibility(
+          !curatedExpanded && templates.length > 0 && curatedToggledByUser,
+        );
+        if (curatedExpanded) {
+          setActiveFilter(activeTemplateFilter);
+        }
+      });
+
+      divider.appendChild(header);
+
+      const filterBar = getTemplateFilterBar();
+      if (filterBar) {
+        divider.appendChild(filterBar);
+        filterBar.classList.add("pn-template-filters--in-divider");
+      }
+
+      divider.appendChild(tempsContainer);
+
+      for (const tpl of templates) {
+        tempsContainer.appendChild(
+          await createPromptCard(
+            tpl,
+            String(filter || "").trim(),
+            tabContext.supported,
+            { isCurated: true },
+          ),
+        );
+      }
+
+      container.appendChild(divider);
+      updateTemplateFilterVisibility(!curatedExpanded && curatedToggledByUser);
       if (curatedExpanded) {
         setActiveFilter(activeTemplateFilter);
       }
-    });
-
-    divider.appendChild(header);
-
-    const filterBar = getTemplateFilterBar();
-    if (filterBar) {
-      divider.appendChild(filterBar);
-      filterBar.classList.add('pn-template-filters--in-divider');
+    } else {
+      updateTemplateFilterVisibility(false);
     }
+  };
 
-    divider.appendChild(tempsContainer);
+  const getSearchInput = () => document.getElementById("prompt-search");
+  const getSearchWrap = () => document.getElementById("search-wrap");
 
-    for (const tpl of templates) {
-      tempsContainer.appendChild(await createPromptCard(tpl, String(filter || '').trim(), tabContext.supported, { isCurated: true }));
-    }
+  const getSearchValue = () => String(getSearchInput()?.value || "");
 
-    container.appendChild(divider);
-    updateTemplateFilterVisibility(curatedExpanded);
-    if (curatedExpanded) {
-      setActiveFilter(activeTemplateFilter);
-    }
-  } else {
-    updateTemplateFilterVisibility(false);
-  }
-};
+  const formatLocalStatus = (rawStatus = "") => {
+    const normalized = String(rawStatus || "")
+      .trim()
+      .toLowerCase();
+    if (!normalized || normalized === "not_downloaded") return "not downloaded";
+    if (["ready", "downloaded", "loaded"].includes(normalized)) return "ready";
+    if (["downloading", "loading", "initializing"].includes(normalized))
+      return "preparing";
+    if (normalized === "error") return "error";
+    return normalized.replace(/_/g, " ");
+  };
 
-const getSearchInput = () => document.getElementById('prompt-search');
-const getSearchWrap = () => document.getElementById('search-wrap');
+  const renderModelFeedback = (payload = {}) => {
+    const wrap = document.getElementById("pn-model-feedback");
+    const textNode = document.getElementById("pn-model-feedback-text");
+    if (!wrap || !textNode) return;
 
-const getSearchValue = () => String(getSearchInput()?.value || '');
+    const enabled = payload?.enabled !== false;
+    const preferLocal = payload?.preferLocal === true;
+    const semanticPhase = String(payload?.semanticPhase || "idle")
+      .trim()
+      .toLowerCase();
+    const cloudModelLabel = String(
+      payload?.cloudModelLabel || payload?.cloudModelId || "",
+    ).trim();
+    const providerLabel = String(payload?.providerLabel || "Cloud").trim();
+    const localModelLabel = String(
+      payload?.localModelLabel || "Local model",
+    ).trim();
+    const localStatus = formatLocalStatus(payload?.localModelStatus || "");
 
-const formatLocalStatus = (rawStatus = '') => {
-  const normalized = String(rawStatus || '').trim().toLowerCase();
-  if (!normalized || normalized === 'not_downloaded') return 'not downloaded';
-  if (['ready', 'downloaded', 'loaded'].includes(normalized)) return 'ready';
-  if (['downloading', 'loading', 'initializing'].includes(normalized)) return 'preparing';
-  if (normalized === 'error') return 'error';
-  return normalized.replace(/_/g, ' ');
-};
-
-const renderModelFeedback = (payload = {}) => {
-  const wrap = document.getElementById('pn-model-feedback');
-  const textNode = document.getElementById('pn-model-feedback-text');
-  if (!wrap || !textNode) return;
-
-  const enabled = payload?.enabled !== false;
-  const preferLocal = payload?.preferLocal === true;
-  const semanticPhase = String(payload?.semanticPhase || 'idle').trim().toLowerCase();
-  const cloudModelLabel = String(payload?.cloudModelLabel || payload?.cloudModelId || '').trim();
-  const providerLabel = String(payload?.providerLabel || 'Cloud').trim();
-  const localModelLabel = String(payload?.localModelLabel || 'Local model').trim();
-  const localStatus = formatLocalStatus(payload?.localModelStatus || '');
-
-  if (!enabled) {
-    textNode.textContent = 'AI disabled · keyword search only';
-    wrap.dataset.tone = 'disabled';
-    wrap.classList.remove('pn-hidden');
-    return;
-  }
-
-  const semanticCopy = semanticPhase === 'ready'
-    ? 'semantic ready'
-    : semanticPhase === 'busy'
-      ? 'semantic preparing'
-      : semanticPhase === 'error'
-        ? 'semantic error'
-        : 'keyword search';
-
-  const line = preferLocal
-    ? `${localModelLabel} (${localStatus}) · ${semanticCopy}`
-    : `${providerLabel} · ${cloudModelLabel || 'model'} · ${semanticCopy}`;
-
-  textNode.textContent = line;
-  wrap.dataset.tone = semanticPhase === 'error'
-    ? 'error'
-    : semanticPhase === 'busy' || (preferLocal && localStatus === 'preparing')
-      ? 'busy'
-      : semanticPhase === 'ready'
-        ? 'ready'
-        : 'idle';
-  wrap.classList.remove('pn-hidden');
-};
-
-const clearSearch = () => {
-  const searchInput = getSearchInput();
-  const clearBtn = document.getElementById('pn-search-clear');
-  if (!searchInput) return;
-  if (!String(searchInput.value || '').trim()) return;
-  searchInput.value = '';
-  clearBtn?.classList.add('pn-hidden');
-  void render('');
-};
-
-const bindSearchHandlers = () => {
-  const searchInput = getSearchInput();
-  const clearBtn = document.getElementById('pn-search-clear');
-
-  searchInput?.addEventListener('input', (event) => {
-    const target = event.target;
-    if (clearBtn) {
-      clearBtn.classList.toggle('pn-hidden', !target.value.trim());
-    }
-    clearTimeout(state._searchDebounce);
-    state._searchDebounce = setTimeout(() => {
-      void render(String(target?.value || ''));
-    }, UI_FEEDBACK_MS.SEARCH_DEBOUNCE);
-  });
-
-  clearBtn?.addEventListener('click', () => {
-    clearSearch();
-    searchInput?.focus();
-  });
-
-  searchInput?.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && String(searchInput.value || '').trim()) {
-      event.preventDefault();
-      clearSearch();
-    }
-  });
-
-  clearBtn?.classList.toggle('pn-hidden', !String(searchInput?.value || '').trim());
-};
-
-const loadSmartSuggestions = async () => {
-  if (!state.aiReady) return;
-
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id) return;
-
-    let snippet = null;
-    try {
-      const response = await chrome.tabs.sendMessage(tab.id, { type: 'GET_CONVERSATION_SNIPPET' });
-      snippet = response?.text;
-    } catch (_) {
+    if (!enabled) {
+      textNode.textContent = "AI Off";
+      wrap.dataset.tone = "disabled";
+      wrap.classList.remove("pn-hidden");
       return;
     }
 
-    if (!snippet || snippet.length < 30) return;
+    const semanticCopy =
+      semanticPhase === "ready"
+        ? "Semantic"
+        : semanticPhase === "busy"
+          ? "Preparing"
+          : semanticPhase === "error"
+            ? "Error"
+            : "Keyword";
 
-    const result = await window.AIBridge.getSmartSuggestions(snippet);
-    if (!result?.ids?.length) return;
+    const trimLabel = (value, max = 12) => {
+      const text = String(value || "").trim();
+      if (!text) return "";
+      return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+    };
 
-    const prompts = await window.Store.getPrompts();
-    const promptMap = new Map(prompts.map((p) => [p.id, p]));
+    const line = preferLocal
+      ? `Local · ${semanticCopy}`
+      : `${trimLabel(providerLabel, 10) || "Cloud"} · ${semanticCopy}`;
 
-    const strip = document.getElementById('pn-smart-strip');
-    const chips = document.getElementById('pn-smart-chips');
-    if (!strip || !chips) return;
+    textNode.textContent = line;
+    wrap.dataset.tone =
+      semanticPhase === "error"
+        ? "error"
+        : semanticPhase === "busy" ||
+            (preferLocal && localStatus === "preparing")
+          ? "busy"
+          : semanticPhase === "ready"
+            ? "ready"
+            : "idle";
+    wrap.classList.remove("pn-hidden");
+  };
 
-    chips.innerHTML = '';
+  const clearSearch = () => {
+    const searchInput = getSearchInput();
+    const clearBtn = document.getElementById("pn-search-clear");
+    if (!searchInput) return;
+    if (!String(searchInput.value || "").trim()) return;
+    searchInput.value = "";
+    clearBtn?.classList.add("pn-hidden");
+    void render("");
+  };
 
-    for (const id of result.ids) {
-      const prompt = promptMap.get(id);
-      if (!prompt) continue;
+  const bindSearchHandlers = () => {
+    const searchInput = getSearchInput();
+    const clearBtn = document.getElementById("pn-search-clear");
 
-      const chip = document.createElement('button');
-      chip.type = 'button';
-      chip.className = 'pn-smart-chip';
-      chip.textContent = prompt.title;
-      chip.title = String(prompt.text || '').slice(0, 100);
-      chip.addEventListener('click', () => {
-        const search = document.getElementById('prompt-search');
-        if (search) search.value = prompt.title;
-        void render(prompt.title);
+    searchInput?.addEventListener("input", (event) => {
+      const target = event.target;
+      if (clearBtn) {
+        clearBtn.classList.toggle("pn-hidden", !target.value.trim());
+      }
+      clearTimeout(state._searchDebounce);
+      state._searchDebounce = setTimeout(() => {
+        void render(String(target?.value || ""));
+      }, UI_FEEDBACK_MS.SEARCH_DEBOUNCE);
+    });
+
+    clearBtn?.addEventListener("click", () => {
+      clearSearch();
+      searchInput?.focus();
+    });
+
+    searchInput?.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && String(searchInput.value || "").trim()) {
+        event.preventDefault();
+        clearSearch();
+      }
+    });
+
+    clearBtn?.classList.toggle(
+      "pn-hidden",
+      !String(searchInput?.value || "").trim(),
+    );
+  };
+
+  const loadSmartSuggestions = async () => {
+    if (!state.aiReady) return;
+
+    try {
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
       });
-      chips.appendChild(chip);
-    }
+      if (!tab?.id) return;
 
-    strip.classList.remove('pn-hidden');
-  } catch (_) {
-    // non-fatal
-  }
-};
-
-const setBridgeStripHidden = (hidden) => {
-  const strip = document.getElementById('pn-bridge-strip');
-  if (!strip) return;
-  strip.classList.toggle('pn-hidden', hidden);
-};
-
-const getCurrentPlatform = async (tabId) => {
-  if (!tabId) return '';
-  const response = await chrome.tabs.sendMessage(tabId, { action: 'getPlatform' }).catch(() => null);
-  return String(response?.platform || '');
-};
-
-const bridgeFromPrompts = async (targetPlatform, label, sourcePlatform) => {
-  const context = await getActiveTabContext();
-
-  if (!context.supported || !context.tabId) {
-    await showToast('Open a supported LLM tab to bridge.');
-    return;
-  }
-
-  const response = await chrome.tabs.sendMessage(context.tabId, { action: 'scrapeForBridge' }).catch(() => null);
-  if (!response?.messages?.length) {
-    await showToast('No conversation found to bridge.');
-    return;
-  }
-
-  const liveSource = await getCurrentPlatform(context.tabId);
-  await window.Bridge.bridgeTo(response.messages, liveSource || sourcePlatform, targetPlatform);
-  await showToast(`Opening ${label}...`);
-};
-
-const renderBridgeStrip = async () => {
-  const strip = document.getElementById('pn-bridge-strip');
-  const targetsNode = document.getElementById('pn-bridge-targets');
-
-  if (!strip || !targetsNode || !window.Bridge?.LLM_URLS) {
-    setBridgeStripHidden(true);
-    return;
-  }
-
-  const context = await getActiveTabContext();
-  if (!context.supported || !context.tabId) {
-    setBridgeStripHidden(true);
-    return;
-  }
-
-  const currentPlatform = await getCurrentPlatform(context.tabId);
-  if (!currentPlatform) {
-    setBridgeStripHidden(true);
-    return;
-  }
-
-  const targets = Object.keys(window.Bridge.LLM_URLS)
-    .filter((platform) => platform !== currentPlatform)
-    .filter((platform) => state.settings?.enabledPlatforms?.[platform] === true)
-    .map((platform) => ({ key: platform, label: PLATFORM_LABELS?.[platform] || platform }));
-
-  if (!targets.length) {
-    setBridgeStripHidden(true);
-    return;
-  }
-
-  const labelNode = strip.querySelector('.pn-bridge-label');
-  if (labelNode) {
-    labelNode.textContent = 'Continue Chat';
-  }
-
-  let metaNode = strip.querySelector('#pn-bridge-meta');
-  if (!metaNode) {
-    metaNode = document.createElement('span');
-    metaNode.id = 'pn-bridge-meta';
-    metaNode.className = 'pn-bridge-meta';
-    targetsNode.insertAdjacentElement('beforebegin', metaNode);
-  }
-  metaNode.textContent = `${targets.length} enabled target${targets.length === 1 ? '' : 's'}`;
-
-  let openStudioButton = strip.querySelector('#pn-bridge-open-studio');
-  if (!openStudioButton) {
-    openStudioButton = document.createElement('button');
-    openStudioButton.type = 'button';
-    openStudioButton.id = 'pn-bridge-open-studio';
-    openStudioButton.className = 'pn-btn pn-btn--ghost pn-bridge-open-studio';
-    openStudioButton.textContent = 'Open Continue Studio';
-    openStudioButton.addEventListener('click', () => {
-      if (typeof window.ContinuationUI?.openFromActiveTab === 'function') {
-        void window.ContinuationUI.openFromActiveTab();
+      let snippet = null;
+      try {
+        const response = await chrome.tabs.sendMessage(tab.id, {
+          type: "GET_CONVERSATION_SNIPPET",
+        });
+        snippet = response?.text;
+      } catch (_) {
         return;
       }
-      void window.AppShell?.switchTab?.('continue');
-    });
-    targetsNode.insertAdjacentElement('beforebegin', openStudioButton);
-  }
 
-  targetsNode.innerHTML = '';
-  targets.forEach((target) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'pn-bridge-btn';
-    const glyph = String(target.label || target.key || '?').trim().charAt(0).toUpperCase();
-    button.innerHTML = `
-      <span class="pn-bridge-btn__icon" aria-hidden="true">${escapeHtml(glyph || '?')}</span>
+      if (!snippet || snippet.length < 30) return;
+
+      const result = await window.AIBridge.getSmartSuggestions(snippet);
+      if (!result?.ids?.length) return;
+
+      const prompts = await window.Store.getPrompts();
+      const promptMap = new Map(prompts.map((p) => [p.id, p]));
+
+      const strip = document.getElementById("pn-smart-strip");
+      const chips = document.getElementById("pn-smart-chips");
+      if (!strip || !chips) return;
+
+      chips.innerHTML = "";
+
+      for (const id of result.ids) {
+        const prompt = promptMap.get(id);
+        if (!prompt) continue;
+
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "pn-smart-chip";
+        chip.textContent = prompt.title;
+        chip.title = String(prompt.text || "").slice(0, 100);
+        chip.addEventListener("click", () => {
+          const search = document.getElementById("prompt-search");
+          if (search) search.value = prompt.title;
+          void render(prompt.title);
+        });
+        chips.appendChild(chip);
+      }
+
+      strip.classList.remove("pn-hidden");
+    } catch (_) {
+      // non-fatal
+    }
+  };
+
+  const setBridgeStripHidden = (hidden) => {
+    const strip = document.getElementById("pn-bridge-strip");
+    if (!strip) return;
+    strip.classList.toggle("pn-hidden", hidden);
+  };
+
+  const ensureBridgeStripToggle = (strip) => {
+    if (!(strip instanceof HTMLElement)) return null;
+
+    let toggle = strip.querySelector("#pn-bridge-strip-toggle");
+    if (!toggle) {
+      toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.id = "pn-bridge-strip-toggle";
+      toggle.className = "pn-template-header pn-bridge-strip__toggle";
+      toggle.innerHTML = `
+      <span class="pn-template-header__copy">
+        <span class="pn-template-header__title">Continue Chat</span>
+        <span id="pn-bridge-strip-toggle-meta" class="pn-template-header__meta"></span>
+      </span>
+      <svg class="pn-template-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="6 9 12 15 18 9"></polyline>
+      </svg>
+    `;
+      strip.prepend(toggle);
+    }
+
+    let body = strip.querySelector(".pn-bridge-strip__body");
+    if (!body) {
+      body = document.createElement("div");
+      body.className = "pn-bridge-strip__body";
+      const existing = Array.from(strip.childNodes).filter(
+        (node) => node !== toggle,
+      );
+      existing.forEach((node) => body.appendChild(node));
+      strip.appendChild(body);
+    }
+
+    const applyCollapsedState = () => {
+      strip.dataset.collapsed = continueExpanded ? "false" : "true";
+      toggle.classList.toggle("collapsed", !continueExpanded);
+    };
+
+    if (!toggle.dataset.bound) {
+      toggle.dataset.bound = "true";
+      toggle.addEventListener("click", () => {
+        continueExpanded = !continueExpanded;
+        applyCollapsedState();
+      });
+    }
+
+    applyCollapsedState();
+    return {
+      body,
+      meta: strip.querySelector("#pn-bridge-strip-toggle-meta"),
+    };
+  };
+
+  const getCurrentPlatform = async (tabId) => {
+    if (!tabId) return "";
+    const response = await chrome.tabs
+      .sendMessage(tabId, { action: "getPlatform" })
+      .catch(() => null);
+    return String(response?.platform || "");
+  };
+
+  const bridgeFromPrompts = async (targetPlatform, label, sourcePlatform) => {
+    const context = await getActiveTabContext();
+
+    if (!context.supported || !context.tabId) {
+      await showToast("Open a supported LLM tab to bridge.");
+      return;
+    }
+
+    const response = await chrome.tabs
+      .sendMessage(context.tabId, { action: "scrapeForBridge" })
+      .catch(() => null);
+    if (!response?.messages?.length) {
+      await showToast("No conversation found to bridge.");
+      return;
+    }
+
+    const liveSource = await getCurrentPlatform(context.tabId);
+    await window.Bridge.bridgeTo(
+      response.messages,
+      liveSource || sourcePlatform,
+      targetPlatform,
+    );
+    await showToast(`Opening ${label}...`);
+  };
+
+  const renderBridgeStrip = async () => {
+    const strip = document.getElementById("pn-bridge-strip");
+    const targetsNode = document.getElementById("pn-bridge-targets");
+
+    if (!strip || !targetsNode || !window.Bridge?.LLM_URLS) {
+      setBridgeStripHidden(true);
+      return;
+    }
+
+    const context = await getActiveTabContext();
+    if (!context.supported || !context.tabId) {
+      setBridgeStripHidden(true);
+      return;
+    }
+
+    const currentPlatform = await getCurrentPlatform(context.tabId);
+    if (!currentPlatform) {
+      setBridgeStripHidden(true);
+      return;
+    }
+
+    const targets = Object.keys(window.Bridge.LLM_URLS)
+      .filter((platform) => platform !== currentPlatform)
+      .filter(
+        (platform) => state.settings?.enabledPlatforms?.[platform] === true,
+      )
+      .map((platform) => ({
+        key: platform,
+        label: PLATFORM_LABELS?.[platform] || platform,
+      }));
+
+    if (!targets.length) {
+      setBridgeStripHidden(true);
+      return;
+    }
+
+    const toggleNodes = ensureBridgeStripToggle(strip);
+    if (!toggleNodes) {
+      setBridgeStripHidden(true);
+      return;
+    }
+
+    const labelNode = strip.querySelector(".pn-bridge-label");
+    if (labelNode) {
+      labelNode.textContent = "Continue Chat";
+    }
+
+    let metaNode = strip.querySelector("#pn-bridge-meta");
+    if (!metaNode) {
+      metaNode = document.createElement("span");
+      metaNode.id = "pn-bridge-meta";
+      metaNode.className = "pn-bridge-meta";
+      targetsNode.insertAdjacentElement("beforebegin", metaNode);
+    }
+    metaNode.textContent = `${targets.length} enabled target${targets.length === 1 ? "" : "s"}`;
+    if (toggleNodes.meta) {
+      toggleNodes.meta.textContent = metaNode.textContent;
+    }
+
+    let openStudioButton = strip.querySelector("#pn-bridge-open-studio");
+    if (!openStudioButton) {
+      openStudioButton = document.createElement("button");
+      openStudioButton.type = "button";
+      openStudioButton.id = "pn-bridge-open-studio";
+      openStudioButton.className = "pn-btn pn-btn--ghost pn-bridge-open-studio";
+      openStudioButton.textContent = "Open Continue Studio";
+      openStudioButton.addEventListener("click", () => {
+        if (typeof window.ContinuationUI?.openFromActiveTab === "function") {
+          void window.ContinuationUI.openFromActiveTab();
+          return;
+        }
+        void window.AppShell?.switchTab?.("continue");
+      });
+      targetsNode.insertAdjacentElement("beforebegin", openStudioButton);
+    }
+
+    targetsNode.innerHTML = "";
+    targets.forEach((target) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "pn-bridge-btn";
+      const glyph = String(target.label || target.key || "?")
+        .trim()
+        .charAt(0)
+        .toUpperCase();
+      button.innerHTML = `
+      <span class="pn-bridge-btn__icon" aria-hidden="true">${escapeHtml(glyph || "?")}</span>
       <span class="pn-bridge-btn__copy">
         <span class="pn-bridge-btn__name">${escapeHtml(target.label)}</span>
         <span class="pn-bridge-btn__hint">Continue</span>
       </span>
     `;
-    button.addEventListener('click', () => {
-      void (async () => {
-        if (button.disabled) return;
-        button.classList.add('is-loading');
-        const hint = button.querySelector('.pn-bridge-btn__hint');
-        if (hint) hint.textContent = 'Opening...';
-        button.disabled = true;
-        try {
-          await bridgeFromPrompts(target.key, target.label, currentPlatform);
-        } catch (error) {
-          console.error('[Promptium] Bridge failed from prompts tab.', error);
-          await showToast('Could not bridge conversation.');
-        } finally {
-          button.disabled = false;
-          button.classList.remove('is-loading');
-          if (hint) hint.textContent = 'Continue';
-        }
-      })();
+      button.addEventListener("click", () => {
+        void (async () => {
+          if (button.disabled) return;
+          button.classList.add("is-loading");
+          const hint = button.querySelector(".pn-bridge-btn__hint");
+          if (hint) hint.textContent = "Opening...";
+          button.disabled = true;
+          try {
+            await bridgeFromPrompts(target.key, target.label, currentPlatform);
+          } catch (error) {
+            console.error("[Promptium] Bridge failed from prompts tab.", error);
+            await showToast("Could not bridge conversation.");
+          } finally {
+            button.disabled = false;
+            button.classList.remove("is-loading");
+            if (hint) hint.textContent = "Continue";
+          }
+        })();
+      });
+      targetsNode.appendChild(button);
     });
-    targetsNode.appendChild(button);
-  });
 
-  setBridgeStripHidden(false);
-};
+    setBridgeStripHidden(false);
+  };
 
-const setCallbacks = (nextCallbacks = {}) => {
-  callbacks.onOpenImprove = nextCallbacks.onOpenImprove || null;
-  callbacks.onPromptsMutated = nextCallbacks.onPromptsMutated || null;
-};
+  const setCallbacks = (nextCallbacks = {}) => {
+    callbacks.onOpenImprove = nextCallbacks.onOpenImprove || null;
+    callbacks.onPromptsMutated = nextCallbacks.onPromptsMutated || null;
+  };
 
-const focusSearch = () => {
-  const searchInput = getSearchInput();
-  const searchWrap = getSearchWrap();
-  if (!searchInput || !searchWrap || searchWrap.classList.contains('hidden')) return false;
-  searchInput.focus();
-  searchInput.select();
-  return true;
-};
+  const focusSearch = () => {
+    const searchInput = getSearchInput();
+    const searchWrap = getSearchWrap();
+    if (!searchInput || !searchWrap || searchWrap.classList.contains("hidden"))
+      return false;
+    searchInput.focus();
+    searchInput.select();
+    return true;
+  };
 
-window.PromptsUI = {
-  render,
-  bindSearchHandlers,
-  getSearchValue,
-  clearSearch,
-  loadSmartSuggestions,
-  renderBridgeStrip,
-  setCallbacks,
-  focusSearch,
-  getSearchInput,
-  getSearchWrap,
-  bindTemplateFilters,
-  setActiveFilter,
-  resetTemplateFilter,
-  renderModelFeedback
-};
+  window.PromptsUI = {
+    render,
+    bindSearchHandlers,
+    getSearchValue,
+    clearSearch,
+    loadSmartSuggestions,
+    renderBridgeStrip,
+    setCallbacks,
+    focusSearch,
+    getSearchInput,
+    getSearchWrap,
+    bindTemplateFilters,
+    setActiveFilter,
+    resetTemplateFilter,
+    renderModelFeedback,
+  };
 })();
