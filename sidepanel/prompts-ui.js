@@ -16,7 +16,6 @@
   let templateFiltersBound = false;
   let curatedExpanded = false;
   let curatedToggledByUser = false;
-  let continueExpanded = false;
   let hoverTooltipNode = null;
   let hoverTimer = null;
   let hoverAnchor = null;
@@ -1089,58 +1088,6 @@
     strip.classList.toggle("pn-hidden", hidden);
   };
 
-  const ensureBridgeStripToggle = (strip) => {
-    if (!(strip instanceof HTMLElement)) return null;
-
-    let toggle = strip.querySelector("#pn-bridge-strip-toggle");
-    if (!toggle) {
-      toggle = document.createElement("button");
-      toggle.type = "button";
-      toggle.id = "pn-bridge-strip-toggle";
-      toggle.className = "pn-template-header pn-bridge-strip__toggle";
-      toggle.innerHTML = `
-      <span class="pn-template-header__copy">
-        <span class="pn-template-header__title">Continue Chat</span>
-        <span id="pn-bridge-strip-toggle-meta" class="pn-template-header__meta"></span>
-      </span>
-      <svg class="pn-template-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="6 9 12 15 18 9"></polyline>
-      </svg>
-    `;
-      strip.prepend(toggle);
-    }
-
-    let body = strip.querySelector(".pn-bridge-strip__body");
-    if (!body) {
-      body = document.createElement("div");
-      body.className = "pn-bridge-strip__body";
-      const existing = Array.from(strip.childNodes).filter(
-        (node) => node !== toggle,
-      );
-      existing.forEach((node) => body.appendChild(node));
-      strip.appendChild(body);
-    }
-
-    const applyCollapsedState = () => {
-      strip.dataset.collapsed = continueExpanded ? "false" : "true";
-      toggle.classList.toggle("collapsed", !continueExpanded);
-    };
-
-    if (!toggle.dataset.bound) {
-      toggle.dataset.bound = "true";
-      toggle.addEventListener("click", () => {
-        continueExpanded = !continueExpanded;
-        applyCollapsedState();
-      });
-    }
-
-    applyCollapsedState();
-    return {
-      body,
-      meta: strip.querySelector("#pn-bridge-strip-toggle-meta"),
-    };
-  };
-
   const getCurrentPlatform = async (tabId) => {
     if (!tabId) return "";
     const response = await chrome.tabs
@@ -1176,9 +1123,8 @@
 
   const renderBridgeStrip = async () => {
     const strip = document.getElementById("pn-bridge-strip");
-    const targetsNode = document.getElementById("pn-bridge-targets");
 
-    if (!strip || !targetsNode || !window.Bridge?.LLM_URLS) {
+    if (!strip || !window.Bridge?.LLM_URLS) {
       setBridgeStripHidden(true);
       return;
     }
@@ -1210,83 +1156,123 @@
       return;
     }
 
-    const toggleNodes = ensureBridgeStripToggle(strip);
-    if (!toggleNodes) {
-      setBridgeStripHidden(true);
-      return;
-    }
+    const samePlatformLabel = String(
+      PLATFORM_LABELS?.[currentPlatform] || currentPlatform || "Current LLM",
+    )
+      .trim()
+      .replace(/\s+/g, " ");
 
-    const labelNode = strip.querySelector(".pn-bridge-label");
-    if (labelNode) {
-      labelNode.textContent = "Continue Chat";
-    }
+    strip.innerHTML = "";
 
-    let metaNode = strip.querySelector("#pn-bridge-meta");
-    if (!metaNode) {
-      metaNode = document.createElement("span");
-      metaNode.id = "pn-bridge-meta";
-      metaNode.className = "pn-bridge-meta";
-      targetsNode.insertAdjacentElement("beforebegin", metaNode);
-    }
-    metaNode.textContent = `${targets.length} enabled target${targets.length === 1 ? "" : "s"}`;
-    if (toggleNodes.meta) {
-      toggleNodes.meta.textContent = metaNode.textContent;
-    }
+    const row = document.createElement("div");
+    row.className = "pn-bridge-actions-row";
 
-    let openStudioButton = strip.querySelector("#pn-bridge-open-studio");
-    if (!openStudioButton) {
-      openStudioButton = document.createElement("button");
-      openStudioButton.type = "button";
-      openStudioButton.id = "pn-bridge-open-studio";
-      openStudioButton.className = "pn-btn pn-btn--ghost pn-bridge-open-studio";
-      openStudioButton.textContent = "Open Continue Studio";
-      openStudioButton.addEventListener("click", () => {
-        if (typeof window.ContinuationUI?.openFromActiveTab === "function") {
-          void window.ContinuationUI.openFromActiveTab();
-          return;
+    const continueHereButton = document.createElement("button");
+    continueHereButton.type = "button";
+    continueHereButton.className =
+      "pn-btn pn-btn--primary pn-bridge-action-btn";
+    continueHereButton.textContent = "Continue Here";
+    continueHereButton.title = `Continue in ${samePlatformLabel} as a new chat.`;
+    continueHereButton.addEventListener("click", () => {
+      void (async () => {
+        if (continueHereButton.disabled) return;
+        continueHereButton.disabled = true;
+        continueHereButton.classList.add("is-loading");
+        try {
+          await bridgeFromPrompts(
+            currentPlatform,
+            samePlatformLabel,
+            currentPlatform,
+          );
+        } catch (error) {
+          console.error("[Promptium] Continue here failed.", error);
+          await showToast("Could not continue in current LLM.");
+        } finally {
+          continueHereButton.disabled = false;
+          continueHereButton.classList.remove("is-loading");
         }
-        void window.AppShell?.switchTab?.("continue");
-      });
-      targetsNode.insertAdjacentElement("beforebegin", openStudioButton);
-    }
+      })();
+    });
 
-    targetsNode.innerHTML = "";
+    const chooseButton = document.createElement("button");
+    chooseButton.type = "button";
+    chooseButton.className = "pn-btn pn-btn--primary pn-bridge-action-btn";
+    chooseButton.textContent = "Choose LLM";
+    chooseButton.title =
+      "Pick one of your enabled LLMs to continue in a new chat.";
+
+    const studioButton = document.createElement("button");
+    studioButton.type = "button";
+    studioButton.className = "pn-btn pn-btn--ghost pn-bridge-action-btn";
+    studioButton.textContent = "Open Studio";
+    studioButton.title = "Open Continue Studio";
+    studioButton.addEventListener("click", () => {
+      if (typeof window.ContinuationUI?.openFromActiveTab === "function") {
+        void window.ContinuationUI.openFromActiveTab();
+        return;
+      }
+      void window.AppShell?.switchTab?.("continue");
+    });
+
+    row.appendChild(continueHereButton);
+    row.appendChild(chooseButton);
+    row.appendChild(studioButton);
+    strip.appendChild(row);
+
+    const popup = document.createElement("div");
+    popup.className = "pn-bridge-picker pn-hidden";
+    popup.setAttribute("role", "dialog");
+    popup.setAttribute("aria-label", "Select LLM to continue chat");
+
+    const popupHead = document.createElement("div");
+    popupHead.className = "pn-bridge-picker__head";
+    popupHead.textContent = `Continue in (${targets.length})`;
+    popup.appendChild(popupHead);
+
+    const popupList = document.createElement("div");
+    popupList.className = "pn-bridge-picker__list";
     targets.forEach((target) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "pn-bridge-btn";
-      const glyph = String(target.label || target.key || "?")
-        .trim()
-        .charAt(0)
-        .toUpperCase();
-      button.innerHTML = `
-      <span class="pn-bridge-btn__icon" aria-hidden="true">${escapeHtml(glyph || "?")}</span>
-      <span class="pn-bridge-btn__copy">
-        <span class="pn-bridge-btn__name">${escapeHtml(target.label)}</span>
-        <span class="pn-bridge-btn__hint">Continue</span>
-      </span>
-    `;
-      button.addEventListener("click", () => {
+      const option = document.createElement("button");
+      option.type = "button";
+      option.className = "pn-btn pn-btn--ghost pn-bridge-picker__item";
+      option.textContent = String(target.label || target.key || "LLM");
+      option.addEventListener("click", () => {
         void (async () => {
-          if (button.disabled) return;
-          button.classList.add("is-loading");
-          const hint = button.querySelector(".pn-bridge-btn__hint");
-          if (hint) hint.textContent = "Opening...";
-          button.disabled = true;
+          popup.classList.add("pn-hidden");
           try {
             await bridgeFromPrompts(target.key, target.label, currentPlatform);
           } catch (error) {
-            console.error("[Promptium] Bridge failed from prompts tab.", error);
-            await showToast("Could not bridge conversation.");
-          } finally {
-            button.disabled = false;
-            button.classList.remove("is-loading");
-            if (hint) hint.textContent = "Continue";
+            console.error("[Promptium] Bridge picker action failed.", error);
+            await showToast("Could not continue in selected LLM.");
           }
         })();
       });
-      targetsNode.appendChild(button);
+      popupList.appendChild(option);
     });
+    popup.appendChild(popupList);
+    strip.appendChild(popup);
+
+    chooseButton.addEventListener("click", () => {
+      popup.classList.toggle("pn-hidden");
+    });
+
+    if (!window.__PN_BRIDGE_PICKER_DISMISS_BOUND) {
+      document.addEventListener("click", (event) => {
+        const target = event.target instanceof Element ? event.target : null;
+        if (!target) return;
+        document
+          .querySelectorAll(".pn-bridge-picker:not(.pn-hidden)")
+          .forEach((node) => {
+            const owner =
+              node.parentElement?.querySelector(
+                ".pn-bridge-action-btn:nth-child(2)",
+              ) || null;
+            if (node.contains(target) || owner?.contains(target)) return;
+            node.classList.add("pn-hidden");
+          });
+      });
+      window.__PN_BRIDGE_PICKER_DISMISS_BOUND = true;
+    }
 
     setBridgeStripHidden(false);
   };
