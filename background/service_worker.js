@@ -2356,6 +2356,12 @@ chrome.runtime.onStartup.addListener(() => {
     await registerContextMenus();
     const meta = await readEmbeddingMeta();
     await updateSearchModeFromMeta(meta);
+    // Auto-recover: if embedding model was never successfully downloaded (e.g. due to
+    // a previous Bug 1 / local-path error), silently re-attempt the download so that
+    // semantic search activates without requiring an uninstall/reinstall.
+    if (!meta.downloadedModelIds.length || meta.status === 'error') {
+      void bootstrapEmbeddingOnInstall();
+    }
   })();
 });
 

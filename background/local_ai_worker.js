@@ -6,8 +6,9 @@
 
 import { pipeline, env } from '../libs/transformers.min.js';
 
-env.allowRemoteModels = true;
-env.localModelPath = '../models/';
+env.allowLocalModels = false;   // force CDN fetch only — no local filesystem in Chrome extensions
+env.useBrowserCache = true;     // use browser Cache API for persistence across sessions
+env.allowRemoteModels = true;   // explicitly allow HuggingFace CDN
 env.backends.onnx.wasm.numThreads = 1;
 
 const MODEL_ID = 'onnx-community/Qwen3-0.6B-ONNX';

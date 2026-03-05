@@ -1519,13 +1519,15 @@ code {
   min-height: 180px;
   padding: 2px 0 10px;
   max-height: 360px;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .pn-fill-header {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex-shrink: 0;
 }
 
 .pn-fill-title {
@@ -1556,6 +1558,9 @@ code {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .pn-fill-field {
@@ -1601,6 +1606,7 @@ code {
   position: sticky;
   bottom: 0;
   padding-top: 8px;
+  flex-shrink: 0;
   background: linear-gradient(
     to bottom,
     rgba(18, 18, 18, 0),

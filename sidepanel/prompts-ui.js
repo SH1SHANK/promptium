@@ -192,7 +192,7 @@ const filterPrompts = async (filter, prompts) => {
 
   const keywordResults = await sidepanelKeywordFilter(normalized, prompts);
 
-  if (state.aiReady && state.settings.enableAI && state.settings.semanticSearch) {
+  if (state.aiReady && state.settings?.enableAI && state.settings?.semanticSearch) {
     try {
       const response = await window.AIBridge.search(normalized);
       if (response?.results) {

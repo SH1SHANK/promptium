@@ -74,8 +74,9 @@ const MODEL_CACHE_INDEX = {
   }
 };
 
-env.allowRemoteModels = true;
-env.localModelPath = '../models/';
+env.allowLocalModels = false;   // force CDN fetch only — no local filesystem in Chrome extensions
+env.useBrowserCache = true;     // use browser Cache API for persistence across sessions
+env.allowRemoteModels = true;   // explicitly allow HuggingFace CDN
 env.backends.onnx.wasm.numThreads = 1;
 
 const MODEL_STATE = Object.fromEntries(Object.keys(MODEL_REGISTRY).map((key) => [key, {
@@ -454,10 +455,24 @@ const withProgressCallback = (modelId, status) => (data = {}) => {
     throw new Error('Local model download cancelled.');
   }
 
+  // Skip per-file 'done'/'ready' events — individual file completions reporting
+  // 100% would cause the global progress bar to flash 100% for each small file
+  // (e.g. config.json) before the large weights file even starts downloading.
+  // Final 100% is emitted explicitly in loadPipelineForModel after await pipeline().
+  const dataStatus = String(data?.status || '').toLowerCase();
+  if (dataStatus === 'done' || dataStatus === 'ready') return;
+
   const progress = clamp(Math.round(Number(data?.progress || 0)), 0, 100);
   state.progress = progress;
   if (progress > 0 && state.status === STATUS_TYPES.NOT_DOWNLOADED) {
     state.status = STATUS_TYPES.DOWNLOADING;
+  }
+
+  // When a new file starts downloading its progress resets to near 0, which is
+  // 'backward' relative to the last file. Reset the dedup bucket so the new
+  // file's actual progress increments are not silently dropped.
+  if (progress < state.lastProgressBucket) {
+    state.lastProgressBucket = -1;
   }
 
   const fileHint = String(data?.file || data?.name || data?.url || '').trim();
@@ -560,10 +575,20 @@ const withEmbeddingProgressCallback = (modelId, status) => (data = {}) => {
     throw new Error('Embedding model download cancelled.');
   }
 
+  // Skip per-file 'done'/'ready' events for the same reason as withProgressCallback:
+  // individual file completions would flash 100% before the model weights download.
+  const dataStatus = String(data?.status || '').toLowerCase();
+  if (dataStatus === 'done' || dataStatus === 'ready') return;
+
   const progress = clamp(Math.round(Number(data?.progress || 0)), 0, 100);
   state.progress = progress;
   if (progress > 0 && state.status === STATUS_TYPES.NOT_DOWNLOADED) {
     state.status = STATUS_TYPES.DOWNLOADING;
+  }
+
+  // Reset dedup bucket when a new file starts (backward progress = new file).
+  if (progress < state.lastProgressBucket) {
+    state.lastProgressBucket = -1;
   }
 
   const fileHint = String(data?.file || data?.name || data?.url || '').trim();
