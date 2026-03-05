@@ -366,54 +366,55 @@ const suggestTags = async (text) => {
   return scored.slice(0, 2).map((entry) => entry.tag);
 };
 
-/** Computes Jaccard similarity between two token sets. */
-const computeJaccard = (leftText, rightText) => {
-  const left = toTokenSet(leftText);
-  const right = toTokenSet(rightText);
-
-  if (!left.size || !right.size) {
-    return 0;
+/** Detects near-duplicate prompts via normalized Levenshtein ratio on title + first 80 chars. */
+const isDuplicate = (candidatePrompt, existingPrompts) => {
+  if (window.PromptDuplicate?.findDuplicate) {
+    return window.PromptDuplicate.findDuplicate(candidatePrompt, existingPrompts, 0.85);
   }
 
-  let intersection = 0;
+  const source = candidatePrompt && typeof candidatePrompt === 'object'
+    ? candidatePrompt
+    : { title: '', text: String(candidatePrompt || '') };
+  const target = normalizeText(`${source.title || ''}\n${String(source.text || '').slice(0, 80)}`);
 
-  for (const token of left) {
-    if (right.has(token)) {
-      intersection += 1;
-    }
-  }
+  if (!target) return { duplicate: false, ratio: 0, match: null };
 
-  const union = left.size + right.size - intersection;
-  return union > 0 ? intersection / union : 0;
-};
-
-/** Detects near-duplicate prompts with normalized text and token overlap heuristics. */
-const isDuplicate = (newText, existingPrompts) => {
-  const target = normalizeText(newText);
-
-  if (!target) {
-    return { duplicate: false };
-  }
+  let bestRatio = 0;
+  let bestMatch = null;
 
   for (const prompt of existingPrompts || []) {
-    const candidate = normalizeText(prompt?.text || '');
+    const candidate = normalizeText(`${prompt?.title || ''}\n${String(prompt?.text || '').slice(0, 80)}`);
+    if (!candidate) continue;
+    const maxLen = Math.max(target.length, candidate.length);
+    if (!maxLen) continue;
 
-    if (!candidate) {
-      continue;
+    const rows = target.length + 1;
+    const cols = candidate.length + 1;
+    const dp = Array.from({ length: rows }, () => Array(cols).fill(0));
+    for (let i = 0; i < rows; i += 1) dp[i][0] = i;
+    for (let j = 0; j < cols; j += 1) dp[0][j] = j;
+    for (let i = 1; i < rows; i += 1) {
+      for (let j = 1; j < cols; j += 1) {
+        const cost = target[i - 1] === candidate[j - 1] ? 0 : 1;
+        dp[i][j] = Math.min(
+          dp[i - 1][j] + 1,
+          dp[i][j - 1] + 1,
+          dp[i - 1][j - 1] + cost
+        );
+      }
     }
-
-    if (candidate === target) {
-      return { duplicate: true, match: prompt };
-    }
-
-    const similarity = computeJaccard(target, candidate);
-
-    if (similarity >= 0.86) {
-      return { duplicate: true, match: prompt };
+    const ratio = 1 - (dp[rows - 1][cols - 1] / maxLen);
+    if (ratio > bestRatio) {
+      bestRatio = ratio;
+      bestMatch = prompt;
     }
   }
 
-  return { duplicate: false };
+  return {
+    duplicate: bestRatio > 0.85,
+    ratio: bestRatio,
+    match: bestMatch
+  };
 };
 
 /** No embedding hydration needed in model-free mode. */

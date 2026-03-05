@@ -166,8 +166,6 @@ const checkPendingBridge = async (currentPlatform) => {
     };
   }
 
-  await chrome.storage.local.remove([BRIDGE_KEY]).catch(() => {});
-
   return {
     kind: 'ready',
     text: String(pending?.text || ''),

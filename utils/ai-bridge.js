@@ -39,8 +39,56 @@ const AIBridge = {
     return this._send({ type: 'AI_IMPROVE_PROMPT', text, tags, style });
   },
 
+  async paraphrasePrompt(text) {
+    return this._send({ type: 'AI_PARAPHRASE_PROMPT', text });
+  },
+
   async generatePromptTitle(text) {
     return this._send({ type: 'AI_GENERATE_PROMPT_TITLE', text });
+  },
+
+  async scoreClarity(text) {
+    return this._send({ type: 'AI_SCORE_CLARITY', text });
+  },
+
+  async preparePromptForSave(payload) {
+    return this._send({ type: 'AI_PREPARE_PROMPT_SAVE', payload });
+  },
+
+  async routeTask(task, payload = {}) {
+    return this._send({ type: 'AI_ROUTE_TASK', task, ...payload });
+  },
+
+  async initLocalModel() {
+    return this._send({ type: 'AI_LOCAL_MODEL_INIT' });
+  },
+
+  async getLocalModelStatus() {
+    return this._send({ type: 'AI_LOCAL_MODEL_STATUS' });
+  },
+
+  async localModelStatus() {
+    return this._send({ action: 'localModel:status' });
+  },
+
+  async localModelLoad(modelId = '') {
+    return this._send({ action: 'localModel:load', payload: { modelId } });
+  },
+
+  async localModelParaphrase(text) {
+    return this._send({ action: 'localModel:paraphrase', text });
+  },
+
+  async downloadLocalModel(modelId = '') {
+    return this._send({ type: 'AI_LOCAL_MODEL_DOWNLOAD', payload: { modelId } });
+  },
+
+  async cancelLocalModelDownload(modelId = '') {
+    return this._send({ type: 'AI_LOCAL_MODEL_CANCEL_DOWNLOAD', payload: { modelId } });
+  },
+
+  async clearLocalModelCache(modelId = '') {
+    return this._send({ type: 'AI_LOCAL_MODEL_REMOVE_CACHE', payload: { modelId } });
   },
 
   async getStatus() {

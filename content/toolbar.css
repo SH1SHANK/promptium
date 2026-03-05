@@ -18,12 +18,13 @@
 
 .pn-btn {
   border: 1px solid var(--pn-border-default);
-  border-radius: 10px;
+  border-radius: 7px;
   background: transparent;
   color: var(--pn-text-primary);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   padding: 7px 10px;
+  min-height: 32px;
   cursor: pointer;
   transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
   font-family: -apple-system, 'Segoe UI', sans-serif;
@@ -40,14 +41,15 @@
 }
 
 .pn-btn--primary {
-  border-color: var(--pn-accent);
-  background: linear-gradient(135deg, var(--pn-accent), #6366f1);
-  color: #ffffff;
+  border-color: var(--pn-accent-strong);
+  background: var(--pn-accent-strong);
+  color: var(--pn-text-primary);
+  border-radius: 8px;
 }
 
 .pn-btn--primary:hover {
-  background: linear-gradient(135deg, #41e1ce, #787bff);
-  border-color: var(--pn-accent-strong);
+  background: var(--pn-accent);
+  border-color: var(--pn-accent);
 }
 
 .pn-btn--ghost {
@@ -60,8 +62,8 @@
 
 .pn-toast {
   position: fixed;
-  right: 24px;
-  bottom: 86px;
+  right: 16px;
+  bottom: 20px;
   z-index: 999999;
   max-width: 320px;
   padding: 10px 12px;
@@ -69,6 +71,7 @@
   background: rgba(12, 15, 24, 0.95);
   color: var(--pn-text-primary);
   border: 1px solid var(--pn-border-default);
+  border-left: 3px solid var(--pn-accent);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
   animation: pn-toast-in 180ms ease-out;
   font-family: -apple-system, 'Segoe UI', sans-serif;
@@ -76,6 +79,10 @@
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   pointer-events: none;
+}
+
+.pn-toast.pn-toast--error {
+  border-left-color: var(--pn-danger);
 }
 
 .pn-toast--undo {
@@ -101,8 +108,9 @@
 }
 
 .pn-toast-undo-btn:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--pn-accent-glow);
+  outline: 2px solid var(--pn-accent);
+  outline-offset: 2px;
+  box-shadow: none;
 }
 
 .pn-save-modal {
@@ -166,7 +174,8 @@
 }
 
 .pn-save-modal__field input:focus {
-  outline: none;
+  outline: 2px solid var(--pn-accent);
+  outline-offset: 2px;
   border-color: var(--pn-accent);
   box-shadow: 0 0 0 3px var(--pn-accent-glow);
 }
@@ -202,7 +211,7 @@
   border-radius: 6px;
   padding: 2px 6px;
   background: rgba(9, 12, 20, 0.72);
-  color: #f3f4f6;
+  color: var(--pn-text-primary);
   font-size: 13px;
   line-height: 1;
   cursor: pointer;
@@ -218,6 +227,14 @@
 .pn-bookmark-icon:hover {
   transform: scale(1.08);
   border-color: rgba(251, 191, 36, 0.6);
+}
+
+.pn-bookmark-icon:focus-visible,
+.pn-btn:focus-visible,
+.pn-save-modal button:focus-visible,
+.pn-save-modal input:focus-visible {
+  outline: 2px solid var(--pn-accent);
+  outline-offset: 2px;
 }
 
 .pn-bookmarked {

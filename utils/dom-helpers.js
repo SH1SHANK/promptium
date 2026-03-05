@@ -7,16 +7,67 @@
 
 /** Returns a required DOM node by id. */
 const byId = (id) => document.getElementById(id);
-const TOAST_DURATION_MS = 2100;
+const TOAST_DURATION_SUCCESS_MS = 2500;
+const TOAST_DURATION_ERROR_MS = 4000;
+const TOAST_MAX_LENGTH = 40;
+const toastQueue = [];
+let activeToast = null;
+
+const normalizeToastText = (value) => {
+  const trimmed = String(value || '')
+    .replace(/!/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const text = trimmed || 'Done';
+  const sentenceCase = text.charAt(0).toUpperCase() + text.slice(1);
+  if (sentenceCase.length <= TOAST_MAX_LENGTH) {
+    return sentenceCase;
+  }
+  return `${sentenceCase.slice(0, TOAST_MAX_LENGTH - 1).trimEnd()}…`;
+};
+
+const isErrorToast = (value) => /\b(error|failed|invalid|unable|retry|missing|expired|quota|cannot|could not|unavailable)\b/i
+  .test(String(value || ''));
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const flushToastQueue = async () => {
+  if (activeToast) return;
+
+  while (toastQueue.length) {
+    while (document.querySelector('.pn-toast--undo')) {
+      await wait(120);
+    }
+
+    const next = toastQueue.shift();
+    if (!next) continue;
+
+    const { message, kind, resolve } = next;
+    const inferredError = kind === 'error' || (kind !== 'success' && isErrorToast(message));
+    const toast = document.createElement('div');
+    toast.className = `pn-toast${inferredError ? ' pn-toast--error' : ''}`;
+    toast.textContent = normalizeToastText(message);
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
+    activeToast = toast;
+    document.body.appendChild(toast);
+
+    await wait(inferredError ? TOAST_DURATION_ERROR_MS : TOAST_DURATION_SUCCESS_MS);
+    toast.remove();
+    activeToast = null;
+    resolve();
+  }
+};
 
 /** Creates and displays a short-lived toast message. */
-const showToast = (message) => {
-  const toast = document.createElement('div');
-  toast.className = 'pn-toast';
-  toast.textContent = String(message || '').trim();
-  document.body.appendChild(toast);
-  setTimeout(() => { toast.remove(); }, TOAST_DURATION_MS);
-};
+const showToast = (message, options = {}) => new Promise((resolve) => {
+  toastQueue.push({
+    message,
+    kind: String(options?.kind || '').trim().toLowerCase(),
+    resolve
+  });
+  void flushToastQueue();
+});
 
 /** Builds reusable empty state markup with icon, copy, and optional action button. */
 const createEmptyState = (messageOrConfig, maybeOptions = {}) => {

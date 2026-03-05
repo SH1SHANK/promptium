@@ -8,6 +8,8 @@ const CONTINUATION_KEY = 'pendingContinuation';
 const CONTINUATION_TTL_MS = 180000;
 const FALLBACK_MESSAGE_COUNT = 6;
 const MAX_SOURCE_MESSAGES = 24;
+const LONG_CONVERSATION_THRESHOLD = 20;
+const LONG_NO_KEY_ADVISORY = 'Long conversation — summary quality may be limited. Add a Gemini key in Settings for better results.';
 
 const MODE_ALIASES = Object.freeze({
   full_summary: 'FULL_SUMMARY',
@@ -77,15 +79,63 @@ const resolveGeminiKey = async (explicitKey) => {
   return '';
 };
 
+const isLocalContinuationAvailable = async () => {
+  try {
+    const snapshot = await chrome.storage.local.get(['promptiumSettings']);
+    const settings = snapshot?.promptiumSettings && typeof snapshot.promptiumSettings === 'object'
+      ? snapshot.promptiumSettings
+      : {};
+    if (settings?.enableAI === false) return false;
+    if (settings?.localFeatureFlags?.continueSummary === false) return false;
+  } catch (_error) {
+    // Ignore settings read failures and continue with runtime status probe.
+  }
+
+  try {
+    const status = await chrome.runtime.sendMessage({ type: 'AI_LOCAL_MODEL_STATUS' });
+    const value = String(status?.status || '').trim().toLowerCase();
+    return ['ready', 'cached', 'loading', 'downloading'].includes(value);
+  } catch (_error) {
+    return false;
+  }
+};
+
 const buildHandoff = async (messages, mode = 'FULL_SUMMARY', userNote = '', geminiKey = '') => {
   const normalized = normalizeMessages(messages).slice(-MAX_SOURCE_MESSAGES);
   if (!normalized.length) {
-    return buildFallback([]);
+    return { ok: false, error: 'no_messages' };
   }
 
   const key = await resolveGeminiKey(geminiKey);
-  if (!key) {
-    return buildFallback(normalized);
+  const isLongConversation = normalized.length > LONG_CONVERSATION_THRESHOLD;
+
+  if (isLongConversation && !key) {
+    const localAvailable = await isLocalContinuationAvailable();
+    if (!localAvailable) {
+      return { ok: false, error: 'no_ai_available' };
+    }
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: 'AI_CONTINUE_SUMMARY',
+        key: '',
+        mode: normalizeMode(mode),
+        userNote: String(userNote || '').trim(),
+        messages: normalized,
+        forceLocal: true
+      });
+      const text = String(response?.text || '').trim();
+      if (!response?.ok || !text) {
+        return { ok: false, error: 'no_ai_available' };
+      }
+      return {
+        ok: true,
+        text,
+        backend: 'local',
+        advisory: LONG_NO_KEY_ADVISORY
+      };
+    } catch (_error) {
+      return { ok: false, error: 'no_ai_available' };
+    }
   }
 
   try {
@@ -99,12 +149,33 @@ const buildHandoff = async (messages, mode = 'FULL_SUMMARY', userNote = '', gemi
 
     const text = String(response?.text || '').trim();
     if (!response?.ok || !text) {
-      return buildFallback(normalized);
+      if (!key) {
+        return {
+          ok: true,
+          text: buildFallback(normalized),
+          backend: 'fallback',
+          advisory: String(response?.advisory || '').trim() || undefined
+        };
+      }
+      return {
+        ok: true,
+        text: buildFallback(normalized),
+        backend: 'fallback',
+        advisory: String(response?.advisory || '').trim() || undefined
+      };
     }
 
-    return text;
+    return {
+      ok: true,
+      text,
+      backend: String(response?.backend || '').trim() || 'gemini',
+      advisory: String(response?.advisory || '').trim() || undefined
+    };
   } catch (_error) {
-    return buildFallback(normalized);
+    if (!key) {
+      return { ok: true, text: buildFallback(normalized), backend: 'fallback' };
+    }
+    return { ok: false, error: 'continuation_failed' };
   }
 };
 
@@ -147,7 +218,6 @@ const checkPending = async (currentPlatform) => {
     return { kind: 'expired', sourcePlatform: String(pending?.sourcePlatform || 'unknown') };
   }
 
-  await chrome.storage.local.remove([CONTINUATION_KEY]).catch(() => {});
   return {
     kind: 'ready',
     text: String(pending?.text || ''),

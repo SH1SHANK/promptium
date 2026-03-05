@@ -8,7 +8,8 @@ const { state } = window.SidepanelState;
 
 const localState = {
   payload: null,
-  busy: false
+  busy: false,
+  advisory: ''
 };
 
 const normalizeMessages = (messages) => (Array.isArray(messages) ? messages : [])
@@ -53,6 +54,7 @@ const setBusy = (busy) => {
   localState.busy = Boolean(busy);
   const run = byId('pn-continue-run');
   const cancel = byId('pn-continue-cancel');
+  const summary = byId('pn-continue-summary');
   if (run) {
     run.disabled = localState.busy;
     run.textContent = localState.busy ? 'Building handoff...' : 'Continue →';
@@ -60,6 +62,22 @@ const setBusy = (busy) => {
   if (cancel) {
     cancel.disabled = localState.busy;
   }
+  if (summary) {
+    summary.classList.toggle('pn-loading-state', localState.busy);
+    if (localState.busy) {
+      summary.textContent = 'Generating continuation summary…';
+    } else {
+      renderSummary();
+    }
+  }
+};
+
+const setAdvisory = (value = '') => {
+  localState.advisory = String(value || '').trim();
+  const node = byId('pn-continue-advisory');
+  if (!node) return;
+  node.textContent = localState.advisory;
+  node.classList.toggle('pn-hidden', !localState.advisory);
 };
 
 const renderSummary = () => {
@@ -71,6 +89,7 @@ const renderSummary = () => {
 
   if (!messages.length) {
     summary.textContent = 'No conversation loaded yet.';
+    setAdvisory('');
     return;
   }
 
@@ -152,6 +171,7 @@ const openFromPayload = async (payload) => {
   };
 
   renderSummary();
+  setAdvisory('');
   renderTargetOptions();
   syncDefaults();
   if (window.AppShell?.switchTab) {
@@ -214,9 +234,22 @@ const runContinuation = async () => {
   }
 
   setBusy(true);
+  setAdvisory('');
   try {
     const handoff = await window.Continuation.buildHandoff(payload.messages, mode, note);
-    await window.Continuation.store(handoff, target, payload.platform);
+    if (handoff && typeof handoff === 'object' && handoff.ok === false) {
+      if (handoff.error === 'no_ai_available') {
+        throw new Error('No AI backend available for long continuation summary.');
+      }
+      throw new Error(handoff.error || 'Could not build continuation handoff.');
+    }
+    const handoffText = typeof handoff === 'string' ? handoff : String(handoff?.text || '').trim();
+    if (!handoffText) {
+      throw new Error('Could not build continuation handoff.');
+    }
+    if (typeof handoff === 'object' && handoff?.advisory) setAdvisory(handoff.advisory);
+
+    await window.Continuation.store(handoffText, target, payload.platform);
 
     const opened = await chrome.runtime.sendMessage({ action: 'openLlmTab', url: llmUrl }).catch(() => null);
     if (!opened?.ok) {

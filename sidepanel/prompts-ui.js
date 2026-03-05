@@ -18,6 +18,35 @@ let curatedExpanded = false;
 let hoverTooltipNode = null;
 let hoverTimer = null;
 let hoverAnchor = null;
+let templateFilterHome = null;
+let templateFilterHomeNext = null;
+const isCardMenuOpen = () => Boolean(document.querySelector('details.pn-card-menu[open]'));
+
+const getTemplateFilterBar = () => document.getElementById('pn-template-filters');
+
+const ensureTemplateFilterHome = () => {
+  const filterBar = getTemplateFilterBar();
+  if (!filterBar || templateFilterHome) return;
+  templateFilterHome = filterBar.parentElement;
+  templateFilterHomeNext = filterBar.nextElementSibling;
+};
+
+const restoreTemplateFilterHome = () => {
+  const filterBar = getTemplateFilterBar();
+  ensureTemplateFilterHome();
+  if (!filterBar || !templateFilterHome) return;
+  if (filterBar.parentElement === templateFilterHome) {
+    filterBar.classList.remove('pn-template-filters--in-divider');
+    return;
+  }
+
+  if (templateFilterHomeNext && templateFilterHomeNext.parentElement === templateFilterHome) {
+    templateFilterHome.insertBefore(filterBar, templateFilterHomeNext);
+  } else {
+    templateFilterHome.appendChild(filterBar);
+  }
+  filterBar.classList.remove('pn-template-filters--in-divider');
+};
 
 const getHoverDelay = () => {
   const raw = Number(state.settings?.hoverPreviewDelay);
@@ -79,6 +108,9 @@ const showHoverPreview = (anchor) => {
   if (!hoverPreviewEnabled()) {
     return;
   }
+  if (isCardMenuOpen()) {
+    return;
+  }
 
   const text = String(anchor?.dataset?.preview || '').trim();
   if (!text) {
@@ -98,6 +130,8 @@ const bindHoverPreview = (card) => {
   if (!(card instanceof HTMLElement)) return;
 
   card.addEventListener('mouseenter', () => {
+    if (card.classList.contains('pn-hover-preview-paused')) return;
+    if (isCardMenuOpen()) return;
     if (!hoverPreviewEnabled()) return;
     hoverAnchor = card;
     if (hoverTimer) clearTimeout(hoverTimer);
@@ -192,17 +226,90 @@ const filterPrompts = async (filter, prompts) => {
   return keywordResults;
 };
 
+const ensureCardMenuDismissHandlers = () => {
+  if (window.__PN_SIDEPANEL_CARD_MENU_BOUND) return;
+
+  document.addEventListener('click', (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    document.querySelectorAll('details.pn-card-menu[open]').forEach((menu) => {
+      if (!target || !menu.contains(target)) {
+        menu.open = false;
+      }
+    });
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    document.querySelectorAll('details.pn-card-menu[open]').forEach((menu) => {
+      menu.open = false;
+    });
+  });
+
+  window.__PN_SIDEPANEL_CARD_MENU_BOUND = true;
+};
+
+const createCardMenu = (items = [], ownerCard = null) => {
+  ensureCardMenuDismissHandlers();
+  const menu = document.createElement('details');
+  menu.className = 'pn-card-menu';
+
+  const summary = document.createElement('summary');
+  summary.className = 'pn-card-menu__trigger';
+  summary.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="6" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="12" cy="18" r="1.4"></circle></svg>More';
+  summary.title = 'Open additional actions';
+  menu.appendChild(summary);
+
+  const list = document.createElement('div');
+  list.className = 'pn-card-menu__list';
+
+  items.forEach((item) => {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'pn-card-menu__item';
+    if (item.tone === 'danger') row.classList.add('pn-card-menu__item--danger');
+    row.textContent = String(item.label || 'Action');
+    row.title = String(item.title || item.label || '').trim();
+    row.disabled = Boolean(item.disabled);
+    row.addEventListener('click', () => {
+      menu.open = false;
+      if (typeof item.onSelect === 'function') {
+        void item.onSelect();
+      }
+    });
+    list.appendChild(row);
+  });
+
+  menu.appendChild(list);
+
+  menu.addEventListener('toggle', () => {
+    if (menu.open) {
+      hideHoverPreview();
+      ownerCard?.classList.add('pn-hover-preview-paused');
+      return;
+    }
+    ownerCard?.classList.remove('pn-hover-preview-paused');
+  });
+
+  menu.addEventListener('pointerenter', () => {
+    hideHoverPreview();
+  });
+
+  return menu;
+};
+
 const buildInjectActions = async ({ actions, canInject, prompt, hasVars, doInject }) => {
   const useButton = document.createElement('button');
-  useButton.className = 'pn-btn pn-btn--ghost';
+  useButton.className = 'pn-btn pn-btn--primary';
   useButton.type = 'button';
-  useButton.innerHTML = hasVars
-    ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="pn-btn-icon" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M13 5l7 7-7 7"></path></svg>Use →'
-    : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="pn-btn-icon" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3a4 4 0 0 0 4-4V4a2 2 0 0 1 4 0v5h3.6a2 2 0 0 1 1.93 2.5l-2 7a2 2 0 0 1-1.93 1.5H8"></path></svg>Use Prompt';
+  useButton.innerHTML = '<svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" class=\"pn-btn-icon\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15 3h6v6\"></path><path d=\"M10 14L21 3\"></path><path d=\"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6\"></path></svg>Use →';
+  useButton.classList.add('pn-card-actions__primary');
+  useButton.title = hasVars
+    ? 'Inject as-is, remove optional placeholders, and keep required [brackets] visible in chat.'
+    : 'Inject this prompt into the active chat input.';
 
   if (!canInject) {
     useButton.disabled = true;
-    useButton.title = 'Open a supported LLM tab to inject.';
+    useButton.title = 'Open a supported LLM tab first, then inject.';
   } else {
     useButton.addEventListener('click', () => {
       void (async () => {
@@ -210,12 +317,35 @@ const buildInjectActions = async ({ actions, canInject, prompt, hasVars, doInjec
           await doInject(prompt.text, false);
           return;
         }
+        const rawText = window.TemplateParser?.fill
+          ? window.TemplateParser.fill(prompt.text, {})
+          : prompt.text;
+        await doInject(rawText, true);
+      })();
+    });
+  }
 
+  actions.appendChild(useButton);
+
+  if (!hasVars) {
+    return;
+  }
+
+  const fillButton = document.createElement('button');
+  fillButton.className = 'pn-btn pn-btn--ghost';
+  fillButton.type = 'button';
+  fillButton.innerHTML = 'Fill in';
+  fillButton.title = 'Open fill form before injecting.';
+
+  if (!canInject) {
+    fillButton.disabled = true;
+  } else {
+    fillButton.addEventListener('click', () => {
+      void (async () => {
         if (!window.TemplateFill?.showFillForm) {
           await doInject(prompt.text, false);
           return;
         }
-
         window.TemplateFill.showFillForm(
           { title: prompt.title, text: prompt.text },
           (filledText) => {
@@ -227,32 +357,7 @@ const buildInjectActions = async ({ actions, canInject, prompt, hasVars, doInjec
     });
   }
 
-  actions.appendChild(useButton);
-
-  if (!hasVars) {
-    return;
-  }
-
-  const asIsButton = document.createElement('button');
-  asIsButton.className = 'pn-btn pn-btn--ghost';
-  asIsButton.type = 'button';
-  asIsButton.textContent = 'Inject as-is';
-  asIsButton.title = 'Inject now and fill [brackets] directly in chat.';
-
-  if (!canInject) {
-    asIsButton.disabled = true;
-  } else {
-    asIsButton.addEventListener('click', () => {
-      void (async () => {
-        const asIs = window.TemplateParser?.fill
-          ? window.TemplateParser.fill(prompt.text, {})
-          : prompt.text;
-        await doInject(asIs, true);
-      })();
-    });
-  }
-
-  actions.appendChild(asIsButton);
+  actions.appendChild(fillButton);
 };
 
 const createPromptCard = async (rawPrompt, activeFilter, canInject, options = {}) => {
@@ -263,6 +368,9 @@ const createPromptCard = async (rawPrompt, activeFilter, canInject, options = {}
 
   const card = document.createElement('article');
   card.className = 'pn-prompt-card';
+  if (prompt?.id) {
+    card.dataset.promptId = String(prompt.id);
+  }
   card.dataset.preview = prompt.text;
   if (options.isCurated) {
     card.classList.add('pn-template-card');
@@ -276,10 +384,10 @@ const createPromptCard = async (rawPrompt, activeFilter, canInject, options = {}
   title.className = 'pn-card-title';
   title.textContent = prompt.title;
 
-  if (prompt.isTemplate) {
+  if (prompt.isTemplate && !hasTemplateVars) {
     const badge = document.createElement('span');
-    badge.className = 'pn-template-badge';
-    badge.textContent = 'TEMPLATE';
+    badge.className = 'pn-template-var-badge';
+    badge.textContent = 'Fill-in';
     title.appendChild(badge);
   }
 
@@ -294,6 +402,17 @@ const createPromptCard = async (rawPrompt, activeFilter, canInject, options = {}
   const text = document.createElement('p');
   text.className = 'pn-card-text';
   text.textContent = prompt.text;
+
+  const clarityScore = Number(prompt?.clarityScore);
+  const clarityExplanation = String(prompt?.clarityExplanation || '').trim();
+  const hasClarity = Number.isFinite(clarityScore) && clarityScore >= 0 && clarityScore <= 100;
+
+  let clarity = null;
+  if (hasClarity) {
+    clarity = document.createElement('p');
+    clarity.className = 'pn-card-clarity';
+    clarity.textContent = `Clarity ${Math.round(clarityScore)}/100${clarityExplanation ? ` • ${clarityExplanation}` : ''}`;
+  }
 
   const tagsWrap = document.createElement('div');
   tagsWrap.className = 'pn-tag-wrap';
@@ -315,7 +434,7 @@ const createPromptCard = async (rawPrompt, activeFilter, canInject, options = {}
   const actions = document.createElement('div');
   actions.className = 'pn-card-actions';
 
-  const doInject = async (textToInject, asIsMode) => {
+  const doInject = async (textToInject, injectedAsIs = false) => {
     const response = await sendToActiveTab({ action: 'injectPrompt', text: textToInject });
 
     if (!response?.ok) {
@@ -323,7 +442,7 @@ const createPromptCard = async (rawPrompt, activeFilter, canInject, options = {}
       return;
     }
 
-    if (asIsMode) {
+    if (injectedAsIs) {
       await showToast('Injected — fill in the [brackets] in the chat');
       return;
     }
@@ -339,13 +458,12 @@ const createPromptCard = async (rawPrompt, activeFilter, canInject, options = {}
     doInject
   });
 
-  if (prompt.isTemplate) {
-    const saveButton = document.createElement('button');
-    saveButton.className = 'pn-btn pn-btn-primary';
-    saveButton.type = 'button';
-    saveButton.textContent = 'Save to My Prompts';
-    saveButton.addEventListener('click', () => {
-      void (async () => {
+  if (options.isCurated) {
+    const overflow = createCardMenu([
+      {
+        label: 'Save to Library',
+        title: 'Save this template to your personal prompt library.',
+        onSelect: async () => {
         const saved = await window.Store.savePrompt({
           title: prompt.title,
           text: prompt.text,
@@ -357,56 +475,48 @@ const createPromptCard = async (rawPrompt, activeFilter, canInject, options = {}
         } else {
           await showToast('Template save failed.');
         }
-      })();
-    });
-    actions.appendChild(saveButton);
+        }
+      }
+    ], card);
+    actions.appendChild(overflow);
   } else {
-    const improveButton = document.createElement('button');
-    improveButton.className = 'pn-btn pn-btn--ghost';
-    improveButton.type = 'button';
-    improveButton.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="pn-btn-icon pn-btn-icon--accent" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v19"></path><path d="M5 10l7-7 7 7"></path></svg>Improve';
-    improveButton.title = 'Improve prompt with AI';
-    if (state.settings?.polishWithGemini === false) {
-      improveButton.disabled = true;
-      improveButton.title = 'Enable Polish button in Settings.';
-    }
-    improveButton.addEventListener('click', () => {
-      if (state.settings?.polishWithGemini === false) {
-        void showToast('Enable \"Polish button\" in Settings to use this.');
-        return;
+    const overflow = createCardMenu([
+      {
+        label: 'Improve Prompt',
+        title: state.settings?.polishWithGemini === false
+          ? 'Enable Polish button in Settings to use this.'
+          : 'Open AI improve mode for this prompt.',
+        disabled: state.settings?.polishWithGemini === false,
+        onSelect: async () => {
+          if (typeof callbacks.onOpenImprove === 'function') {
+            await callbacks.onOpenImprove(prompt.id, prompt.text, prompt.tags || []);
+          }
+        }
+      },
+      {
+        label: 'Delete Prompt',
+        title: 'Delete this prompt from your library.',
+        tone: 'danger',
+        onSelect: async () => {
+          const deleted = await window.Store.deletePrompt(prompt.id);
+
+          if (!deleted) {
+            await showToast('Delete failed.');
+            return;
+          }
+
+          if (state.aiReady) {
+            void window.AIBridge.cacheRemove(prompt.id);
+          }
+
+          await render(activeFilter);
+          if (typeof callbacks.onPromptsMutated === 'function') {
+            await callbacks.onPromptsMutated(activeFilter);
+          }
+        }
       }
-      if (typeof callbacks.onOpenImprove === 'function') {
-        void callbacks.onOpenImprove(prompt.id, prompt.text, prompt.tags || []);
-      }
-    });
-
-    const deleteButton = document.createElement('button');
-    deleteButton.className = 'pn-btn pn-btn-danger';
-    deleteButton.type = 'button';
-    deleteButton.textContent = 'Remove';
-
-    deleteButton.addEventListener('click', () => {
-      void (async () => {
-        const deleted = await window.Store.deletePrompt(prompt.id);
-
-        if (!deleted) {
-          showToast('Delete failed.');
-          return;
-        }
-
-        if (state.aiReady) {
-          void window.AIBridge.cacheRemove(prompt.id);
-        }
-
-        await render(activeFilter);
-        if (typeof callbacks.onPromptsMutated === 'function') {
-          await callbacks.onPromptsMutated(activeFilter);
-        }
-      })();
-    });
-
-    actions.appendChild(improveButton);
-    actions.appendChild(deleteButton);
+    ], card);
+    actions.appendChild(overflow);
   }
 
   if (typeof prompt._semanticScore === 'number') {
@@ -426,6 +536,7 @@ const createPromptCard = async (rawPrompt, activeFilter, canInject, options = {}
 
   card.appendChild(title);
   card.appendChild(text);
+  if (clarity) card.appendChild(clarity);
   card.appendChild(tagsWrap);
   card.appendChild(actions);
   bindHoverPreview(card);
@@ -433,7 +544,7 @@ const createPromptCard = async (rawPrompt, activeFilter, canInject, options = {}
 };
 
 const updateTemplateFilterVisibility = (show) => {
-  const filterBar = document.getElementById('pn-template-filters');
+  const filterBar = getTemplateFilterBar();
   if (!filterBar) return;
   filterBar.classList.toggle('pn-hidden', !show);
 };
@@ -442,7 +553,10 @@ const setActiveFilter = (filter) => {
   const targetFilter = String(filter || TEMPLATE_FILTER_DEFAULT).trim() || TEMPLATE_FILTER_DEFAULT;
   activeTemplateFilter = targetFilter;
 
-  document.querySelectorAll('.pn-filter-chip').forEach((chip) => {
+  const filterBar = getTemplateFilterBar();
+  if (!filterBar) return;
+
+  filterBar.querySelectorAll('.pn-filter-chip').forEach((chip) => {
     const active = chip.dataset.filter === targetFilter;
     chip.classList.toggle('active', active);
     chip.setAttribute('aria-selected', active ? 'true' : 'false');
@@ -453,7 +567,7 @@ const setActiveFilter = (filter) => {
 
   cards.forEach((card) => {
     const match = targetFilter === TEMPLATE_FILTER_DEFAULT || card.dataset.templateCategory === targetFilter;
-    card.style.display = match ? '' : 'none';
+    card.classList.toggle('pn-hidden', !match);
     if (match) visibleCount += 1;
   });
 
@@ -474,7 +588,7 @@ const bindTemplateFilters = () => {
   if (templateFiltersBound) return;
   templateFiltersBound = true;
 
-  const filterBar = document.getElementById('pn-template-filters');
+  const filterBar = getTemplateFilterBar();
   if (!filterBar) return;
 
   filterBar.addEventListener('click', (event) => {
@@ -501,6 +615,7 @@ const render = async (filter = '') => {
   }
 
   bindTemplateFilters();
+  restoreTemplateFilterHome();
 
   const promptsRaw = await window.Store.getPrompts();
   const prompts = promptsRaw.map((prompt) => ({
@@ -525,11 +640,11 @@ const render = async (filter = '') => {
 
   if (!hasUserPrompts) {
     container.appendChild(createEmptyState({
-      title: 'No Prompts Available',
+      title: 'No prompts yet',
       message: templates.length
         ? 'Your prompt library is empty. Add your own prompts or start from curated templates.'
         : 'Start your library by creating your first prompt.',
-      actionLabel: 'Add Prompt',
+      actionLabel: 'Add your first prompt',
       onAction: () => {
         if (window.PromptForm?.open) {
           void window.PromptForm.open();
@@ -602,6 +717,13 @@ const render = async (filter = '') => {
     });
 
     divider.appendChild(header);
+
+    const filterBar = getTemplateFilterBar();
+    if (filterBar) {
+      divider.appendChild(filterBar);
+      filterBar.classList.add('pn-template-filters--in-divider');
+    }
+
     divider.appendChild(tempsContainer);
 
     for (const tpl of templates) {

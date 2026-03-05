@@ -12,13 +12,83 @@ const callbacks = {
   onLoadSmartSuggestions: null
 };
 
-const KNOWN_PLATFORMS = [
-  { key: 'chatgpt', label: 'ChatGPT' },
-  { key: 'claude', label: 'Claude' },
-  { key: 'gemini', label: 'Gemini' },
-  { key: 'perplexity', label: 'Perplexity' },
-  { key: 'copilot', label: 'Copilot' }
-];
+const PLATFORM_ORDER = Object.freeze([
+  'chatgpt',
+  'claude',
+  'gemini',
+  'perplexity',
+  'copilot',
+  'deepseek',
+  'qwen',
+  'mistral',
+  'kimi',
+  'moonshot',
+  'grok',
+  'huggingchat',
+  'poe',
+  'you',
+  'phind',
+  'characterai',
+  'pi',
+  'metaai',
+  'amazonq',
+  'ernie',
+  'doubao',
+  'yichat',
+  'coherecoral',
+  'groq',
+  'fireworks',
+  'together'
+]);
+
+const DEFAULT_PLATFORM_LABELS = Object.freeze({
+  chatgpt: 'ChatGPT',
+  claude: 'Claude',
+  gemini: 'Gemini',
+  perplexity: 'Perplexity',
+  copilot: 'Copilot',
+  deepseek: 'DeepSeek',
+  qwen: 'Qwen (Tongyi)',
+  mistral: 'Mistral Chat',
+  kimi: 'Kimi',
+  moonshot: 'Moonshot',
+  grok: 'Grok',
+  huggingchat: 'HuggingChat',
+  poe: 'Poe',
+  you: 'You.com Chat',
+  phind: 'Phind',
+  characterai: 'Character.AI',
+  pi: 'Pi',
+  metaai: 'Meta AI',
+  amazonq: 'Amazon Q',
+  ernie: 'ERNIE Bot',
+  doubao: 'Doubao',
+  yichat: 'Yi Chat',
+  coherecoral: 'Cohere Coral',
+  groq: 'Groq Chat',
+  fireworks: 'Fireworks AI Chat',
+  together: 'Together.ai Playground'
+});
+
+const LOCAL_MODEL_META = Object.freeze({
+  smollm2_1_7b: { label: 'SmolLM2-1.7B', sizeLabel: '400MB' },
+  phi35_mini: { label: 'Phi-3.5-mini', sizeLabel: '1.5GB' },
+  qwen3_0_6b: { label: 'Qwen3-0.6B', sizeLabel: '300MB' }
+});
+
+const DEFAULT_LOCAL_FEATURE_FLAGS = Object.freeze({
+  polish: true,
+  autoTags: true,
+  improvePrompt: true,
+  continueSummary: true,
+  smartExportTitle: false
+});
+
+const localModelStatuses = {
+  smollm2_1_7b: { status: 'not_downloaded', progress: 0, backend: 'webgpu', error: '', cpuMode: false },
+  phi35_mini: { status: 'not_downloaded', progress: 0, backend: 'webgpu', error: '', cpuMode: false },
+  qwen3_0_6b: { status: 'not_downloaded', progress: 0, backend: 'webgpu', error: '', cpuMode: false }
+};
 
 let aiStatusHandler = null;
 let autoSaveTimer = null;
@@ -49,6 +119,38 @@ const normalizeDefaultExportFormat = (value) => {
 
 const cloneObject = (value) => JSON.parse(JSON.stringify(value));
 
+const normalizePlatformKey = (value) => String(value || '')
+  .trim()
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, '');
+
+const getKnownPlatforms = (settingsInput = state.settings) => {
+  const settings = normalizeSettings(settingsInput);
+  const keySet = new Set([
+    ...PLATFORM_ORDER,
+    ...Object.keys(settings.enabledPlatforms || {}),
+    ...Object.keys(settings.platformLabels || {})
+  ]);
+
+  const keys = Array.from(keySet)
+    .map((key) => normalizePlatformKey(key))
+    .filter(Boolean);
+
+  const sortedKeys = keys.sort((left, right) => {
+    const leftIndex = PLATFORM_ORDER.indexOf(left);
+    const rightIndex = PLATFORM_ORDER.indexOf(right);
+    const leftRank = leftIndex === -1 ? Number.MAX_SAFE_INTEGER : leftIndex;
+    const rightRank = rightIndex === -1 ? Number.MAX_SAFE_INTEGER : rightIndex;
+    if (leftRank !== rightRank) return leftRank - rightRank;
+    return left.localeCompare(right);
+  });
+
+  return sortedKeys.map((key) => ({
+    key,
+    label: String(settings.platformLabels?.[key] || DEFAULT_PLATFORM_LABELS[key] || key).trim() || key
+  }));
+};
+
 const normalizeCustomPlatforms = (value) => {
   if (!Array.isArray(value)) return [];
   return value
@@ -69,6 +171,9 @@ const normalizeSettings = (raw) => {
   const enabledPlatforms = source.enabledPlatforms && typeof source.enabledPlatforms === 'object'
     ? source.enabledPlatforms
     : DEFAULT_SETTINGS.enabledPlatforms;
+  const platformLabels = source.platformLabels && typeof source.platformLabels === 'object'
+    ? source.platformLabels
+    : DEFAULT_SETTINGS.platformLabels;
   const fabActions = source.fabActions && typeof source.fabActions === 'object'
     ? source.fabActions
     : DEFAULT_SETTINGS.fabActions;
@@ -76,19 +181,64 @@ const normalizeSettings = (raw) => {
     ? source.visibleTabs
     : DEFAULT_SETTINGS.visibleTabs;
 
+  const platformKeys = new Set([
+    ...PLATFORM_ORDER,
+    ...Object.keys(enabledPlatforms || {}),
+    ...Object.keys(platformLabels || {}),
+    ...Object.keys(DEFAULT_PLATFORM_LABELS),
+    ...Object.keys(DEFAULT_SETTINGS.enabledPlatforms || {})
+  ]);
+
+  const normalizedEnabledPlatforms = {};
+  const normalizedPlatformLabels = {};
+  platformKeys.forEach((key) => {
+    const safeKey = String(key || '').trim().toLowerCase();
+    if (!safeKey) return;
+
+    normalizedEnabledPlatforms[safeKey] = enabledPlatforms?.[safeKey] !== false;
+    const fallbackLabel = DEFAULT_PLATFORM_LABELS[safeKey] || safeKey;
+    const rawLabel = String(platformLabels?.[safeKey] || '').trim();
+    normalizedPlatformLabels[safeKey] = rawLabel || fallbackLabel;
+  });
+
+  const preferLocal = typeof source.preferLocal === 'boolean'
+    ? source.preferLocal
+    : String(source.aiBackend || 'gemini').toLowerCase() === 'local';
+  const useLocalFallback = typeof source.useLocalFallback === 'boolean'
+    ? source.useLocalFallback
+    : source.aiAutoFallback !== false;
+  const localModelIdRaw = String(source.localModelId || 'smollm2_1_7b').trim().toLowerCase();
+  const localModelId = Object.prototype.hasOwnProperty.call(LOCAL_MODEL_META, localModelIdRaw)
+    ? localModelIdRaw
+    : 'smollm2_1_7b';
+  const localFeatureFlagsSource = source.localFeatureFlags && typeof source.localFeatureFlags === 'object'
+    ? source.localFeatureFlags
+    : {};
+  const localFeatureFlags = {
+    polish: localFeatureFlagsSource.polish !== false,
+    autoTags: localFeatureFlagsSource.autoTags !== false,
+    improvePrompt: localFeatureFlagsSource.improvePrompt !== false,
+    continueSummary: localFeatureFlagsSource.continueSummary !== false,
+    smartExportTitle: localFeatureFlagsSource.smartExportTitle === true
+  };
+
   return {
     enableAI: Boolean(source.enableAI),
+    preferLocal,
+    useLocalFallback,
+    localModelId,
+    legacyAutoRewriteOnSave: typeof source.legacyAutoRewriteOnSave === 'boolean' ? source.legacyAutoRewriteOnSave : false,
+    settingsMigratedV2: source.settingsMigratedV2 === true,
+    localFeatureFlags,
+    geminiPrimary: typeof source.geminiPrimary === 'boolean' ? source.geminiPrimary : !preferLocal,
+    aiBackend: preferLocal ? 'local' : 'gemini',
+    aiAutoFallback: useLocalFallback,
     semanticSearch: Boolean(source.semanticSearch),
     autoSuggestTags: Boolean(source.autoSuggestTags),
     duplicateCheck: Boolean(source.duplicateCheck),
     polishWithGemini: source.polishWithGemini !== false,
-    enabledPlatforms: {
-      chatgpt: enabledPlatforms.chatgpt !== false,
-      claude: enabledPlatforms.claude !== false,
-      gemini: enabledPlatforms.gemini !== false,
-      perplexity: enabledPlatforms.perplexity !== false,
-      copilot: enabledPlatforms.copilot !== false
-    },
+    enabledPlatforms: normalizedEnabledPlatforms,
+    platformLabels: normalizedPlatformLabels,
     customPlatforms: normalizeCustomPlatforms(source.customPlatforms),
     fabPosition: source.fabPosition === 'left' ? 'left' : 'right',
     fabStyle: ['circle', 'pill', 'icon-only'].includes(String(source.fabStyle || '')) ? source.fabStyle : 'circle',
@@ -122,6 +272,50 @@ const normalizeSettings = (raw) => {
   };
 };
 
+const migrateSettingsV2 = (rawSettings, { hasExistingSettings = false } = {}) => {
+  const source = rawSettings && typeof rawSettings === 'object' ? rawSettings : {};
+  if (source.settingsMigratedV2 === true) {
+    return normalizeSettings(source);
+  }
+
+  const legacyBackend = String(source.aiBackend || 'gemini').trim().toLowerCase();
+  const preferLocal = typeof source.preferLocal === 'boolean'
+    ? source.preferLocal
+    : legacyBackend === 'local';
+  const useLocalFallback = typeof source.useLocalFallback === 'boolean'
+    ? source.useLocalFallback
+    : source.aiAutoFallback !== false;
+  const localModelId = Object.prototype.hasOwnProperty.call(LOCAL_MODEL_META, String(source.localModelId || '').toLowerCase())
+    ? String(source.localModelId).toLowerCase()
+    : 'smollm2_1_7b';
+  const existingFlags = source.localFeatureFlags && typeof source.localFeatureFlags === 'object'
+    ? source.localFeatureFlags
+    : {};
+
+  const localFeatureFlags = {
+    polish: existingFlags.polish !== false,
+    autoTags: existingFlags.autoTags !== false,
+    improvePrompt: existingFlags.improvePrompt !== false,
+    continueSummary: existingFlags.continueSummary !== false,
+    smartExportTitle: existingFlags.smartExportTitle === true
+  };
+
+  const migrated = {
+    ...source,
+    preferLocal,
+    useLocalFallback,
+    localModelId,
+    geminiPrimary: !preferLocal,
+    localFeatureFlags,
+    legacyAutoRewriteOnSave: typeof source.legacyAutoRewriteOnSave === 'boolean'
+      ? source.legacyAutoRewriteOnSave
+      : Boolean(hasExistingSettings),
+    settingsMigratedV2: true
+  };
+
+  return normalizeSettings(migrated);
+};
+
 const load = async () => {
   try {
     const snapshot = await chrome.storage.local.get([KEYS.SETTINGS_KEY, 'userContext']);
@@ -129,9 +323,20 @@ const load = async () => {
     const merged = { ...cloneObject(DEFAULT_SETTINGS), ...(saved || {}) };
     const legacyContext = String(snapshot?.userContext || '').trim();
     if (!merged.userContext && legacyContext) merged.userContext = legacyContext;
-    state.settings = normalizeSettings(merged);
+    const hasExistingSettings = Boolean(saved && Object.keys(saved).length > 0);
+    state.settings = migrateSettingsV2(merged, { hasExistingSettings });
+    if (!saved?.settingsMigratedV2) {
+      await chrome.storage.local.set({
+        [KEYS.SETTINGS_KEY]: state.settings,
+        userContext: String(state.settings.userContext || '').trim()
+      });
+    }
   } catch (_error) {
-    state.settings = normalizeSettings(DEFAULT_SETTINGS);
+    state.settings = normalizeSettings({
+      ...DEFAULT_SETTINGS,
+      settingsMigratedV2: true,
+      legacyAutoRewriteOnSave: false
+    });
   }
 };
 
@@ -144,10 +349,30 @@ const save = async () => {
 
 const getControls = () => ({
   enableAI: byId('setting-enable-ai'),
+  aiBackend: byId('setting-ai-backend'),
+  aiAutoFallback: byId('setting-ai-auto-fallback'),
+  geminiPrimary: byId('setting-gemini-primary'),
   semanticSearch: byId('setting-semantic-search'),
   autoSuggestTags: byId('setting-auto-suggest'),
   duplicateCheck: byId('setting-duplicate-check'),
   polishWithGemini: byId('setting-polish-toggle'),
+  localModelSmollm2: byId('setting-local-model-smollm2'),
+  localModelPhi35: byId('setting-local-model-phi35'),
+  localModelQwen3: byId('setting-local-model-qwen3'),
+  localFallback: byId('setting-local-fallback'),
+  preferLocal: byId('setting-prefer-local'),
+  localPreferNote: byId('pn-local-prefer-note'),
+  localFeaturePolish: byId('setting-local-feature-polish'),
+  localFeatureAutoTags: byId('setting-local-feature-autotags'),
+  localFeatureImprove: byId('setting-local-feature-improve'),
+  localFeatureContinue: byId('setting-local-feature-continue'),
+  localFeatureSmartExport: byId('setting-local-feature-smart-export'),
+  modelStatusSmollm2: byId('pn-model-status-smollm2_1_7b'),
+  modelStatusPhi35: byId('pn-model-status-phi35_mini'),
+  modelStatusQwen3: byId('pn-model-status-qwen3_0_6b'),
+  localModelActionBtn: byId('pn-local-model-action-btn'),
+  localModelActionMeta: byId('pn-local-model-action-meta'),
+  geminiPrimaryNote: byId('pn-gemini-primary-note'),
   defaultExportFormat: byId('setting-export-format'),
   defaultIncludeDate: byId('setting-export-date'),
   defaultIncludePlatform: byId('setting-export-platform'),
@@ -176,7 +401,14 @@ const getControls = () => ({
 
   platformWarning: byId('pn-platform-warning'),
   platformList: byId('pn-platform-list'),
-  customPlatforms: byId('pn-custom-platforms')
+  customPlatforms: byId('pn-custom-platforms'),
+  platformLabelKey: byId('setting-platform-label-key'),
+  platformLabelValue: byId('setting-platform-label-value'),
+  platformLabelError: byId('pn-platform-label-error'),
+  localModelProgressWrap: byId('pn-local-model-progress-wrap'),
+  localModelProgress: byId('pn-local-model-progress'),
+  localModelProgressText: byId('pn-local-model-progress-text'),
+  aiRoutingNote: byId('pn-ai-routing-note')
 });
 
 const setSettingsStatus = (message, tone = '') => {
@@ -220,14 +452,28 @@ const renderPlatformRows = () => {
   if (!controls.platformList) return;
 
   controls.platformList.innerHTML = '';
-  const enabled = state.settings.enabledPlatforms || {};
+  const normalizedSettings = normalizeSettings(state.settings);
+  const enabled = normalizedSettings.enabledPlatforms || {};
+  const knownPlatforms = getKnownPlatforms(normalizedSettings);
 
-  KNOWN_PLATFORMS.forEach((platform) => {
+  knownPlatforms.forEach((platform) => {
     const row = document.createElement('div');
-    row.className = 'pn-sv-row';
+    row.className = 'pn-platform-row';
     row.innerHTML = `
-      <div class="pn-sv-row__copy">
-        <span class="pn-sv-row__label">${platform.label}</span>
+      <div class="pn-platform-row__meta">
+        <div class="pn-platform-row__head">
+          <span class="pn-platform-key">${platform.key}</span>
+        </div>
+        <label class="pn-platform-label-wrap">
+          <span class="pn-platform-label-caption">Display label</span>
+          <input
+            type="text"
+            class="pn-platform-label-input"
+            data-platform-label="${platform.key}"
+            value="${escapeHtml(platform.label)}"
+            placeholder="Label"
+          />
+        </label>
       </div>
       <label class="pn-toggle pn-toggle--sm">
         <input type="checkbox" data-platform-toggle="${platform.key}" ${enabled[platform.key] !== false ? 'checked' : ''} />
@@ -269,30 +515,59 @@ const renderCustomPlatforms = () => {
   }
 };
 
-const renderSettingsTab = (tab) => {
-  const normalized = String(tab || 'ai');
-  document.querySelectorAll('.pn-settings-tab').forEach((node) => {
-    const active = node.dataset.settingsTab === normalized;
-    node.classList.toggle('active', active);
-    node.setAttribute('aria-selected', active ? 'true' : 'false');
-  });
+const renderSettingsTab = (targetId, titleText) => {
+  const isRoot = !targetId;
+  const rootMenu = byId('pn-settings-root-menu');
+  const hero = byId('pn-settings-main-hero');
+  const wrapper = byId('pn-settings-panes-wrapper');
+  const titleEl = byId('pn-settings-pane-title');
+
+  if (isRoot) {
+    rootMenu?.classList.remove('pn-hidden');
+    hero?.classList.remove('pn-hidden');
+    wrapper?.classList.add('pn-hidden');
+    return;
+  }
+
+  rootMenu?.classList.add('pn-hidden');
+  hero?.classList.add('pn-hidden');
+  wrapper?.classList.remove('pn-hidden');
+
+  if (titleEl && titleText) {
+    titleEl.textContent = titleText;
+  }
 
   document.querySelectorAll('.pn-settings-pane').forEach((pane) => {
-    pane.classList.toggle('pn-hidden', pane.dataset.settingsPane !== normalized);
+    pane.classList.toggle('pn-hidden', pane.dataset.settingsPane !== targetId);
   });
 };
 
 const renderControls = (settingsInput = state.settings) => {
-  const activeSettingsTab = document.querySelector('.pn-settings-tab.active')?.dataset?.settingsTab || 'ai';
+  const wrapperVisible = !byId('pn-settings-panes-wrapper')?.classList.contains('pn-hidden');
+  const activePane = document.querySelector('.pn-settings-pane:not(.pn-hidden)')?.dataset?.settingsPane || '';
+  const currentTarget = wrapperVisible ? activePane : '';
   state.settings = normalizeSettings(settingsInput);
   const controls = getControls();
   const s = state.settings;
 
   if (controls.enableAI) controls.enableAI.checked = s.enableAI;
+  if (controls.aiBackend) controls.aiBackend.value = s.preferLocal ? 'local' : 'gemini';
+  if (controls.aiAutoFallback) controls.aiAutoFallback.checked = s.useLocalFallback;
+  if (controls.geminiPrimary) controls.geminiPrimary.checked = s.geminiPrimary !== false;
   if (controls.semanticSearch) controls.semanticSearch.checked = s.semanticSearch;
   if (controls.autoSuggestTags) controls.autoSuggestTags.checked = s.autoSuggestTags;
   if (controls.duplicateCheck) controls.duplicateCheck.checked = s.duplicateCheck;
   if (controls.polishWithGemini) controls.polishWithGemini.checked = s.polishWithGemini;
+  if (controls.localModelSmollm2) controls.localModelSmollm2.checked = s.localModelId === 'smollm2_1_7b';
+  if (controls.localModelPhi35) controls.localModelPhi35.checked = s.localModelId === 'phi35_mini';
+  if (controls.localModelQwen3) controls.localModelQwen3.checked = s.localModelId === 'qwen3_0_6b';
+  if (controls.localFallback) controls.localFallback.checked = s.useLocalFallback;
+  if (controls.preferLocal) controls.preferLocal.checked = s.preferLocal;
+  if (controls.localFeaturePolish) controls.localFeaturePolish.checked = s.localFeatureFlags?.polish !== false;
+  if (controls.localFeatureAutoTags) controls.localFeatureAutoTags.checked = s.localFeatureFlags?.autoTags !== false;
+  if (controls.localFeatureImprove) controls.localFeatureImprove.checked = s.localFeatureFlags?.improvePrompt !== false;
+  if (controls.localFeatureContinue) controls.localFeatureContinue.checked = s.localFeatureFlags?.continueSummary !== false;
+  if (controls.localFeatureSmartExport) controls.localFeatureSmartExport.checked = s.localFeatureFlags?.smartExportTitle === true;
   if (controls.defaultExportFormat) controls.defaultExportFormat.value = s.defaultExportFormat;
   if (controls.defaultIncludeDate) controls.defaultIncludeDate.checked = s.defaultIncludeDate;
   if (controls.defaultIncludePlatform) controls.defaultIncludePlatform.checked = s.defaultIncludePlatform;
@@ -323,8 +598,20 @@ const renderControls = (settingsInput = state.settings) => {
 
   renderPlatformRows();
   renderCustomPlatforms();
-  renderSettingsTab(activeSettingsTab);
+  renderSettingsTab(currentTarget);
   applyInterfaceSettings(s);
+  renderLocalModelStatus();
+  updateLocalModelProgressUI();
+  void refreshAiRoutingNote();
+
+  if (window.PLATFORM_LABELS && s.platformLabels) {
+    Object.entries(s.platformLabels).forEach(([key, label]) => {
+      const safeKey = normalizePlatformKey(key);
+      const safeLabel = String(label || '').trim();
+      if (!safeKey || !safeLabel) return;
+      window.PLATFORM_LABELS[safeKey] = safeLabel;
+    });
+  }
 
   const versionLabel = byId('pn-version-label');
   if (versionLabel) {
@@ -332,13 +619,67 @@ const renderControls = (settingsInput = state.settings) => {
   }
 };
 
+const readPlatformSettingsFromControls = (baselineSettings) => {
+  const enabledPlatforms = { ...(baselineSettings.enabledPlatforms || {}) };
+  const platformLabels = { ...(baselineSettings.platformLabels || {}) };
+
+  const platformToggles = Array.from(document.querySelectorAll('[data-platform-toggle]'));
+  platformToggles.forEach((input) => {
+    if (!(input instanceof HTMLInputElement)) return;
+    const platformKey = normalizePlatformKey(input.dataset.platformToggle || '');
+    if (!platformKey) return;
+    enabledPlatforms[platformKey] = Boolean(input.checked);
+  });
+
+  const platformLabelInputs = Array.from(document.querySelectorAll('[data-platform-label]'));
+  platformLabelInputs.forEach((input) => {
+    if (!(input instanceof HTMLInputElement)) return;
+    const platformKey = normalizePlatformKey(input.dataset.platformLabel || '');
+    if (!platformKey) return;
+    const fallbackLabel = DEFAULT_PLATFORM_LABELS[platformKey] || platformKey;
+    const label = String(input.value || '').trim() || fallbackLabel;
+    platformLabels[platformKey] = label;
+  });
+
+  return { enabledPlatforms, platformLabels };
+};
+
+const setPlatformLabelError = (message = '') => {
+  const controls = getControls();
+  if (!controls.platformLabelError) return;
+  controls.platformLabelError.textContent = String(message || '').trim();
+  controls.platformLabelError.classList.toggle('pn-hidden', !controls.platformLabelError.textContent);
+};
+
 const readControlsSnapshot = () => {
   const controls = getControls();
   const current = normalizeSettings(state.settings);
+  const selectedModelId = controls.localModelPhi35?.checked
+    ? 'phi35_mini'
+    : controls.localModelQwen3?.checked
+      ? 'qwen3_0_6b'
+      : 'smollm2_1_7b';
+  const geminiPrimary = controls.geminiPrimary?.checked !== false;
+  const preferLocal = controls.preferLocal?.checked === true
+    || !geminiPrimary
+    || String(controls.aiBackend?.value || '').toLowerCase() === 'local';
 
   const next = normalizeSettings({
     ...current,
     enableAI: controls.enableAI?.checked,
+    geminiPrimary,
+    preferLocal,
+    useLocalFallback: controls.localFallback?.checked,
+    aiBackend: preferLocal ? 'local' : 'gemini',
+    aiAutoFallback: controls.localFallback?.checked,
+    localModelId: selectedModelId,
+    localFeatureFlags: {
+      polish: controls.localFeaturePolish?.checked,
+      autoTags: controls.localFeatureAutoTags?.checked,
+      improvePrompt: controls.localFeatureImprove?.checked,
+      continueSummary: controls.localFeatureContinue?.checked,
+      smartExportTitle: controls.localFeatureSmartExport?.checked
+    },
     semanticSearch: controls.semanticSearch?.checked,
     autoSuggestTags: controls.autoSuggestTags?.checked,
     duplicateCheck: controls.duplicateCheck?.checked,
@@ -372,16 +713,9 @@ const readControlsSnapshot = () => {
     customPlatforms: current.customPlatforms
   });
 
-  const platformToggles = Array.from(document.querySelectorAll('[data-platform-toggle]'));
-  if (platformToggles.length) {
-    const enabled = { ...next.enabledPlatforms };
-    platformToggles.forEach((input) => {
-      const platform = String(input.dataset.platformToggle || '');
-      if (!platform) return;
-      enabled[platform] = Boolean(input.checked);
-    });
-    next.enabledPlatforms = enabled;
-  }
+  const platformSettings = readPlatformSettingsFromControls(next);
+  next.enabledPlatforms = platformSettings.enabledPlatforms;
+  next.platformLabels = platformSettings.platformLabels;
 
   if (!Object.values(next.visibleTabs).some(Boolean)) {
     next.visibleTabs.prompts = true;
@@ -419,16 +753,9 @@ const readNonAiSnapshot = () => {
     customPlatforms: current.customPlatforms
   });
 
-  const platformToggles = Array.from(document.querySelectorAll('[data-platform-toggle]'));
-  if (platformToggles.length) {
-    const enabled = { ...next.enabledPlatforms };
-    platformToggles.forEach((input) => {
-      const platform = String(input.dataset.platformToggle || '');
-      if (!platform) return;
-      enabled[platform] = Boolean(input.checked);
-    });
-    next.enabledPlatforms = enabled;
-  }
+  const platformSettings = readPlatformSettingsFromControls(next);
+  next.enabledPlatforms = platformSettings.enabledPlatforms;
+  next.platformLabels = platformSettings.platformLabels;
 
   if (!Object.values(next.visibleTabs).some(Boolean)) {
     next.visibleTabs.prompts = true;
@@ -443,6 +770,7 @@ const setAiDisabledBadge = async () => {
   const statusNode = byId('ai-status');
   const progressTrack = byId('ai-progress-track');
   const progressText = byId('ai-progress-text');
+  const controls = getControls();
 
   if (statusNode) {
     statusNode.classList.remove('pn-ai-status--loading', 'pn-ai-status--ready');
@@ -454,8 +782,184 @@ const setAiDisabledBadge = async () => {
   if (progressTrack instanceof HTMLProgressElement) progressTrack.value = 0;
   if (progressText) progressText.textContent = 'Disabled';
 
+  if (controls.localModelProgressWrap) {
+    controls.localModelProgressWrap.classList.add('pn-hidden');
+  }
+  if (controls.localModelProgress instanceof HTMLProgressElement) {
+    controls.localModelProgress.value = 0;
+  }
+  if (controls.localModelProgressText) {
+    controls.localModelProgressText.textContent = 'Local model inactive.';
+  }
+  void refreshAiRoutingNote();
+
   const modelPill = byId('pn-model-pill');
   if (modelPill) modelPill.classList.remove('pn-sv-model-pill--ready');
+};
+
+const updateLocalModelProgressUI = (payload = {}, backendOverride = '') => {
+  const controls = getControls();
+  const selectedBackend = String(backendOverride || state.settings?.aiBackend || 'gemini').toLowerCase();
+  const isLocalMode = selectedBackend === 'local';
+
+  if (controls.localModelProgressWrap) {
+    controls.localModelProgressWrap.classList.toggle('pn-hidden', !isLocalMode);
+  }
+  if (!isLocalMode) {
+    return;
+  }
+
+  const status = String(payload.status || '').trim().toLowerCase();
+  const progressRaw = Number(payload.progress);
+  const progress = Number.isFinite(progressRaw) ? Math.max(0, Math.min(100, Math.round(progressRaw))) : null;
+  const error = String(payload.error || '').trim();
+
+  if (controls.localModelProgress instanceof HTMLProgressElement && Number.isFinite(progress)) {
+    controls.localModelProgress.value = progress;
+  }
+
+  if (!controls.localModelProgressText) {
+    return;
+  }
+
+  if (status === 'loading') {
+    const label = Number.isFinite(progress) ? `Downloading model... ${progress}%` : 'Preparing local model...';
+    controls.localModelProgressText.textContent = label;
+    return;
+  }
+
+  if (status === 'ready') {
+    const backendEngine = String(payload.backend || '').trim().toLowerCase();
+    controls.localModelProgressText.textContent = backendEngine === 'wasm'
+      ? 'Local model ready (WASM fallback). Runs fully on-device.'
+      : 'Local model ready (WebGPU). Runs fully on-device.';
+    return;
+  }
+
+  if (status === 'failed' || status === 'error') {
+    controls.localModelProgressText.textContent = error ? `Local model unavailable: ${error}` : 'Local model failed to initialize.';
+    return;
+  }
+
+  controls.localModelProgressText.textContent = 'Local model not initialized yet.';
+};
+
+const getSelectedLocalModelId = () => {
+  const controls = getControls();
+  if (controls.localModelPhi35?.checked) return 'phi35_mini';
+  if (controls.localModelQwen3?.checked) return 'qwen3_0_6b';
+  return 'smollm2_1_7b';
+};
+
+const selectedModelStatus = () => {
+  const selectedId = getSelectedLocalModelId();
+  return {
+    id: selectedId,
+    status: localModelStatuses[selectedId] || { status: 'not_downloaded', progress: 0, backend: 'webgpu', error: '' }
+  };
+};
+
+const formatModelStatusText = (entry = {}) => {
+  const status = String(entry.status || '').trim().toLowerCase();
+  const progress = Number(entry.progress || 0);
+  if (status === 'downloading') return `Downloading ${progress}%`;
+  if (status === 'cached') return 'Cached';
+  if (status === 'ready') return entry.cpuMode ? 'Ready (CPU)' : 'Ready';
+  if (status === 'loading') return 'Loading...';
+  if (status === 'error') return 'Error';
+  return 'Not downloaded';
+};
+
+const renderLocalModelStatus = () => {
+  const controls = getControls();
+  const pairs = [
+    ['smollm2_1_7b', controls.modelStatusSmollm2],
+    ['phi35_mini', controls.modelStatusPhi35],
+    ['qwen3_0_6b', controls.modelStatusQwen3]
+  ];
+
+  pairs.forEach(([modelId, node]) => {
+    if (!node) return;
+    node.textContent = formatModelStatusText(localModelStatuses[modelId]);
+  });
+
+  const preferLocalEnabled = controls.preferLocal?.checked === true;
+  controls.localPreferNote?.classList.toggle('pn-hidden', !preferLocalEnabled);
+
+  const geminiPrimaryEnabled = controls.geminiPrimary?.checked !== false;
+  const selected = selectedModelStatus();
+  const localReady = ['cached', 'ready', 'loading'].includes(String(selected.status?.status || '').toLowerCase());
+  const anyModelAvailable = Object.values(localModelStatuses).some((entry) => ['cached', 'ready', 'loading', 'downloading'].includes(String(entry?.status || '').toLowerCase()));
+  if (controls.geminiPrimary) {
+    controls.geminiPrimary.disabled = !anyModelAvailable;
+    if (!anyModelAvailable) controls.geminiPrimary.checked = true;
+  }
+  controls.geminiPrimaryNote?.classList.toggle('pn-hidden', !(geminiPrimaryEnabled && localReady));
+
+  if (controls.localModelActionBtn) {
+    const status = String(selected.status?.status || 'not_downloaded').toLowerCase();
+    const meta = LOCAL_MODEL_META[selected.id] || LOCAL_MODEL_META.smollm2_1_7b;
+    controls.localModelActionBtn.classList.remove('pn-btn--primary', 'pn-btn--ghost', 'pn-btn-danger');
+    if (status === 'downloading') {
+      controls.localModelActionBtn.textContent = 'Cancel Download';
+      controls.localModelActionBtn.classList.add('pn-btn--ghost');
+    } else if (status === 'cached' || status === 'ready') {
+      controls.localModelActionBtn.textContent = 'Clear cached model data';
+      controls.localModelActionBtn.classList.add('pn-btn-danger');
+    } else if (status === 'error') {
+      controls.localModelActionBtn.textContent = 'Retry';
+      controls.localModelActionBtn.classList.add('pn-btn--ghost');
+    } else {
+      controls.localModelActionBtn.textContent = `Download (${meta.sizeLabel})`;
+      controls.localModelActionBtn.classList.add('pn-btn--primary');
+    }
+
+    if (controls.localModelActionMeta) {
+      if (selected.status?.cpuMode) {
+        controls.localModelActionMeta.textContent = 'Running on CPU — may be slower';
+      } else if (status === 'ready') {
+        controls.localModelActionMeta.textContent = `${meta.label} is ready.`;
+      } else if (status === 'cached') {
+        controls.localModelActionMeta.textContent = `${meta.label} is cached and will load on first use.`;
+      } else if (status === 'error') {
+        controls.localModelActionMeta.textContent = selected.status?.error || 'Model failed. Retry or clear cache.';
+      } else {
+        controls.localModelActionMeta.textContent = 'Download starts only when you click.';
+      }
+    }
+  }
+};
+
+const refreshAiRoutingNote = async () => {
+  const controls = getControls();
+  if (!controls.aiRoutingNote) return;
+
+  if (!state.settings?.enableAI) {
+    controls.aiRoutingNote.textContent = 'AI features are disabled.';
+    return;
+  }
+
+  const preferLocal = state.settings?.preferLocal === true;
+  const autoFallback = state.settings?.useLocalFallback !== false;
+  const typedKey = String(byId('setting-gemini-key')?.value || '').trim();
+  const storedKey = String(await window.SessionStorage.getStoredGeminiKey()).trim();
+  const hasGeminiKey = Boolean(typedKey || storedKey);
+
+  if (preferLocal) {
+    controls.aiRoutingNote.textContent = 'Active backend: Local model first.';
+    return;
+  }
+
+  if (hasGeminiKey) {
+    controls.aiRoutingNote.textContent = autoFallback
+      ? 'Active backend: Gemini API. Auto-fallback to local model is enabled.'
+      : 'Active backend: Gemini API.';
+    return;
+  }
+
+  controls.aiRoutingNote.textContent = autoFallback
+    ? 'Gemini key not set. Promptium will auto-fallback to the local model.'
+    : 'Gemini selected without API key. Add key or switch to Local Model.';
 };
 
 const syncAiState = async () => {
@@ -473,72 +977,64 @@ const syncAiState = async () => {
   }
   retryButton?.classList.add('pn-hidden');
 
-  if (aiStatusHandler) {
-    chrome.runtime.onMessage.removeListener(aiStatusHandler);
-  }
-
+  if (aiStatusHandler) chrome.runtime.onMessage.removeListener(aiStatusHandler);
   aiStatusHandler = (msg) => {
-    if (msg?.type === 'AI_DOWNLOAD_PROGRESS') {
-      const progressText = byId('ai-progress-text');
-      if (progressText) progressText.textContent = `Downloading... ${msg.progress}%`;
+    if (msg?.type === 'AI_LOCAL_MODEL_PROGRESS' || msg?.type === 'AI_LOCAL_MODEL_STATUS' || msg?.type === 'AI_LOCAL_STATUS_BROADCAST') {
+      const modelId = String(msg?.modelId || state.settings?.localModelId || 'smollm2_1_7b').toLowerCase();
+      if (Object.prototype.hasOwnProperty.call(localModelStatuses, modelId)) {
+        localModelStatuses[modelId] = {
+          ...localModelStatuses[modelId],
+          status: String(msg.status || localModelStatuses[modelId].status),
+          progress: Number.isFinite(Number(msg.progress)) ? Math.max(0, Math.min(100, Math.round(Number(msg.progress)))) : localModelStatuses[modelId].progress,
+          backend: String(msg.backend || localModelStatuses[modelId].backend),
+          error: String(msg.error || '').trim(),
+          cpuMode: Boolean(msg.cpuMode)
+        };
+      }
+      updateLocalModelProgressUI(localModelStatuses[modelId] || {});
+      renderLocalModelStatus();
       return;
     }
-
-    if (msg?.type === 'AI_STATUS') {
-      if (msg.status === 'loading') {
-        const progressText = byId('ai-progress-text');
-        if (progressText && !progressText.textContent.startsWith('Downloading')) {
-          progressText.textContent = 'Initializing...';
-        }
-        retryButton?.classList.add('pn-hidden');
-      }
-
-      if (msg.status === 'ready') {
-        state.aiReady = true;
-        if (aiBar) {
-          aiBar.classList.remove('pn-ai-bar--loading');
-          aiBar.classList.add('pn-ai-bar--ready');
-        }
-        const progressText = byId('ai-progress-text');
-        if (progressText) progressText.textContent = '✦ Ready';
-        byId('pn-model-pill')?.classList.add('pn-sv-model-pill--ready');
-        byId('pn-search-spark')?.classList.remove('pn-hidden');
-
-        const statusNode = byId('ai-status');
-        if (statusNode) {
-          statusNode.classList.remove('pn-ai-status--loading', 'pn-ai-status--unavailable');
-          statusNode.classList.add('pn-ai-status--ready');
-          statusNode.innerHTML = '<span class="pn-ai-dot"></span><span class="pn-ai-status__text">Smart</span>';
-        }
-
-        if (typeof callbacks.onLoadSmartSuggestions === 'function') {
-          void callbacks.onLoadSmartSuggestions();
-        }
-      }
-
-      if (msg.status === 'failed') {
-        state.aiReady = false;
-        if (aiBar) {
-          aiBar.classList.remove('pn-ai-bar--loading');
-          aiBar.classList.add('pn-ai-bar--hidden');
-        }
-        const progressText = byId('ai-progress-text');
-        if (progressText) {
-          progressText.textContent = msg.error ? `Unavailable - ${msg.error}` : 'Unavailable — using keywords';
-        }
-        byId('pn-model-pill')?.classList.remove('pn-sv-model-pill--ready');
-        retryButton?.classList.remove('pn-hidden');
-      }
-    }
   };
-
   chrome.runtime.onMessage.addListener(aiStatusHandler);
 
-  const result = await window.AIBridge.init();
-  if (result?.status === 'ready') {
-    state.aiReady = true;
-    aiStatusHandler({ type: 'AI_STATUS', status: 'ready' });
+  const localStatus = await window.AIBridge.getLocalModelStatus();
+  if (localStatus?.status) {
+    const modelId = String(localStatus.modelId || state.settings.localModelId || 'smollm2_1_7b').toLowerCase();
+    if (Object.prototype.hasOwnProperty.call(localModelStatuses, modelId)) {
+      localModelStatuses[modelId] = {
+        ...localModelStatuses[modelId],
+        ...localStatus,
+        status: String(localStatus.status || localModelStatuses[modelId].status)
+      };
+    }
+    updateLocalModelProgressUI(localModelStatuses[modelId] || localStatus);
   }
+
+  state.aiReady = true;
+  if (aiBar) {
+    aiBar.classList.remove('pn-ai-bar--loading');
+    aiBar.classList.add('pn-ai-bar--ready');
+  }
+  const progressText = byId('ai-progress-text');
+  if (progressText) progressText.textContent = '✦ Ready';
+  byId('pn-model-pill')?.classList.add('pn-sv-model-pill--ready');
+  byId('pn-search-spark')?.classList.remove('pn-hidden');
+  retryButton?.classList.add('pn-hidden');
+
+  const statusNode = byId('ai-status');
+  if (statusNode) {
+    statusNode.classList.remove('pn-ai-status--loading', 'pn-ai-status--unavailable');
+    statusNode.classList.add('pn-ai-status--ready');
+    statusNode.innerHTML = '<span class="pn-ai-dot"></span><span class="pn-ai-status__text">Smart Features Ready</span>';
+  }
+  if (typeof callbacks.onLoadSmartSuggestions === 'function') {
+    void callbacks.onLoadSmartSuggestions();
+  }
+
+  void refreshAiRoutingNote();
+  renderLocalModelStatus();
+
   return state.aiReady;
 };
 
@@ -562,6 +1058,15 @@ const syncSaveState = async () => {
 };
 
 const persistRuntimeAfterSave = async () => {
+  if (window.PLATFORM_LABELS && state.settings?.platformLabels) {
+    Object.entries(state.settings.platformLabels).forEach(([key, label]) => {
+      const safeKey = normalizePlatformKey(key);
+      const safeLabel = String(label || '').trim();
+      if (!safeKey || !safeLabel) return;
+      window.PLATFORM_LABELS[safeKey] = safeLabel;
+    });
+  }
+
   if (typeof callbacks.onApplyExportDefaults === 'function') {
     callbacks.onApplyExportDefaults(state.settings);
   }
@@ -614,14 +1119,149 @@ const saveFromPanel = async () => {
 };
 
 const resetDraft = async () => {
-  renderControls(DEFAULT_SETTINGS);
+  renderControls({
+    ...DEFAULT_SETTINGS,
+    settingsMigratedV2: true,
+    legacyAutoRewriteOnSave: false
+  });
   const keyInput = byId('setting-gemini-key');
   if (keyInput) keyInput.value = '';
   setSettingsStatus('Defaults loaded. Save AI/API changes to apply.', 'info');
   await syncSaveState();
 };
 
+const setCustomLlmError = (msg) => {
+  const errNode = byId('pn-custom-llm-error');
+  if (!errNode) return;
+  if (!msg) {
+    errNode.classList.add('pn-hidden');
+    errNode.textContent = '';
+  } else {
+    errNode.classList.remove('pn-hidden');
+    errNode.textContent = msg;
+  }
+};
+
+const guessSelectorsFromHtml = (html) => {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  let input = 'textarea';
+  let userMsg = '[data-role="user"]';
+  let botMsg = '[data-role="assistant"]';
+  
+  if (doc.querySelector('div[contenteditable="true"]') || doc.querySelector('div[contenteditable="plaintext-only"]')) {
+    input = 'div[contenteditable], textarea';
+  } else if (doc.querySelector('textarea')) {
+    input = 'textarea';
+  }
+  
+  const commonUserAttrs = ['[data-message-author="user"]', '[data-role="user"]', '[data-author="user"]', '.user-message'];
+  const commonBotAttrs = ['[data-message-author="assistant"]', '[data-role="assistant"]', '[data-message-author="bot"]', '[data-author="bot"]', '.bot-message', '.assistant-message'];
+
+  for (const sel of commonUserAttrs) {
+    if (doc.querySelector(sel)) { userMsg = sel; break; }
+  }
+  for (const sel of commonBotAttrs) {
+    if (doc.querySelector(sel)) { botMsg = sel; break; }
+  }
+
+  return { input, userMsg, botMsg };
+};
+
+const commitCustomPlatform = async (name, urlPattern, input, userMsg, botMsg) => {
+  if (!name || !urlPattern || !input || !userMsg || !botMsg) {
+    setCustomLlmError('Missing properties to register LLM.');
+    return false;
+  }
+  state.settings.customPlatforms = [
+    ...(state.settings.customPlatforms || []),
+    { id: crypto.randomUUID(), name, urlPattern, input, userMsg, botMsg, inputParent: 'form, body' }
+  ];
+  renderCustomPlatforms();
+  await autoSaveNonAi();
+  
+  if (byId('setting-custom-name')) byId('setting-custom-name').value = '';
+  if (byId('setting-custom-url')) byId('setting-custom-url').value = '';
+  if (byId('setting-custom-html')) byId('setting-custom-html').value = '';
+  if (byId('setting-custom-input')) byId('setting-custom-input').value = '';
+  if (byId('setting-custom-user')) byId('setting-custom-user').value = '';
+  if (byId('setting-custom-bot')) byId('setting-custom-bot').value = '';
+  setCustomLlmError('');
+  
+  flashAutoSaveStatus(`Added ${name}`, 'ok');
+  return true;
+};
+
+const addCustomPlatformSmart = async () => {
+  setCustomLlmError('');
+  const name = String(byId('setting-custom-name')?.value || '').trim() || 'Custom LLM';
+  const urlParams = String(byId('setting-custom-url')?.value || '').trim();
+  
+  if (!urlParams) {
+    setCustomLlmError('Please enter a valid Chat URL first.');
+    return;
+  }
+  
+  let urlPattern = urlParams;
+  try {
+    const parsed = new URL(urlPattern);
+    urlPattern = `${parsed.protocol}//${parsed.host}/*`;
+  } catch(e) { }
+
+  const btn = byId('pn-add-custom-platform-smart');
+  if (!btn) return;
+  const orgText = btn.textContent;
+  btn.textContent = 'Detecting...';
+  btn.disabled = true;
+
+  try {
+    const realRes = await fetch(urlParams);
+    const html = await realRes.text();
+    const guessed = guessSelectorsFromHtml(html);
+    await commitCustomPlatform(name, urlPattern, guessed.input, guessed.userMsg, guessed.botMsg);
+    if (byId('pn-custom-llm-advanced')) byId('pn-custom-llm-advanced').open = false;
+  } catch (err) {
+    setCustomLlmError('Auto-detect failed (likely blocked by CORS/Login). Please open Advanced to paste HTML or add manually.');
+    if (byId('pn-custom-llm-advanced')) byId('pn-custom-llm-advanced').open = true;
+    
+    if (byId('setting-custom-url')) byId('setting-custom-url').value = urlPattern;
+    if (byId('setting-custom-input')) byId('setting-custom-input').value = 'textarea, div[contenteditable]';
+    if (byId('setting-custom-user')) byId('setting-custom-user').value = '[data-role="user"]';
+    if (byId('setting-custom-bot')) byId('setting-custom-bot').value = '[data-role="assistant"]';
+  } finally {
+    btn.textContent = orgText;
+    btn.disabled = false;
+  }
+};
+
+const addCustomPlatformHtml = async () => {
+  setCustomLlmError('');
+  const name = String(byId('setting-custom-name')?.value || '').trim() || 'Custom LLM';
+  const rawUrl = String(byId('setting-custom-url')?.value || '').trim() || 'https://example.com/*';
+  const html = String(byId('setting-custom-html')?.value || '').trim();
+  
+  if (!html) {
+    setCustomLlmError('Please paste the webpage HTML content.');
+    return;
+  }
+
+  let urlPattern = rawUrl;
+  try {
+    const parsed = new URL(urlPattern);
+    urlPattern = `${parsed.protocol}//${parsed.host}/*`;
+  } catch(e) {}
+
+  const guessed = guessSelectorsFromHtml(html);
+  
+  if (byId('setting-custom-input')) byId('setting-custom-input').value = guessed.input;
+  if (byId('setting-custom-user')) byId('setting-custom-user').value = guessed.userMsg;
+  if (byId('setting-custom-bot')) byId('setting-custom-bot').value = guessed.botMsg;
+
+  await commitCustomPlatform(name, urlPattern, guessed.input, guessed.userMsg, guessed.botMsg);
+  if (byId('pn-custom-llm-advanced')) byId('pn-custom-llm-advanced').open = false;
+};
+
 const addCustomPlatform = async () => {
+  setCustomLlmError('');
   const name = String(byId('setting-custom-name')?.value || '').trim();
   const urlPattern = String(byId('setting-custom-url')?.value || '').trim();
   const input = String(byId('setting-custom-input')?.value || '').trim();
@@ -629,31 +1269,41 @@ const addCustomPlatform = async () => {
   const botMsg = String(byId('setting-custom-bot')?.value || '').trim();
 
   if (!name || !urlPattern || !input || !userMsg || !botMsg) {
-    flashAutoSaveStatus('Fill all custom LLM fields first.', 'error');
+    setCustomLlmError('Fill all manual LLM fields first.');
     return;
   }
 
-  state.settings.customPlatforms = [
-    ...(state.settings.customPlatforms || []),
-    {
-      id: crypto.randomUUID(),
-      name,
-      urlPattern,
-      input,
-      userMsg,
-      botMsg,
-      inputParent: 'form, body'
-    }
-  ];
+  await commitCustomPlatform(name, urlPattern, input, userMsg, botMsg);
+};
 
-  byId('setting-custom-name').value = '';
-  byId('setting-custom-url').value = '';
-  byId('setting-custom-input').value = '';
-  byId('setting-custom-user').value = '';
-  byId('setting-custom-bot').value = '';
+const addPlatformLabel = async () => {
+  const controls = getControls();
+  const rawKey = String(controls.platformLabelKey?.value || '');
+  const label = String(controls.platformLabelValue?.value || '').trim();
+  const key = normalizePlatformKey(rawKey);
 
-  renderCustomPlatforms();
+  if (!key) {
+    setPlatformLabelError('Enter a valid platform key (letters/numbers).');
+    return;
+  }
+
+  if (!label) {
+    setPlatformLabelError('Enter a display label.');
+    return;
+  }
+
+  setPlatformLabelError('');
+  const next = normalizeSettings(state.settings);
+  next.platformLabels[key] = label;
+  next.enabledPlatforms[key] = next.enabledPlatforms[key] !== false;
+  state.settings = next;
+
+  if (controls.platformLabelKey) controls.platformLabelKey.value = '';
+  if (controls.platformLabelValue) controls.platformLabelValue.value = '';
+
+  renderPlatformRows();
   await autoSaveNonAi();
+  flashAutoSaveStatus(`Label saved for ${key}.`, 'ok');
 };
 
 const exportAllData = async () => {
@@ -727,6 +1377,45 @@ const bindInlineDanger = (triggerId, confirmId, action) => {
   });
 };
 
+const runSelectedLocalModelAction = async () => {
+  const controls = getControls();
+  const selected = selectedModelStatus();
+  const status = String(selected.status?.status || 'not_downloaded').toLowerCase();
+
+  if (!controls.localModelActionBtn) return;
+
+  controls.localModelActionBtn.disabled = true;
+  const previousText = controls.localModelActionBtn.textContent;
+  controls.localModelActionBtn.textContent = 'Working...';
+
+  try {
+    if (status === 'downloading') {
+      await window.AIBridge.cancelLocalModelDownload(selected.id);
+    } else if (status === 'cached' || status === 'ready') {
+      const cleared = await window.AIBridge.clearLocalModelCache(selected.id);
+      if (!cleared?.ok) {
+        flashAutoSaveStatus(cleared?.error || 'Failed to clear cached model data.', 'error');
+      }
+    } else {
+      await window.AIBridge.downloadLocalModel(selected.id);
+    }
+  } catch (_error) {
+    flashAutoSaveStatus('Model action failed. Retry.', 'error');
+  } finally {
+    controls.localModelActionBtn.disabled = false;
+    controls.localModelActionBtn.textContent = previousText;
+    const refreshed = await window.AIBridge.getLocalModelStatus();
+    if (refreshed?.modelId && Object.prototype.hasOwnProperty.call(localModelStatuses, refreshed.modelId)) {
+      localModelStatuses[refreshed.modelId] = {
+        ...localModelStatuses[refreshed.modelId],
+        ...refreshed
+      };
+    }
+    renderLocalModelStatus();
+    void syncSaveState();
+  }
+};
+
 const formatShortcutFromEvent = (event) => {
   const parts = [];
   if (event.altKey) parts.push('Alt');
@@ -794,6 +1483,10 @@ const bindEvents = () => {
     void syncAiState();
   });
 
+  byId('pn-local-model-action-btn')?.addEventListener('click', () => {
+    void runSelectedLocalModelAction();
+  });
+
   byId('save-settings-btn')?.addEventListener('click', () => {
     void saveFromPanel();
   });
@@ -804,6 +1497,26 @@ const bindEvents = () => {
 
   byId('pn-add-custom-platform')?.addEventListener('click', () => {
     void addCustomPlatform();
+  });
+
+  byId('pn-add-platform-label')?.addEventListener('click', () => {
+    void addPlatformLabel();
+  });
+
+  byId('setting-platform-label-key')?.addEventListener('input', () => {
+    setPlatformLabelError('');
+  });
+
+  byId('setting-platform-label-value')?.addEventListener('input', () => {
+    setPlatformLabelError('');
+  });
+
+  byId('pn-add-custom-platform-smart')?.addEventListener('click', () => {
+    void addCustomPlatformSmart();
+  });
+
+  byId('pn-add-custom-platform-html')?.addEventListener('click', () => {
+    void addCustomPlatformHtml();
   });
 
   byId('pn-custom-platforms')?.addEventListener('click', (event) => {
@@ -841,7 +1554,11 @@ const bindEvents = () => {
   });
 
   bindInlineDanger('pn-reset-all-settings', 'pn-confirm-reset-settings', async () => {
-    state.settings = normalizeSettings(DEFAULT_SETTINGS);
+    state.settings = normalizeSettings({
+      ...DEFAULT_SETTINGS,
+      settingsMigratedV2: true,
+      legacyAutoRewriteOnSave: false
+    });
     await save();
     await window.SessionStorage.setStoredGeminiKey('');
     renderControls(state.settings);
@@ -850,18 +1567,37 @@ const bindEvents = () => {
     flashAutoSaveStatus('Settings reset.', 'ok');
   });
 
-  byId('pn-settings-tabs')?.addEventListener('click', (event) => {
-    const tab = event.target.closest('.pn-settings-tab');
-    if (!tab) return;
-    renderSettingsTab(tab.dataset.settingsTab || 'ai');
+  byId('pn-settings-root-menu')?.addEventListener('click', (event) => {
+    const item = event.target.closest('.pn-settings-item');
+    if (!item) return;
+    const target = item.dataset.settingsTarget;
+    const title = item.querySelector('.pn-settings-item-title')?.textContent || 'Settings';
+    if (target) renderSettingsTab(target, title);
+  });
+
+  byId('pn-settings-back-btn')?.addEventListener('click', () => {
+    renderSettingsTab('');
   });
 
   const aiControlIds = [
     'setting-enable-ai',
+    'setting-ai-backend',
+    'setting-ai-auto-fallback',
+    'setting-gemini-primary',
     'setting-semantic-search',
     'setting-auto-suggest',
     'setting-duplicate-check',
     'setting-polish-toggle',
+    'setting-local-model-smollm2',
+    'setting-local-model-phi35',
+    'setting-local-model-qwen3',
+    'setting-local-fallback',
+    'setting-prefer-local',
+    'setting-local-feature-polish',
+    'setting-local-feature-autotags',
+    'setting-local-feature-improve',
+    'setting-local-feature-continue',
+    'setting-local-feature-smart-export',
     'setting-export-format',
     'setting-export-date',
     'setting-export-platform',
@@ -874,6 +1610,27 @@ const bindEvents = () => {
     if (!node) return;
     const eventName = id === 'setting-user-context' || id === 'setting-gemini-key' ? 'input' : 'change';
     node.addEventListener(eventName, () => {
+      if (id === 'setting-ai-backend') {
+        const controls = getControls();
+        updateLocalModelProgressUI({}, String(controls.aiBackend?.value || 'gemini'));
+      }
+      if (id === 'setting-local-model-smollm2' || id === 'setting-local-model-phi35' || id === 'setting-local-model-qwen3') {
+        renderLocalModelStatus();
+      }
+      if (id === 'setting-gemini-primary') {
+        const controls = getControls();
+        if (controls.preferLocal) {
+          controls.preferLocal.checked = !(controls.geminiPrimary?.checked);
+        }
+      }
+      if (id === 'setting-prefer-local') {
+        const controls = getControls();
+        if (controls.geminiPrimary) {
+          controls.geminiPrimary.checked = !(controls.preferLocal?.checked);
+        }
+      }
+      renderLocalModelStatus();
+      void refreshAiRoutingNote();
       void syncSaveState();
     });
   });
@@ -913,15 +1670,24 @@ const bindEvents = () => {
     scheduleAutoSaveNonAi();
   });
 
-  byId('pn-platform-list')?.addEventListener('change', (event) => {
+  const onPlatformRowChange = (event) => {
     if (!(event.target instanceof HTMLInputElement)) return;
-    if (!event.target.dataset.platformToggle) return;
-    const checkedCount = Array.from(document.querySelectorAll('[data-platform-toggle]'))
-      .filter((input) => input instanceof HTMLInputElement && input.checked)
-      .length;
-    byId('pn-platform-warning')?.classList.toggle('pn-hidden', checkedCount > 0);
-    scheduleAutoSaveNonAi();
-  });
+    if (event.target.dataset.platformToggle) {
+      const checkedCount = Array.from(document.querySelectorAll('[data-platform-toggle]'))
+        .filter((input) => input instanceof HTMLInputElement && input.checked)
+        .length;
+      byId('pn-platform-warning')?.classList.toggle('pn-hidden', checkedCount > 0);
+      scheduleAutoSaveNonAi();
+      return;
+    }
+
+    if (event.target.dataset.platformLabel) {
+      scheduleAutoSaveNonAi();
+    }
+  };
+
+  byId('pn-platform-list')?.addEventListener('change', onPlatformRowChange);
+  byId('pn-platform-list')?.addEventListener('input', onPlatformRowChange);
 };
 
 const setCallbacks = (nextCallbacks = {}) => {

@@ -17,8 +17,7 @@ let isFabMenuOpen = false;
 let fabGlobalListenersBound = false;
 let activeFabRoot = null;
 const IMPROVE_PAYLOAD_KEY = 'promptiumImprovePayload';
-const NOTIFICATION_DURATION_MS = 2200;
-const FAB_ACTION_STAGGER_MS = 36;
+const FAB_ACTION_STAGGER_MS = 60;
 const FAB_CLOSE_BASE_MS = 170;
 let fabMenuCloseTimer = null;
 const SETTINGS_KEY = 'promptiumSettings';
@@ -32,6 +31,13 @@ const DEFAULT_FAB_SETTINGS = Object.freeze({
     promptLibrary: true
   }
 });
+
+const formatSaveBackendFeedback = (savedPrompt) => {
+  const backend = String(savedPrompt?._aiMeta?.paraphrase || '').trim().toLowerCase();
+  if (backend === 'local') return 'Prompt saved and optimized locally.';
+  if (backend === 'gemini') return 'Prompt saved and optimized with Gemini.';
+  return 'Prompt saved to library.';
+};
 
 /** Returns the active input element for a platform based on selector config. */
 const getInputElement = async (platform) => {
@@ -50,16 +56,18 @@ const getInputElement = async (platform) => {
 
 /** Creates a lightweight toast message for user-visible status feedback. */
 const showNotification = async (message) => {
+  if (typeof window.showToast === 'function') {
+    await window.showToast(message);
+    return;
+  }
+
   const toast = document.createElement('div');
   toast.className = 'pn-toast';
-  toast.textContent = String(message || '').trim();
+  toast.textContent = String(message || '').replace(/!/g, '').trim();
   toast.setAttribute('role', 'status');
   toast.setAttribute('aria-live', 'polite');
   document.body.appendChild(toast);
-
-  setTimeout(() => {
-    toast.remove();
-  }, NOTIFICATION_DURATION_MS);
+  setTimeout(() => toast.remove(), 2500);
 };
 
 const normalizeFabSettings = (value) => {
@@ -190,7 +198,7 @@ const ensureSaveModal = async () => {
       <h3 id="pn-save-modal-title" class="pn-save-modal__title">Save Prompt</h3>
       <label class="pn-save-modal__field">
         <span>Title</span>
-        <input id="pn-save-title" type="text" placeholder="Prompt title" />
+        <input id="pn-save-title" type="text" placeholder="Optional title (auto-generated if blank)" />
       </label>
       <label class="pn-save-modal__field">
         <span>Tags</span>
@@ -262,11 +270,6 @@ const confirmSavePrompt = async () => {
     return;
   }
 
-  if (!title) {
-    await showNotification('Enter a prompt title.');
-    return;
-  }
-
   const saved = await window.Store.savePrompt({ title, text: pendingPromptText, tags });
 
   if (!saved) {
@@ -279,7 +282,7 @@ const confirmSavePrompt = async () => {
     return;
   }
 
-  await showNotification('Prompt saved to library.');
+  await showNotification(formatSaveBackendFeedback(saved));
   await closeSaveModal();
 };
 

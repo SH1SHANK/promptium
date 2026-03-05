@@ -102,7 +102,16 @@ const render = async () => {
   container.innerHTML = '';
 
   if (!reversed.length) {
-    container.appendChild(createEmptyState('No chat history yet. Export a chat to populate this section.'));
+    container.appendChild(createEmptyState({
+      title: 'No exports yet',
+      message: 'Export a chat to get started.',
+      actionLabel: 'Open prompts',
+      onAction: () => {
+        if (window.AppShell?.switchTab) {
+          void window.AppShell.switchTab('prompts');
+        }
+      }
+    }));
     return;
   }
 

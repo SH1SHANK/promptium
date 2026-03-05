@@ -8,11 +8,12 @@ let pendingDuplicatePayload = null;
 let popupBootstrapped = false;
 let _searchTimer = null;
 const TEXT_CLAMP_LENGTH = 180;
-const COPY_FEEDBACK_RESET_MS = 1200;
 const SEARCH_DEBOUNCE_MS = 150;
+const VAR_DETECT_DEBOUNCE_MS = 150;
 const ADD_MODE_SELECTOR = 'selector';
 const ADD_MODE_PLAIN = 'plain';
 const ADD_MODE_TEMPLATE = 'template';
+let _varDetectTimer = null;
 
 const normalizePromptText = (text) => {
   if (window.TemplateParser?.normalizeLegacy) {
@@ -31,9 +32,11 @@ const hasTemplateVariables = (text) => {
   return window.TemplateParser.hasVariables(normalizePromptText(text));
 };
 
-const fillAsIs = (text) => {
-  if (!window.TemplateParser?.fill) return normalizePromptText(text);
-  return window.TemplateParser.fill(normalizePromptText(text), {});
+const formatSaveBackendFeedback = (savedPrompt) => {
+  const backend = String(savedPrompt?._aiMeta?.paraphrase || '').trim().toLowerCase();
+  if (backend === 'local') return 'Saved and optimized locally.';
+  if (backend === 'gemini') return 'Saved and optimized with Gemini.';
+  return 'Prompt saved.';
 };
 
 /** Returns true for editable form fields where global shortcuts should not hijack focus. */
@@ -92,11 +95,11 @@ const updateDetectedVars = () => {
   const vars = window.TemplateParser.parse(normalizePromptText(textarea.value));
   if (!vars.length) {
     container.replaceChildren();
-    container.style.display = 'none';
+    container.classList.remove('pn-detected-vars--active');
     return;
   }
 
-  container.style.display = 'flex';
+  container.classList.add('pn-detected-vars--active');
   container.replaceChildren();
 
   const label = document.createElement('span');
@@ -110,6 +113,14 @@ const updateDetectedVars = () => {
     chip.textContent = window.TemplateParser.toDisplayLabel(variable);
     container.appendChild(chip);
   });
+};
+
+const updateDetectedVarsDebounced = () => {
+  clearTimeout(_varDetectTimer);
+  _varDetectTimer = setTimeout(() => {
+    _varDetectTimer = null;
+    updateDetectedVars();
+  }, VAR_DETECT_DEBOUNCE_MS);
 };
 
 const bindVariableToolbar = () => {
@@ -133,7 +144,7 @@ const bindVariableToolbar = () => {
     });
   });
 
-  textarea.addEventListener('input', updateDetectedVars);
+  textarea.addEventListener('input', updateDetectedVarsDebounced);
 };
 
 const setPromptListVisibility = (visible) => {
@@ -266,6 +277,11 @@ const resetDuplicateState = async () => {
   pendingDuplicatePayload = null;
   const confirmButton = await byId('confirm-duplicate');
   confirmButton?.classList.add('hidden');
+  const warning = document.getElementById('pn-duplicate-warning');
+  if (warning) {
+    warning.classList.add('pn-hidden');
+    warning.replaceChildren();
+  }
 };
 
 /** Moves the tab indicator under the currently active tab button. */
@@ -273,11 +289,68 @@ const updateTabIndicator = async () => {
   return;
 };
 
-/** Renders one prompt card with inject, copy, and delete actions. */
-const createPromptCard = async (prompt, activeFilter, canInject) => {
+const ensureCardMenuDismissHandlers = () => {
+  if (window.__PN_POPUP_CARD_MENU_BOUND) return;
+
+  document.addEventListener('click', (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    document.querySelectorAll('details.pn-card-menu[open]').forEach((menu) => {
+      if (!target || !menu.contains(target)) {
+        menu.open = false;
+      }
+    });
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    document.querySelectorAll('details.pn-card-menu[open]').forEach((menu) => {
+      menu.open = false;
+    });
+  });
+
+  window.__PN_POPUP_CARD_MENU_BOUND = true;
+};
+
+const createCardMenu = (items = []) => {
+  ensureCardMenuDismissHandlers();
+  const menu = document.createElement('details');
+  menu.className = 'pn-card-menu';
+
+  const summary = document.createElement('summary');
+  summary.className = 'pn-card-menu__trigger';
+  summary.title = 'Open additional actions';
+  summary.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="6" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="12" cy="18" r="1.4"></circle></svg>More';
+  menu.appendChild(summary);
+
+  const list = document.createElement('div');
+  list.className = 'pn-card-menu__list';
+
+  items.forEach((item) => {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'pn-card-menu__item';
+    if (item.tone === 'danger') row.classList.add('pn-card-menu__item--danger');
+    row.textContent = String(item.label || 'Action');
+    row.title = String(item.title || item.label || '').trim();
+    row.disabled = Boolean(item.disabled);
+    row.addEventListener('click', () => {
+      menu.open = false;
+      if (typeof item.onSelect === 'function') {
+        void item.onSelect();
+      }
+    });
+    list.appendChild(row);
+  });
+
+  menu.appendChild(list);
+  return menu;
+};
+
+/** Renders one prompt card with one primary action and a compact overflow menu. */
+const createPromptCard = async (prompt, activeFilter, canInject, options = {}) => {
   const normalizedText = normalizePromptText(prompt.text);
   const hasVars = hasTemplateVariables(normalizedText);
-  const isCuratedTemplate = !!prompt.isTemplate;
+  const isCuratedTemplate = options.isCurated === true;
   const isTemplateCard = isCuratedTemplate || hasVars;
   const card = document.createElement('article');
   card.className = 'pn-prompt-card' + (isTemplateCard ? ' pn-prompt-card--template' : '');
@@ -350,6 +423,15 @@ const createPromptCard = async (prompt, activeFilter, canInject) => {
   }
   card.appendChild(textWrap);
 
+  const clarityScore = Number(prompt?.clarityScore);
+  const clarityExplanation = String(prompt?.clarityExplanation || '').trim();
+  if (Number.isFinite(clarityScore) && clarityScore >= 0 && clarityScore <= 100) {
+    const clarity = document.createElement('p');
+    clarity.className = 'pn-card-clarity';
+    clarity.textContent = `Clarity ${Math.round(clarityScore)}/100${clarityExplanation ? ` • ${clarityExplanation}` : ''}`;
+    card.appendChild(clarity);
+  }
+
   // Tags
   const tagsWrap = document.createElement('div');
   tagsWrap.className = 'pn-tag-wrap';
@@ -362,148 +444,117 @@ const createPromptCard = async (prompt, activeFilter, canInject) => {
   const actions = document.createElement('div');
   actions.className = 'pn-card-actions';
 
+  const injectNow = async (text, options = {}) => {
+    const asIsMode = Boolean(options.asIsMode);
+    const response = await sendToActiveTab({ action: 'injectPrompt', text });
+    if (!response?.ok) {
+      await showToast(response?.error || 'Inject failed.');
+      return false;
+    }
+    if (asIsMode) {
+      await showToast('Injected — fill in the [brackets] in the chat');
+    }
+    window.close();
+    return true;
+  };
+
   // Inject button
   const injectButton = document.createElement('button');
-  injectButton.className = 'pn-btn pn-btn--ghost pn-btn-icon-label';
+  injectButton.className = 'pn-btn pn-btn--primary pn-btn-icon-label';
+  injectButton.classList.add('pn-card-actions__primary');
   injectButton.type = 'button';
-  injectButton.innerHTML = hasVars
-    ? `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M13 5l7 7-7 7"></path></svg>Use →`
-    : `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"></path><path d="M10 14L21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg>Inject`;
+  injectButton.innerHTML = `<svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15 3h6v6\"></path><path d=\"M10 14L21 3\"></path><path d=\"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6\"></path></svg>Use →`;
   if (!canInject) {
     injectButton.disabled = true;
-    injectButton.title = 'Open on a supported LLM page';
+    injectButton.title = 'Open a supported LLM page first.';
   } else {
-    injectButton.title = hasVars ? 'Fill blanks before injecting' : 'Inject into active chat';
+    injectButton.title = hasVars
+      ? 'Inject as-is, remove optional placeholders, and keep required [brackets] visible in chat.'
+      : 'Inject this prompt into the active chat input.';
     injectButton.addEventListener('click', () => {
       void (async () => {
-        const doInject = async (text, asIsMode = false) => {
-          const response = await sendToActiveTab({ action: 'injectPrompt', text });
-          if (!response?.ok) {
-            await showToast(response?.error || 'Inject failed.');
-            return;
-          }
-          if (asIsMode) {
-            await showToast('Injected — fill in the [brackets] in the chat');
-          } else {
-            window.close();
-          }
-        };
-
         if (!hasVars) {
-          await doInject(normalizedText, false);
+          await injectNow(normalizedText, { asIsMode: false });
           return;
         }
-
-        await showTemplateFillForm({ title: prompt.title, text: normalizedText }, doInject);
+        const rawText = window.TemplateParser?.fill
+          ? window.TemplateParser.fill(normalizedText, {})
+          : normalizedText;
+        await injectNow(rawText, { asIsMode: true });
       })();
     });
   }
 
-  let asIsButton = null;
+  let quickInjectButton = null;
   if (hasVars) {
-    asIsButton = document.createElement('button');
-    asIsButton.className = 'pn-btn pn-btn--ghost pn-btn-icon-label';
-    asIsButton.type = 'button';
-    asIsButton.textContent = 'Inject as-is';
-    asIsButton.title = 'Inject now and edit [brackets] in chat';
+    quickInjectButton = document.createElement('button');
+    quickInjectButton.className = 'pn-btn pn-btn--ghost pn-btn-icon-label';
+    quickInjectButton.type = 'button';
+    quickInjectButton.textContent = 'Fill in';
+    quickInjectButton.title = 'Open fill form before injecting.';
 
     if (!canInject) {
-      asIsButton.disabled = true;
+      quickInjectButton.disabled = true;
     } else {
-      asIsButton.addEventListener('click', () => {
+      quickInjectButton.addEventListener('click', () => {
         void (async () => {
-          const response = await sendToActiveTab({ action: 'injectPrompt', text: fillAsIs(normalizedText) });
-          if (!response?.ok) {
-            await showToast(response?.error || 'Inject failed.');
-            return;
-          }
-          await showToast('Injected — fill in the [brackets] in the chat');
+          await showTemplateFillForm(
+            { title: prompt.title, text: normalizedText },
+            (filledText) => injectNow(filledText, { asIsMode: false })
+          );
         })();
       });
     }
   }
 
-  // Copy button
-  const copyButton = document.createElement('button');
-  copyButton.className = 'pn-btn pn-btn--ghost pn-btn-icon-label';
-  copyButton.type = 'button';
-  copyButton.title = 'Copy to clipboard';
-  copyButton.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" class="pn-btn-icon" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>Copy`;
-  copyButton.addEventListener('click', () => {
-    void (async () => {
-      try {
-        await navigator.clipboard.writeText(normalizedText);
-        copyButton.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" class="pn-btn-icon" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>Copied!`;
-        copyButton.classList.add('pn-btn--copied');
-        setTimeout(() => {
-          copyButton.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" class="pn-btn-icon" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>Copy`;
-          copyButton.classList.remove('pn-btn--copied');
-        }, COPY_FEEDBACK_RESET_MS);
-      } catch {
-        await showToast('Copy failed.');
-      }
-    })();
-  });
-
   if (isCuratedTemplate) {
-    // Save to My Prompts button (templates only)
-    const saveBtn = document.createElement('button');
-    saveBtn.className = 'pn-btn pn-btn--primary pn-btn-icon-label pn-ml-auto';
-    saveBtn.type = 'button';
-    saveBtn.title = 'Save this template to your prompt library';
-    saveBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" class="pn-btn-icon" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>Save to My Prompts`;
-    saveBtn.addEventListener('click', () => {
-      void (async () => {
+    const overflow = createCardMenu([
+      {
+        label: 'Save to Library',
+        title: 'Save this curated template to your personal prompt library.',
+        onSelect: async () => {
         const saved = await window.Store.savePrompt({
           title: prompt.title,
           text: normalizedText,
           tags: [...(prompt.tags || [])]
         });
         if (saved) {
-          saveBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" class="pn-btn-icon" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>Saved!`;
-          saveBtn.disabled = true;
           await showToast('Template saved to library.');
         } else {
           await showToast('Template save failed.');
         }
-      })();
-    });
-    actions.appendChild(injectButton);
-    if (asIsButton) actions.appendChild(asIsButton);
-    actions.appendChild(copyButton);
-    actions.appendChild(saveBtn);
-  } else {
-    // Improve button (user prompts only)
-    const improveButton = document.createElement('button');
-    improveButton.className = 'pn-btn pn-btn--ghost pn-btn-icon-label';
-    improveButton.type = 'button';
-    improveButton.title = 'Improve prompt (Side Panel)';
-    improveButton.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" class="pn-btn-icon" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#a49aff"><path d="M12 3v19"></path><path d="M5 10l7-7 7 7"></path></svg>Improve`;
-    improveButton.addEventListener('click', () => {
-      window.open(chrome.runtime.getURL('sidepanel/sidepanel.html'), '_blank');
-    });
-
-    // Delete button (user prompts only)
-    const deleteButton = document.createElement('button');
-    deleteButton.className = 'pn-btn pn-btn-danger pn-btn-icon-label pn-ml-auto';
-    deleteButton.type = 'button';
-    deleteButton.title = 'Delete prompt';
-    deleteButton.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
-    deleteButton.addEventListener('click', () => {
-      void (async () => {
-        const deleted = await window.Store.deletePrompt(prompt.id);
-        if (!deleted) {
-          await showToast('Delete failed.');
-          return;
         }
-        await renderPrompts(activeFilter);
-      })();
-    });
+      }
+    ]);
     actions.appendChild(injectButton);
-    if (asIsButton) actions.appendChild(asIsButton);
-    actions.appendChild(copyButton);
-    actions.appendChild(improveButton);
-    actions.appendChild(deleteButton);
+    if (quickInjectButton) actions.appendChild(quickInjectButton);
+    actions.appendChild(overflow);
+  } else {
+    const overflow = createCardMenu([
+      {
+        label: 'Improve Prompt',
+        title: 'Open this prompt in Side Panel improve mode.',
+        onSelect: async () => {
+          window.open(chrome.runtime.getURL('sidepanel/sidepanel.html'), '_blank');
+        }
+      },
+      {
+        label: 'Delete Prompt',
+        title: 'Delete this prompt from your library.',
+        tone: 'danger',
+        onSelect: async () => {
+          const deleted = await window.Store.deletePrompt(prompt.id);
+          if (!deleted) {
+            await showToast('Delete failed.');
+            return;
+          }
+          await renderPrompts(activeFilter);
+        }
+      }
+    ]);
+    actions.appendChild(injectButton);
+    if (quickInjectButton) actions.appendChild(quickInjectButton);
+    actions.appendChild(overflow);
   }
 
   card.appendChild(actions);
@@ -619,7 +670,7 @@ const renderPrompts = async (filter = '') => {
   // -- User prompts --
   if (filtered.length) {
     for (const prompt of filtered) {
-      container.appendChild(await createPromptCard(prompt, filterStr, tabContext.supported));
+      container.appendChild(await createPromptCard(prompt, filterStr, tabContext.supported, { isCurated: false }));
     }
   } else if (prompts.length && filterStr) {
     container.appendChild(createEmptyState({
@@ -636,9 +687,9 @@ const renderPrompts = async (filter = '') => {
     }));
   } else if (!prompts.length) {
     container.appendChild(createEmptyState({
-      title: 'No Prompts Available',
+      title: 'No prompts yet',
       message: 'Create your first prompt to start your library.',
-      actionLabel: 'Add Prompt',
+      actionLabel: 'Add your first prompt',
       onAction: () => { void openModal(); }
     }));
   }
@@ -667,19 +718,19 @@ const renderPrompts = async (filter = '') => {
 
       // Collapsed by default if user has their own prompts
       let expanded = !prompts.length;
-      body.style.display = expanded ? 'block' : 'none';
+      body.classList.toggle('pn-templates-body--collapsed', !expanded);
       if (expanded) header.classList.add('pn-templates-header--open');
 
       header.addEventListener('click', () => {
         expanded = !expanded;
-        body.style.display = expanded ? 'block' : 'none';
+        body.classList.toggle('pn-templates-body--collapsed', !expanded);
         header.classList.toggle('pn-templates-header--open', expanded);
       });
 
       section.appendChild(header);
 
       for (const tpl of visibleTemplates) {
-        body.appendChild(await createPromptCard(tpl, filterStr, tabContext.supported));
+        body.appendChild(await createPromptCard(tpl, filterStr, tabContext.supported, { isCurated: true }));
       }
 
       section.appendChild(body);
@@ -701,9 +752,17 @@ const renderHistory = async () => {
   container.innerHTML = '';
 
   if (!reversed.length) {
-    container.appendChild(
-      await createEmptyState('No chat history yet. Export a chat from the toolbar to get started.')
-    );
+    container.appendChild(await createEmptyState({
+      title: 'No exports yet',
+      message: 'Export a chat to get started.',
+      actionLabel: 'Open prompts',
+      onAction: () => {
+        const promptsTab = document.querySelector('.tab[data-tab="prompts"]');
+        if (promptsTab instanceof HTMLElement) {
+          promptsTab.click();
+        }
+      }
+    }));
     return;
   }
 
@@ -712,24 +771,214 @@ const renderHistory = async () => {
   }
 };
 
-/** Calls AI tag suggestion and pre-fills the tags field when it is still empty. */
-const prefillSuggestedTags = async () => {
-  const textInput = await byId('prompt-text');
-  const tagsInput = await byId('prompt-tags');
+const hideModalError = async (id) => {
+  const node = await byId(id);
+  if (!node) return;
+  node.textContent = '';
+  node.classList.add('pn-hidden');
+};
 
-  if (!textInput || !tagsInput) {
-    return;
+const showModalError = async (id, message) => {
+  const node = await byId(id);
+  if (!node) return;
+  node.textContent = String(message || '').trim();
+  node.classList.toggle('pn-hidden', !node.textContent);
+};
+
+const getLocalModelLabel = (modelId) => {
+  const map = {
+    smollm2_1_7b: 'SmolLM2',
+    phi35_mini: 'Phi-3.5-mini',
+    qwen3_0_6b: 'Qwen3'
+  };
+  return map[String(modelId || '').toLowerCase()] || 'Local AI';
+};
+
+const updateAddAiStatusStrip = async () => {
+  const ids = ['pn-form-ai-status', 'pn-template-ai-status'];
+  const settingsSnap = await chrome.storage.local.get(['promptiumSettings']).catch(() => ({}));
+  const settings = settingsSnap?.promptiumSettings || {};
+  const enableAI = settings?.enableAI !== false;
+  const preferLocal = settings?.preferLocal === true;
+  const localFeaturePolish = settings?.localFeatureFlags?.polish !== false;
+
+  let text = '○ AI unavailable — enable in Settings';
+  let unavailable = true;
+
+  if (enableAI) {
+    const localStatus = await window.AIBridge.getLocalModelStatus().catch(() => null);
+    const localReady = String(localStatus?.status || '').toLowerCase() === 'ready';
+    const localLoading = ['loading', 'downloading'].includes(String(localStatus?.status || '').toLowerCase());
+    const geminiKey = String((await chrome.storage.session.get(['promptiumGeminiKey']).catch(() => ({})))?.promptiumGeminiKey || '').trim();
+    if (preferLocal && localFeaturePolish && localLoading) {
+      text = '⟳ AI loading...';
+      unavailable = false;
+    } else if (localReady && localFeaturePolish) {
+      text = `✦ ${getLocalModelLabel(localStatus?.modelId || settings?.localModelId)} ready`;
+      unavailable = false;
+    } else if (geminiKey) {
+      text = '✦ AI via Gemini';
+      unavailable = false;
+    } else if (localLoading) {
+      text = '⟳ AI loading...';
+      unavailable = false;
+    }
   }
 
-  if (String(tagsInput.value || '').trim()) {
-    return;
-  }
+  ids.forEach((id) => {
+    const node = document.getElementById(id);
+    if (!node) return;
+    node.textContent = text;
+    node.classList.toggle('pn-clickable', unavailable);
+    node.title = unavailable ? 'Open side panel Settings → AI Models' : '';
+  });
 
-  const suggestions = await window.AI.suggestTags(String(textInput.value || '').trim());
+  const canPolish = !unavailable;
+  ['pn-polish-btn', 'pn-template-polish-btn'].forEach((id) => {
+    const button = document.getElementById(id);
+    if (!button) return;
+    button.disabled = !canPolish;
+    button.title = canPolish ? '' : 'Enable AI in Settings';
+  });
+};
 
-  if (suggestions.length) {
-    tagsInput.value = suggestions.join(', ');
+const syncPolishVisibility = () => {
+  const plainText = String(document.getElementById('prompt-text')?.value || '').trim();
+  const templateText = String(document.getElementById('pn-template-text')?.value || '').trim();
+  document.getElementById('pn-polish-wrap')?.classList.toggle('pn-hidden', !plainText);
+  document.getElementById('pn-template-polish-wrap')?.classList.toggle('pn-hidden', !templateText);
+};
+
+let plainPolishUndo = '';
+let templatePolishUndo = '';
+let plainUndoTimer = null;
+let templateUndoTimer = null;
+
+const runModalPolish = async (isTemplate = false) => {
+  const textId = isTemplate ? 'pn-template-text' : 'prompt-text';
+  const errorId = isTemplate ? 'pn-template-polish-error' : 'pn-polish-error';
+  const undoId = isTemplate ? 'pn-template-polish-undo' : 'pn-polish-undo';
+  const warningId = 'pn-template-polish-warning';
+  const buttonId = isTemplate ? 'pn-template-polish-btn' : 'pn-polish-btn';
+  const textarea = document.getElementById(textId);
+  const button = document.getElementById(buttonId);
+  if (!textarea || !button) return;
+
+  const original = String(textarea.value || '').trim();
+  if (!original) return;
+
+  const beforeVars = isTemplate && window.TemplateParser?.parse
+    ? window.TemplateParser.parse(normalizePromptText(original)).map((item) => `${item.label}:${item.required ? 'r' : 'o'}`).join('|')
+    : '';
+
+  await hideModalError(errorId);
+  button.disabled = true;
+  button.textContent = '⟳ Polishing...';
+  try {
+    const response = await window.AIBridge.paraphrasePrompt(original);
+    const polished = String(response?.text || '').trim();
+    if (!response?.ok || !polished) throw new Error('Polish failed');
+
+    textarea.value = polished;
+    syncPolishVisibility();
+
+    if (isTemplate) {
+      templatePolishUndo = original;
+      if (templateUndoTimer) clearTimeout(templateUndoTimer);
+      templateUndoTimer = setTimeout(() => document.getElementById(undoId)?.classList.add('pn-hidden'), 8000);
+      const afterVars = window.TemplateParser?.parse
+        ? window.TemplateParser.parse(normalizePromptText(polished)).map((item) => `${item.label}:${item.required ? 'r' : 'o'}`).join('|')
+        : '';
+      if (beforeVars !== afterVars) {
+        await showModalError(warningId, 'AI may have altered your blanks — review before saving.');
+      } else {
+        await hideModalError(warningId);
+      }
+      updateDetectedVars();
+    } else {
+      plainPolishUndo = original;
+      if (plainUndoTimer) clearTimeout(plainUndoTimer);
+      plainUndoTimer = setTimeout(() => document.getElementById(undoId)?.classList.add('pn-hidden'), 8000);
+    }
+
+    document.getElementById(undoId)?.classList.remove('pn-hidden');
+  } catch (_error) {
+    await showModalError(errorId, 'Polish failed — try again');
+    setTimeout(() => { void hideModalError(errorId); }, 4000);
+  } finally {
+    button.disabled = false;
+    button.textContent = '✦ Polish';
   }
+};
+
+const maybeAutoSuggestTags = async (text, existingTags) => {
+  if (existingTags.length) return existingTags;
+  try {
+    const result = await window.AIBridge.suggestTags(text);
+    const tags = Array.isArray(result?.tags)
+      ? result.tags.map((tag) => String(tag || '').trim()).filter(Boolean).slice(0, 3)
+      : [];
+    if (!tags.length) return existingTags;
+    setPlainTags(tags);
+    const info = document.getElementById('pn-tag-suggestions');
+    if (info) info.textContent = 'AI suggested these tags — keep or edit';
+    return tags;
+  } catch (_error) {
+    return existingTags;
+  }
+};
+
+const setPlainTags = (tags = []) => {
+  const hidden = document.getElementById('prompt-tags');
+  if (!hidden) return;
+  document.querySelectorAll('#tag-badges-wrap .pn-tag-badge').forEach((badge) => badge.remove());
+  tags.forEach((tag) => addTagBadge(tag));
+  syncBadgesToHidden();
+};
+
+const showPopupDuplicateWarning = (payload, match) => {
+  const warning = document.getElementById('pn-duplicate-warning');
+  if (!warning) return;
+
+  warning.replaceChildren();
+  warning.classList.remove('pn-hidden');
+
+  const title = document.createElement('strong');
+  title.textContent = `This looks similar to \"${String(match?.title || 'Untitled')}\"`;
+  warning.appendChild(title);
+
+  const actions = document.createElement('div');
+  actions.className = 'pn-duplicate-actions';
+
+  const saveButton = document.createElement('button');
+  saveButton.type = 'button';
+  saveButton.className = 'pn-btn-ignore';
+  saveButton.textContent = 'Save anyway';
+  saveButton.addEventListener('click', () => {
+    warning.classList.add('pn-hidden');
+    warning.replaceChildren();
+    pendingDuplicatePayload = payload;
+    void saveDuplicateAnyway();
+  });
+
+  const viewButton = document.createElement('button');
+  viewButton.type = 'button';
+  viewButton.className = 'pn-btn-view';
+  viewButton.textContent = 'View existing';
+  viewButton.addEventListener('click', () => {
+    warning.classList.add('pn-hidden');
+    warning.replaceChildren();
+    void closeModal();
+    if (match?.title) {
+      const search = document.getElementById('prompt-search');
+      if (search) search.value = String(match.title);
+      void renderPrompts(String(match.title || ''));
+    }
+  });
+
+  actions.appendChild(saveButton);
+  actions.appendChild(viewButton);
+  warning.appendChild(actions);
 };
 
 /** Opens the add prompt modal and clears all input fields. */
@@ -770,12 +1019,28 @@ const openModal = async () => {
   if (templateTags) templateTags.value = '';
   if (detectedVars) {
     detectedVars.replaceChildren();
-    detectedVars.style.display = 'none';
+    detectedVars.classList.remove('pn-detected-vars--active');
   }
+
+  await hideModalError('pn-error-title');
+  await hideModalError('pn-error-text');
+  await hideModalError('pn-template-error-title');
+  await hideModalError('pn-template-error-text');
+  await hideModalError('pn-polish-error');
+  await hideModalError('pn-template-polish-error');
+  await hideModalError('pn-template-polish-warning');
+  document.getElementById('pn-polish-undo')?.classList.add('pn-hidden');
+  document.getElementById('pn-template-polish-undo')?.classList.add('pn-hidden');
+  document.getElementById('pn-tag-suggestions')?.replaceChildren();
+  document.getElementById('pn-duplicate-warning')?.classList.add('pn-hidden');
+  const dup = document.getElementById('pn-duplicate-warning');
+  if (dup) dup.replaceChildren();
 
   await resetDuplicateState();
   setAddMode(ADD_MODE_SELECTOR);
   setPromptListVisibility(true);
+  syncPolishVisibility();
+  await updateAddAiStatusStrip();
   modal?.classList.remove('pn-hidden');
 };
 
@@ -808,6 +1073,7 @@ const persistPrompt = async (payload) => {
 
   await closeModal();
   await renderPrompts(String((await byId('prompt-search'))?.value || ''));
+  await showToast('Prompt saved');
   return true;
 };
 
@@ -817,7 +1083,9 @@ const saveDuplicateAnyway = async () => {
     return;
   }
 
-  await persistPrompt(pendingDuplicatePayload);
+  const payload = pendingDuplicatePayload;
+  pendingDuplicatePayload = null;
+  await persistPrompt(payload);
 };
 
 /** Saves a new prompt from modal fields with suggestions and duplicate checks. */
@@ -833,40 +1101,49 @@ const savePromptFromModal = async () => {
 
   const titleValue = String(titleInput.value || '').trim();
   const textValue = normalizePromptText(textInput.value || '').trim();
+  await hideModalError('pn-error-title');
+  await hideModalError('pn-error-text');
 
-  if (!titleValue || !textValue) {
-    await showToast('Title and prompt are required.');
-    return;
+  let valid = true;
+  if (!titleValue) {
+    await showModalError('pn-error-title', 'Title is required.');
+    valid = false;
   }
+  if (!textValue) {
+    await showModalError('pn-error-text', 'Prompt text is required.');
+    valid = false;
+  }
+  if (!valid) return;
 
   if (tagBadgeInput && tagBadgeInput.value.trim()) {
     addTagBadge(tagBadgeInput.value);
     tagBadgeInput.value = '';
   }
 
-  await prefillSuggestedTags();
-  const tags = await parseTags(tagsInput.value || '');
+  syncBadgesToHidden();
+  const userTags = await parseTags(tagsInput.value || '');
+  const existingPrompts = await window.Store.getPrompts();
+  const duplicate = window.PromptDuplicate?.findDuplicate
+    ? window.PromptDuplicate.findDuplicate({ title: titleValue, text: textValue }, existingPrompts, 0.85)
+    : window.AI.isDuplicate({ title: titleValue, text: textValue }, existingPrompts);
+
+  if (duplicate?.duplicate && duplicate?.match) {
+    showPopupDuplicateWarning({
+      title: titleValue,
+      text: textValue,
+      tags: userTags,
+      category: null
+    }, duplicate.match);
+    return;
+  }
+
+  const tags = await maybeAutoSuggestTags(textValue, userTags);
   const payload = {
     title: titleValue,
     text: textValue,
     tags,
     category: null
   };
-
-  const existingPrompts = await window.Store.getPrompts();
-  const duplicate = await window.AI.isDuplicate(textValue, existingPrompts);
-
-  if (duplicate.duplicate) {
-    pendingDuplicatePayload = payload;
-    const confirmButton = await byId('confirm-duplicate');
-
-    if (confirmButton) {
-      confirmButton.classList.remove('hidden');
-    }
-
-    await showToast(`Similar prompt found: ${duplicate.match?.title || 'Untitled'}. Save anyway?`);
-    return;
-  }
 
   await persistPrompt(payload);
 };
@@ -883,16 +1160,40 @@ const saveTemplateFromModal = async () => {
 
   const titleValue = String(titleInput.value || '').trim();
   const textValue = normalizePromptText(textInput.value || '').trim();
+  await hideModalError('pn-template-error-title');
+  await hideModalError('pn-template-error-text');
 
-  if (!titleValue || !textValue) {
-    await showToast('Title and template are required.');
+  let valid = true;
+  if (!titleValue) {
+    await showModalError('pn-template-error-title', 'Title is required.');
+    valid = false;
+  }
+  if (!textValue) {
+    await showModalError('pn-template-error-text', 'Template text is required.');
+    valid = false;
+  }
+  if (!valid) return;
+
+  const userTags = parseTags(tagsInput.value || '');
+  const duplicate = window.PromptDuplicate?.findDuplicate
+    ? window.PromptDuplicate.findDuplicate({ title: titleValue, text: textValue }, await window.Store.getPrompts(), 0.85)
+    : window.AI.isDuplicate({ title: titleValue, text: textValue }, await window.Store.getPrompts());
+  if (duplicate?.duplicate && duplicate?.match) {
+    showPopupDuplicateWarning({
+      title: titleValue,
+      text: textValue,
+      tags: userTags,
+      category: null
+    }, duplicate.match);
     return;
   }
+
+  const tags = await maybeAutoSuggestTags(textValue, userTags);
 
   const payload = {
     title: titleValue,
     text: textValue,
-    tags: parseTags(tagsInput.value || ''),
+    tags,
     category: null
   };
 
@@ -916,6 +1217,8 @@ const bindEvents = async () => {
   const clearButton = await byId('pn-search-clear');
   const promptText = await byId('prompt-text');
   const templateText = await byId('pn-template-text');
+  const plainPolishButton = await byId('pn-polish-btn');
+  const templatePolishButton = await byId('pn-template-polish-btn');
   const modalBackdrop = document.querySelector('[data-close-modal]');
   const tabs = Array.from(document.querySelectorAll('.tab'));
   const clearSearch = () => {
@@ -936,10 +1239,14 @@ const bindEvents = async () => {
     void openModal();
   });
 
-  modePlainButton?.addEventListener('click', () => setAddMode(ADD_MODE_PLAIN));
+  modePlainButton?.addEventListener('click', () => {
+    setAddMode(ADD_MODE_PLAIN);
+    void updateAddAiStatusStrip();
+  });
   modeTemplateButton?.addEventListener('click', () => {
     setAddMode(ADD_MODE_TEMPLATE);
     updateDetectedVars();
+    void updateAddAiStatusStrip();
   });
   plainBackButton?.addEventListener('click', () => setAddMode(ADD_MODE_SELECTOR));
   templateBackButton?.addEventListener('click', () => setAddMode(ADD_MODE_SELECTOR));
@@ -972,12 +1279,64 @@ const bindEvents = async () => {
     void closeModal();
   });
 
-  promptText?.addEventListener('blur', () => {
-    void prefillSuggestedTags();
+  promptText?.addEventListener('input', () => {
+    syncPolishVisibility();
+    void hideModalError('pn-error-text');
+    document.getElementById('pn-duplicate-warning')?.classList.add('pn-hidden');
   });
 
   templateText?.addEventListener('input', () => {
+    updateDetectedVarsDebounced();
+    syncPolishVisibility();
+    void hideModalError('pn-template-error-text');
+    document.getElementById('pn-duplicate-warning')?.classList.add('pn-hidden');
+  });
+
+  document.getElementById('prompt-title')?.addEventListener('input', () => {
+    void hideModalError('pn-error-title');
+    document.getElementById('pn-duplicate-warning')?.classList.add('pn-hidden');
+  });
+  document.getElementById('pn-template-title')?.addEventListener('input', () => {
+    void hideModalError('pn-template-error-title');
+    document.getElementById('pn-duplicate-warning')?.classList.add('pn-hidden');
+  });
+
+  plainPolishButton?.addEventListener('click', () => {
+    void runModalPolish(false);
+  });
+  templatePolishButton?.addEventListener('click', () => {
+    void runModalPolish(true);
+  });
+
+  document.getElementById('pn-polish-undo')?.addEventListener('click', () => {
+    const textarea = document.getElementById('prompt-text');
+    if (!textarea || !plainPolishUndo) return;
+    textarea.value = plainPolishUndo;
+    document.getElementById('pn-polish-undo')?.classList.add('pn-hidden');
+  });
+  document.getElementById('pn-template-polish-undo')?.addEventListener('click', () => {
+    const textarea = document.getElementById('pn-template-text');
+    if (!textarea || !templatePolishUndo) return;
+    textarea.value = templatePolishUndo;
     updateDetectedVars();
+    document.getElementById('pn-template-polish-undo')?.classList.add('pn-hidden');
+    void hideModalError('pn-template-polish-warning');
+  });
+
+  const openSettingsFromPopup = async () => {
+    const sidepanelUrl = chrome.runtime.getURL('sidepanel/sidepanel.html#settings');
+    await chrome.tabs.create({ url: sidepanelUrl });
+    window.close();
+  };
+  document.getElementById('pn-form-ai-status')?.addEventListener('click', () => {
+    if (document.getElementById('pn-form-ai-status')?.classList.contains('pn-clickable')) {
+      void openSettingsFromPopup();
+    }
+  });
+  document.getElementById('pn-template-ai-status')?.addEventListener('click', () => {
+    if (document.getElementById('pn-template-ai-status')?.classList.contains('pn-clickable')) {
+      void openSettingsFromPopup();
+    }
   });
 
   searchInput?.addEventListener('input', (event) => {
@@ -1064,6 +1423,12 @@ const bindEvents = async () => {
   }
 
   bindVariableToolbar();
+  chrome.runtime.onMessage.addListener((message) => {
+    const type = String(message?.type || '').trim();
+    if (type === 'AI_LOCAL_MODEL_STATUS' || type === 'AI_LOCAL_STATUS_BROADCAST' || type === 'AI_LOCAL_MODEL_PROGRESS') {
+      void updateAddAiStatusStrip();
+    }
+  });
 };
 
 /** Boots the main popup UI once and optionally skips duplicate AI init after onboarding setup. */
@@ -1079,6 +1444,7 @@ const bootstrapMainUi = async ({ skipAiInit = false } = {}) => {
   }
 
   await bindEvents();
+  await updateAddAiStatusStrip();
   await switchTab('prompts');
   await renderPrompts();
   await renderHistory();

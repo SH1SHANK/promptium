@@ -83,6 +83,7 @@ const render = async () => {
   const container = document.getElementById('tag-list');
   const filterBar = document.getElementById('pn-tag-filter-bar');
   const emptyState = document.getElementById('pn-tags-empty');
+  const emptyAction = document.getElementById('pn-tags-empty-add');
   const quickFiltersHead = document.getElementById('pn-quick-filters-head');
   const quickFiltersDivider = document.getElementById('pn-tags-quick-divider');
 
@@ -102,6 +103,14 @@ const render = async () => {
   }
 
   if (!tags.length) {
+    if (emptyAction && !emptyAction.dataset.bound) {
+      emptyAction.dataset.bound = '1';
+      emptyAction.addEventListener('click', () => {
+        if (window.PromptForm?.open) {
+          void window.PromptForm.open();
+        }
+      });
+    }
     quickFiltersHead?.classList.add('pn-hidden');
     filterBar?.classList.add('pn-hidden');
     quickFiltersDivider?.classList.add('pn-hidden');

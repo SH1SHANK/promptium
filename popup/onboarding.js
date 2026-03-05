@@ -12,58 +12,65 @@
     {
       id: 'welcome',
       icon: '✦',
+      iconClass: 'pn-card-icon--violet',
       headline: 'Meet Promptium',
       subheadline: 'Your AI workflow, elevated.',
       body: 'Save prompts, fill template variables, continue across LLMs, bookmark key replies, and export in clean formats. All private.',
-      accent: '#8b7cf6'
+      accent: 'var(--accent)'
     },
     {
       id: 'prompts',
       icon: '⌘',
+      iconClass: 'pn-card-icon--mint',
       headline: 'Never lose a great prompt',
       subheadline: 'Save once. Inject anywhere.',
       body: 'Save prompts on any supported LLM page. Build templates with [name] required and [name?] optional blanks, then inject in one click.',
-      accent: '#2dd4bf'
+      accent: 'var(--accent)'
     },
     {
       id: 'improve',
       icon: '✨',
+      iconClass: 'pn-card-icon--lilac',
       headline: 'AI Prompt Improvement',
       subheadline: 'Enhance before you send.',
       body: 'Open the Side Panel to refine your prompts. Choose from Coding, Creative, or Study styles and let Gemini perfect your text instantly.',
-      accent: '#a49aff'
+      accent: 'var(--secondary-accent)'
     },
     {
       id: 'export',
       icon: '↑',
+      iconClass: 'pn-card-icon--amber',
       headline: 'Export with intention',
       subheadline: 'Your conversations, your format.',
       body: 'Export chats as Markdown, TXT, JSON, PDF, PNG, JPEG, Notion, or Obsidian. Smart filenames and starred bookmarks carry through exports.',
-      accent: '#fbbf24'
+      accent: 'var(--warning)'
     },
     {
       id: 'ai',
       icon: '◈',
+      iconClass: 'pn-card-icon--pink',
       headline: 'Bridge between LLMs',
       subheadline: 'Continue context in one click.',
       body: 'Use Continue on buttons to move your active conversation context between ChatGPT, Claude, Gemini, Perplexity, and Copilot.',
-      accent: '#f472b6'
+      accent: 'var(--danger)'
     },
     {
       id: 'privacy',
       icon: '◉',
+      iconClass: 'pn-card-icon--green',
       headline: 'Privacy-first architecture',
       subheadline: 'No backend. No account.',
       body: 'Every saved prompt, every export, every local search embedding stays fully local on your device. Your conversations are yours.',
-      accent: '#34d399'
+      accent: 'var(--success)'
     },
     {
       id: 'launch',
       icon: '→',
+      iconClass: 'pn-card-icon--violet',
       headline: 'Ready to start',
       subheadline: 'Choose your next step.',
       body: 'Open your library, jump into settings, or start directly.',
-      accent: '#8b7cf6',
+      accent: 'var(--accent)',
       isLaunch: true
     }
   ];
@@ -504,7 +511,7 @@
     node.dataset.index = String(index);
     node.dataset.cardId = card.id;
     node.innerHTML = `
-      <span class="pn-card-icon" style="color: ${card.accent};">${card.icon}</span>
+      <span class="pn-card-icon ${card.iconClass || 'pn-card-icon--violet'}">${card.icon}</span>
       <p class="pn-card-sub">${card.subheadline}</p>
       <h2 class="pn-card-headline">${card.headline}</h2>
       ${card.isPersonalize ? await renderPersonalizeCard() : `<p class="pn-card-body">${card.body}</p>`}

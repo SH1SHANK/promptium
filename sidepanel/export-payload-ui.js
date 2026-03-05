@@ -11,6 +11,8 @@ const callbacks = {
   onRunExport: null,
   onSelectMessages: null
 };
+const EXPORT_PREFS_KEY = 'exportPrefs';
+let exportPrefsHydrated = false;
 
 const EXPORT_FORMAT_ALIASES = Object.freeze({
   text: 'txt',
@@ -36,6 +38,69 @@ const normalizeExportFormat = (value, fallback = 'markdown') => {
     return aliased;
   }
   return fallback;
+};
+
+const normalizeExportPrefs = (raw, fallback = state.exportPrefs || {}) => {
+  const source = raw && typeof raw === 'object' ? raw : {};
+  const base = fallback && typeof fallback === 'object' ? fallback : {};
+  return {
+    format: normalizeExportFormat(source.format || base.format || 'markdown'),
+    includeDate: source.includeDate !== undefined ? Boolean(source.includeDate) : Boolean(base.includeDate),
+    includePlatform: source.includePlatform !== undefined ? Boolean(source.includePlatform) : Boolean(base.includePlatform),
+    includeMessageNumbers: source.includeMessageNumbers !== undefined ? Boolean(source.includeMessageNumbers) : Boolean(base.includeMessageNumbers),
+    contentMode: String(source.contentMode || base.contentMode || 'structured') === 'combined' ? 'combined' : 'structured',
+    fontStyle: String(source.fontStyle || base.fontStyle || 'System'),
+    fontSize: Math.min(20, Math.max(12, Number(source.fontSize || base.fontSize || 14) || 14)),
+    background: ['dark', 'light', 'sepia', 'custom'].includes(String(source.background || '').toLowerCase())
+      ? String(source.background).toLowerCase()
+      : String(base.background || 'dark').toLowerCase(),
+    customBackground: String(source.customBackground || base.customBackground || '#18181c')
+  };
+};
+
+const persistExportPrefs = async () => {
+  await chrome.storage.local.set({ [EXPORT_PREFS_KEY]: state.exportPrefs }).catch(() => {});
+};
+
+const hydrateExportPrefsFromStorage = async () => {
+  if (exportPrefsHydrated) return;
+
+  const snapshot = await chrome.storage.local.get([EXPORT_PREFS_KEY]).catch(() => ({}));
+  const storedPrefs = snapshot?.[EXPORT_PREFS_KEY];
+  state.exportPrefs = normalizeExportPrefs(storedPrefs, state.exportPrefs);
+  exportPrefsHydrated = true;
+
+  const formatNode = byId('export-format');
+  const contentModeNode = byId('export-content-mode');
+  const includeDateNode = byId('include-date');
+  const includePlatformNode = byId('include-platform');
+  const includeNumbersNode = byId('include-msg-numbers');
+  const fontStyleNode = byId('export-font-style');
+  const fontSizeNode = byId('export-font-size');
+  const fontSizeNumberNode = byId('export-font-size-number');
+  const backgroundNode = byId('export-bg-style');
+  const customBgNode = byId('export-bg-custom');
+  const customWrapNode = byId('export-bg-custom-wrap');
+
+  if (formatNode) formatNode.value = normalizeExportFormat(state.exportPrefs.format);
+  if (contentModeNode) contentModeNode.value = state.exportPrefs.contentMode;
+  if (includeDateNode) includeDateNode.checked = Boolean(state.exportPrefs.includeDate);
+  if (includePlatformNode) includePlatformNode.checked = Boolean(state.exportPrefs.includePlatform);
+  if (includeNumbersNode) {
+    includeNumbersNode.checked = Boolean(state.exportPrefs.includeMessageNumbers);
+    includeNumbersNode.disabled = state.exportPrefs.contentMode === 'combined';
+    if (includeNumbersNode.disabled) {
+      includeNumbersNode.checked = false;
+      state.exportPrefs.includeMessageNumbers = false;
+    }
+  }
+  if (fontStyleNode) fontStyleNode.value = state.exportPrefs.fontStyle;
+  if (fontSizeNode) fontSizeNode.value = String(state.exportPrefs.fontSize);
+  if (fontSizeNumberNode) fontSizeNumberNode.value = String(state.exportPrefs.fontSize);
+  if (backgroundNode) backgroundNode.value = state.exportPrefs.background;
+  if (customBgNode) customBgNode.value = state.exportPrefs.customBackground;
+  customWrapNode?.classList.toggle('pn-hidden', state.exportPrefs.background !== 'custom');
+  applyCustomExportThemeRules(state.exportPrefs.customBackground);
 };
 
 // Safety guard: sidepanel export must never use html2pdf/html2canvas due MV3 CSP.
@@ -673,6 +738,8 @@ const setStatus = async (message, isError = false, options = {}) => {
 };
 
 const syncPrefsFromControls = async () => {
+  await hydrateExportPrefsFromStorage();
+
   const format = byId('export-format');
   const contentMode = byId('export-content-mode');
   const includeDate = byId('include-date');
@@ -701,6 +768,7 @@ const syncPrefsFromControls = async () => {
     background: String(background?.value || state.exportPrefs.background || 'dark'),
     customBackground: String(customBackground?.value || state.exportPrefs.customBackground || '#18181c')
   };
+  await persistExportPrefs();
 
   customWrap?.classList.toggle('pn-hidden', state.exportPrefs.background !== 'custom');
   applyCustomExportThemeRules(state.exportPrefs.customBackground);
@@ -714,6 +782,8 @@ const syncPrefsFromControls = async () => {
 };
 
 const renderMeta = async () => {
+  await hydrateExportPrefsFromStorage();
+
   const payload = getActivePayload();
   const selectionMeta = byId('selection-meta');
   const previewLabel = byId('preview-label');
@@ -777,6 +847,8 @@ const renderMeta = async () => {
 };
 
 const renderPreview = async () => {
+  await hydrateExportPrefsFromStorage();
+
   const preview = byId('preview');
 
   if (!preview) {
@@ -818,6 +890,7 @@ const applyDefaultsFromSettings = (settings) => {
     background: 'dark',
     customBackground: '#18181c'
   };
+  exportPrefsHydrated = false;
 
   const formatNode = byId('export-format');
   const contentModeNode = byId('export-content-mode');

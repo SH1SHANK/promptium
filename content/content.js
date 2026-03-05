@@ -123,6 +123,7 @@ const undoInjectedPrompt = async () => {
 };
 
 const showInjectionUndoToast = () => {
+  document.querySelectorAll('.pn-toast').forEach((node) => node.remove());
   const toast = document.createElement('div');
   toast.className = 'pn-toast pn-toast--undo';
   toast.setAttribute('role', 'status');
@@ -951,8 +952,12 @@ const hydratePendingBridge = async (platform) => {
     }
 
     if (success) {
+      const bridgeKey = window.Bridge?.BRIDGE_KEY || 'pendingBridge';
+      await chrome.storage.local.remove([bridgeKey]).catch(() => {});
       const label = PLATFORM_LABELS[bridge.sourcePlatform] || bridge.sourcePlatform;
       await notify(`Continued from ${label}`);
+    } else {
+      await notify('Bridge failed — reopen extension to retry.');
     }
   } catch (error) {
     console.error('[Promptium][Content] Failed pending bridge hydration.', error);
@@ -985,9 +990,11 @@ const hydratePendingContinuation = async (platform) => {
     }
 
     if (success) {
+      const continuationKey = window.Continuation?.CONTINUATION_KEY || 'pendingContinuation';
+      await chrome.storage.local.remove([continuationKey]).catch(() => {});
       await notify('Context loaded — continue your conversation');
     } else {
-      await notify('Could not inject continuation context.');
+      await notify('Injection failed — open the extension to retry.');
     }
   } catch (error) {
     console.error('[Promptium][Content] Failed continuation hydration.', error);

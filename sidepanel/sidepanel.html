@@ -295,6 +295,7 @@
           </div>
 
           <div id="pn-continue-summary" class="pn-continue-summary">No conversation loaded yet.</div>
+          <p id="pn-continue-advisory" class="pn-sv-api-hint pn-hidden"></p>
 
           <label class="pn-field">
             <span>Target LLM</span>
@@ -340,8 +341,9 @@
           <div id="tag-list" class="pn-tag-list">
             <div id="pn-tags-empty" class="pn-empty-state">
               <div class="pn-empty-icon">🏷️</div>
-              <p>No tags yet.</p>
-              <span>Tags you add to prompts will appear here.</span>
+              <p>No tags yet</p>
+              <span>Add tags when saving prompts.</span>
+              <button id="pn-tags-empty-add" type="button" class="pn-btn pn-btn--primary pn-empty-state__action">Add your first prompt</button>
             </div>
           </div>
         </div>
@@ -350,20 +352,71 @@
       <section class="tab-content pn-tab-content" data-tab="settings">
         <div class="pn-sv">
           <!-- Hero -->
-          <div class="pn-sv-hero">
-            <h3 class="pn-sv-hero__title">Settings</h3>
-            <p class="pn-sv-hero__sub">Tune intelligence, exports, and personalization.</p>
+          <div class="pn-sv-hero" id="pn-settings-main-hero">
+            <h3 class="pn-sv-hero__title">Settings & Support</h3>
+            <p class="pn-sv-hero__sub">Configure your AI extension</p>
           </div>
 
-          <div id="pn-settings-tabs" class="pn-settings-tabs" role="tablist" aria-label="Settings sections">
-            <button type="button" class="pn-settings-tab active" data-settings-tab="ai" role="tab" aria-selected="true">◇ AI & API</button>
-            <button type="button" class="pn-settings-tab" data-settings-tab="platforms" role="tab" aria-selected="false">◎ LLM Platforms</button>
-            <button type="button" class="pn-settings-tab" data-settings-tab="interface" role="tab" aria-selected="false">◌ FAB & Interface</button>
-            <button type="button" class="pn-settings-tab" data-settings-tab="prefs" role="tab" aria-selected="false">◈ Preferences</button>
-            <button type="button" class="pn-settings-tab" data-settings-tab="about" role="tab" aria-selected="false">◍ About & Data</button>
+          <div id="pn-settings-root-menu" class="pn-settings-root-menu">
+            <div class="pn-settings-group">
+              <div class="pn-settings-group-title">Settings Hub</div>
+              
+              <button class="pn-settings-item" data-settings-target="ai">
+                <span class="pn-settings-item-icon pn-settings-item-icon--ai"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
+                <span class="pn-settings-item-title">Intelligence & API</span>
+                <svg class="pn-settings-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </button>
+
+              <button class="pn-settings-item" data-settings-target="ai-models">
+                <span class="pn-settings-item-icon pn-settings-item-icon--ai"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18"/><path d="M6 7h12"/><path d="M7 17h10"/></svg></span>
+                <span class="pn-settings-item-title">AI Models</span>
+                <svg class="pn-settings-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </button>
+              
+              <button class="pn-settings-item" data-settings-target="platforms">
+                <span class="pn-settings-item-icon pn-settings-item-icon--platforms"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
+                <span class="pn-settings-item-title">LLM Platforms</span>
+                <svg class="pn-settings-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </button>
+            </div>
+
+            <div class="pn-settings-group">
+              <div class="pn-settings-group-title">Interface & Preferences</div>
+              
+              <button class="pn-settings-item" data-settings-target="interface">
+                <span class="pn-settings-item-icon pn-settings-item-icon--interface"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg></span>
+                <span class="pn-settings-item-title">FAB & Interface</span>
+                <svg class="pn-settings-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </button>
+              
+              <button class="pn-settings-item" data-settings-target="prefs">
+                <span class="pn-settings-item-icon pn-settings-item-icon--prefs"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+                <span class="pn-settings-item-title">Preferences</span>
+                <svg class="pn-settings-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </button>
+            </div>
+
+            <div class="pn-settings-group">
+              <div class="pn-settings-group-title">Support & About</div>
+              
+              <button class="pn-settings-item" data-settings-target="about">
+                <span class="pn-settings-item-icon pn-settings-item-icon--about"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                <span class="pn-settings-item-title">About & Data</span>
+                <svg class="pn-settings-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </button>
+            </div>
           </div>
 
-          <div class="pn-settings-pane" data-settings-pane="ai">
+          <div id="pn-settings-panes-wrapper" class="pn-settings-panes-wrapper pn-hidden">
+            <div class="pn-settings-pane-header">
+              <button id="pn-settings-back-btn" class="pn-settings-back-btn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                <span class="pn-settings-back-btn-label">Settings</span>
+              </button>
+              <h3 id="pn-settings-pane-title" class="pn-settings-pane-title">Intelligence & API</h3>
+            </div>
+
+            <div class="pn-settings-pane" data-settings-pane="ai">
 
           <!-- ── Intelligence ─────────────────────────── -->
           <div class="pn-sv-section">
@@ -379,6 +432,31 @@
                 <span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span>
               </label>
             </div>
+
+            <label class="pn-sv-field">
+              <span class="pn-sv-field__label">AI backend</span>
+              <select id="setting-ai-backend" class="pn-sv-select">
+                <option value="gemini">Gemini API</option>
+                <option value="local">Local Model (Unlimited)</option>
+              </select>
+            </label>
+
+            <div class="pn-sv-row">
+              <div class="pn-sv-row__copy">
+                <span class="pn-sv-row__label">Auto-fallback</span>
+                <span class="pn-sv-row__desc">If Gemini fails or key is missing, use local model automatically.</span>
+              </div>
+              <label class="pn-toggle">
+                <input id="setting-ai-auto-fallback" type="checkbox" checked />
+                <span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span>
+              </label>
+            </div>
+
+            <div id="pn-local-model-progress-wrap" class="pn-local-model-progress pn-hidden" aria-live="polite">
+              <progress id="pn-local-model-progress" max="100" value="0"></progress>
+              <span id="pn-local-model-progress-text">Local model not initialized yet.</span>
+            </div>
+            <p id="pn-ai-routing-note" class="pn-sv-api-hint">Checking backend routing…</p>
 
             <div class="pn-sv-row">
               <div class="pn-sv-row__copy">
@@ -501,6 +579,18 @@
               Powers contextual suggestions.
               <a href="https://aistudio.google.com/app/apikey" target="_blank" class="pn-sv-api-link">Get a free key →</a>
             </p>
+
+            <div class="pn-sv-row">
+              <div class="pn-sv-row__copy">
+                <span class="pn-sv-row__label">Gemini as Primary</span>
+                <span class="pn-sv-row__desc">When off and local model is ready, Gemini is fallback only.</span>
+              </div>
+              <label class="pn-toggle">
+                <input id="setting-gemini-primary" type="checkbox" checked />
+                <span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span>
+              </label>
+            </div>
+            <p id="pn-gemini-primary-note" class="pn-sv-api-hint pn-hidden">Gemini is set as primary. Local model will only be used if Gemini fails.</p>
           </div>
 
           <hr class="pn-sv-divider" />
@@ -532,38 +622,162 @@
 
           </div>
 
-          <div class="pn-settings-pane pn-hidden" data-settings-pane="platforms">
+          <div class="pn-settings-pane pn-hidden" data-settings-pane="ai-models">
             <div class="pn-sv-section">
-              <h4 class="pn-sv-heading">LLM Platforms</h4>
-              <div id="pn-platform-list" class="pn-settings-list"></div>
-              <p id="pn-platform-warning" class="pn-sv-api-hint pn-hidden">At least one platform should stay enabled.</p>
+              <h4 class="pn-sv-heading">Active Model</h4>
+              <label class="pn-sv-row">
+                <span class="pn-sv-row__copy">
+                  <span class="pn-sv-row__label">SmolLM2-1.7B</span>
+                  <span class="pn-sv-row__desc">Fast · 400MB · <span id="pn-model-status-smollm2_1_7b">Not downloaded</span></span>
+                </span>
+                <input id="setting-local-model-smollm2" type="radio" name="setting-local-model" value="smollm2_1_7b" />
+              </label>
+              <label class="pn-sv-row">
+                <span class="pn-sv-row__copy">
+                  <span class="pn-sv-row__label">Phi-3.5-mini</span>
+                  <span class="pn-sv-row__desc">Quality · 1.5GB · <span id="pn-model-status-phi35_mini">Not downloaded</span></span>
+                </span>
+                <input id="setting-local-model-phi35" type="radio" name="setting-local-model" value="phi35_mini" />
+              </label>
+              <label class="pn-sv-row">
+                <span class="pn-sv-row__copy">
+                  <span class="pn-sv-row__label">Qwen3-0.6B</span>
+                  <span class="pn-sv-row__desc">Lightweight · 300MB · <span id="pn-model-status-qwen3_0_6b">Not downloaded</span></span>
+                </span>
+                <input id="setting-local-model-qwen3" type="radio" name="setting-local-model" value="qwen3_0_6b" />
+              </label>
+              <button id="pn-local-model-action-btn" class="pn-btn pn-btn--primary" type="button">Download (400MB)</button>
+              <p id="pn-local-model-action-meta" class="pn-sv-api-hint">Download starts only when you click.</p>
             </div>
 
             <hr class="pn-sv-divider" />
 
             <div class="pn-sv-section">
+              <h4 class="pn-sv-heading">Fallback Behavior</h4>
+              <div class="pn-sv-row">
+                <div class="pn-sv-row__copy">
+                  <span class="pn-sv-row__label">Use local model as fallback when Gemini is unavailable</span>
+                </div>
+                <label class="pn-toggle">
+                  <input id="setting-local-fallback" type="checkbox" checked />
+                  <span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span>
+                </label>
+              </div>
+              <div class="pn-sv-row">
+                <div class="pn-sv-row__copy">
+                  <span class="pn-sv-row__label">Prefer local model over Gemini by default</span>
+                  <span id="pn-local-prefer-note" class="pn-sv-row__desc pn-hidden">Local model runs on your device. Quality may differ from Gemini.</span>
+                </div>
+                <label class="pn-toggle">
+                  <input id="setting-prefer-local" type="checkbox" />
+                  <span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span>
+                </label>
+              </div>
+            </div>
+
+            <hr class="pn-sv-divider" />
+
+            <div class="pn-sv-section">
+              <h4 class="pn-sv-heading">Where to Use Local AI</h4>
+              <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Polish prompts when saving</span><label class="pn-toggle pn-toggle--sm"><input id="setting-local-feature-polish" type="checkbox" checked /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+              <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Auto-suggest tags</span><label class="pn-toggle pn-toggle--sm"><input id="setting-local-feature-autotags" type="checkbox" checked /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+              <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Improve Prompt feature</span><label class="pn-toggle pn-toggle--sm"><input id="setting-local-feature-improve" type="checkbox" checked /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+              <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Continue Chat summarization</span><label class="pn-toggle pn-toggle--sm"><input id="setting-local-feature-continue" type="checkbox" checked /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+              <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Smart export title generation (Experimental)</span><label class="pn-toggle pn-toggle--sm"><input id="setting-local-feature-smart-export" type="checkbox" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+            </div>
+
+            <hr class="pn-sv-divider" />
+
+            <details class="pn-advanced-settings-toggle">
+              <summary class="pn-advanced-settings-summary">About these models</summary>
+              <div class="pn-advanced-settings-body">
+                <p class="pn-sv-api-hint">SmolLM2-1.7B is the default fast local model for everyday prompt tasks.</p>
+                <p class="pn-sv-api-hint">Phi-3.5-mini provides higher quality paraphrasing at a larger size.</p>
+                <p class="pn-sv-api-hint">Qwen3-0.6B is lightweight for low-resource devices.</p>
+                <p class="pn-sv-api-hint"><a class="pn-sv-api-link" href="https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B-Instruct" target="_blank">SmolLM2 model card</a></p>
+                <p class="pn-sv-api-hint"><a class="pn-sv-api-link" href="https://huggingface.co/microsoft/Phi-3.5-mini-instruct" target="_blank">Phi-3.5-mini model card</a></p>
+                <p class="pn-sv-api-hint"><a class="pn-sv-api-link" href="https://huggingface.co/Qwen/Qwen3-0.6B-Instruct" target="_blank">Qwen3 model card</a></p>
+                <p class="pn-sv-api-hint">All models run entirely on your device. No data is sent anywhere when using local AI.</p>
+              </div>
+            </details>
+          </div>
+
+          <div class="pn-settings-pane pn-hidden" data-settings-pane="platforms">
+            <div class="pn-sv-section">
+              <h4 class="pn-sv-heading">LLM Platforms</h4>
+              <p class="pn-sv-api-hint pn-sv-api-hint--platform-intro">Toggle provider support and set the display label used across Promptium.</p>
+              <div id="pn-platform-list" class="pn-settings-list"></div>
+              <p id="pn-platform-warning" class="pn-sv-api-hint pn-hidden">At least one platform should stay enabled.</p>
+
+              <div class="pn-platform-label-form">
+                <div class="pn-platform-label-form__row">
+                  <label class="pn-sv-field pn-sv-field--compact">
+                    <span class="pn-sv-field__label">Platform key</span>
+                    <input id="setting-platform-label-key" type="text" class="pn-sv-textarea" placeholder="e.g. openrouter" />
+                  </label>
+                  <label class="pn-sv-field pn-sv-field--compact">
+                    <span class="pn-sv-field__label">Label</span>
+                    <input id="setting-platform-label-value" type="text" class="pn-sv-textarea" placeholder="e.g. OpenRouter Chat" />
+                  </label>
+                </div>
+                <button id="pn-add-platform-label" class="pn-btn pn-btn--primary" type="button">Add Platform Label</button>
+              </div>
+              <p id="pn-platform-label-error" class="pn-platform-label-form__error pn-hidden"></p>
+            </div>
+
+            <hr class="pn-sv-divider" />
+
+            <div class="pn-sv-section pn-sv-section--custom-llm">
               <h4 class="pn-sv-heading">Add Custom LLM</h4>
+              <p class="pn-sv-api-hint pn-sv-api-hint--custom-intro">Add your favorite LLM by URL. We'll try to auto-detect its chat layout.</p>
+              
               <label class="pn-sv-field">
-                <span class="pn-sv-field__label">Name</span>
-                <input id="setting-custom-name" type="text" class="pn-sv-textarea" placeholder="My LLM" />
+                <span class="pn-sv-field__label">LLM Name</span>
+                <input id="setting-custom-name" type="text" class="pn-sv-textarea" placeholder="e.g. Meta Llama Chat" />
               </label>
               <label class="pn-sv-field">
-                <span class="pn-sv-field__label">URL Pattern</span>
-                <input id="setting-custom-url" type="text" class="pn-sv-textarea" placeholder="https://myllm.com/*" />
+                <span class="pn-sv-field__label">LLM Chat URL</span>
+                <div class="pn-sv-inline-row">
+                  <input id="setting-custom-url" type="url" class="pn-sv-textarea" placeholder="https://chat.example.com/*" />
+                  <button id="pn-add-custom-platform-smart" class="pn-btn pn-btn--primary pn-btn--nowrap" type="button">Auto-Detect & Add</button>
+                </div>
               </label>
-              <label class="pn-sv-field">
-                <span class="pn-sv-field__label">Input selector</span>
-                <input id="setting-custom-input" type="text" class="pn-sv-textarea" placeholder="textarea, div[contenteditable='true']" />
-              </label>
-              <label class="pn-sv-field">
-                <span class="pn-sv-field__label">User message selector</span>
-                <input id="setting-custom-user" type="text" class="pn-sv-textarea" placeholder="[data-role='user']" />
-              </label>
-              <label class="pn-sv-field">
-                <span class="pn-sv-field__label">Bot message selector</span>
-                <input id="setting-custom-bot" type="text" class="pn-sv-textarea" placeholder="[data-role='assistant']" />
-              </label>
-              <button id="pn-add-custom-platform" class="pn-btn pn-btn--ghost" type="button">Add Custom LLM</button>
+              
+              <div id="pn-custom-llm-error" class="pn-hidden pn-status-error pn-custom-llm-error"></div>
+
+              <details class="pn-advanced-settings-toggle pn-advanced-settings-toggle--spaced" id="pn-custom-llm-advanced">
+                <summary class="pn-advanced-settings-summary">Advanced: HTML Extraction & Manual Output</summary>
+                
+                <div class="pn-advanced-settings-body">
+                  
+                  <label class="pn-sv-field">
+                    <span class="pn-sv-field__label pn-sv-field__label--strong">Extract from Page HTML</span>
+                    <span class="pn-sv-api-hint pn-sv-api-hint--small">If auto-detect fails (e.g. behind login), inspect the chat page, copy its outer HTML, and paste it here.</span>
+                    <textarea id="setting-custom-html" class="pn-sv-textarea pn-sv-textarea--mono" rows="5" placeholder="<html>...</html>"></textarea>
+                    <button id="pn-add-custom-platform-html" class="pn-btn pn-btn--ghost pn-btn--mt-8" type="button">Extract Selectors & Add</button>
+                  </label>
+
+                  <hr class="pn-sv-divider pn-sv-divider--tight" />
+
+                  <label class="pn-sv-field">
+                    <span class="pn-sv-field__label pn-sv-field__label--strong pn-sv-field__label--with-gap">Manual Registration</span>
+                  </label>
+                  
+                  <label class="pn-sv-field">
+                    <span class="pn-sv-field__label pn-sv-field__label--tiny">Input selector</span>
+                    <input id="setting-custom-input" type="text" class="pn-sv-textarea" placeholder="textarea, div[contenteditable='true']" />
+                  </label>
+                  <label class="pn-sv-field">
+                    <span class="pn-sv-field__label pn-sv-field__label--tiny">User message selector</span>
+                    <input id="setting-custom-user" type="text" class="pn-sv-textarea" placeholder="[data-role='user']" />
+                  </label>
+                  <label class="pn-sv-field">
+                    <span class="pn-sv-field__label pn-sv-field__label--tiny">Bot message selector</span>
+                    <input id="setting-custom-bot" type="text" class="pn-sv-textarea" placeholder="[data-role='assistant']" />
+                  </label>
+                  <button id="pn-add-custom-platform" class="pn-btn pn-btn--ghost pn-btn--mt-4" type="button">Add Manually</button>
+                </div>
+              </details>
             </div>
 
             <div id="pn-custom-platforms" class="pn-settings-list"></div>
@@ -683,6 +897,7 @@
               </div>
             </div>
           </div>
+          </div>
         </div>
       </section>
     </main>
@@ -706,14 +921,14 @@
             <span class="pn-mode-icon">✏️</span>
             <span class="pn-mode-text">
               <span class="pn-mode-title">Plain Prompt</span>
-              <span class="pn-mode-desc">Type your prompt once and reuse it as-is.</span>
+              <span class="pn-mode-desc">Just type and save. Use it as-is every time.</span>
             </span>
           </button>
           <button class="pn-mode-card" id="pn-mode-template" type="button">
             <span class="pn-mode-icon">🧩</span>
             <span class="pn-mode-text">
               <span class="pn-mode-title">Fill-in Template</span>
-              <span class="pn-mode-desc">Use [blanks] you can fill each time before injecting.</span>
+              <span class="pn-mode-desc">Add blanks to fill in each time — like "Write about [topic]".</span>
             </span>
           </button>
           <button class="pn-mode-cancel" id="pn-mode-cancel" type="button">Cancel</button>
@@ -724,46 +939,39 @@
             <button class="pn-back-btn" id="pn-plain-back" type="button">← Back</button>
             <span class="pn-form-title">New Prompt</span>
           </div>
+          <div id="pn-form-ai-status" class="pn-sv-api-hint pn-add-ai-status">○ AI unavailable — enable in Settings</div>
 
           <div class="pn-add-modal__section">
-            <label class="pn-field">
-              <span>Title</span>
-              <input id="prompt-title" type="text" placeholder="Prompt title" maxlength="80" />
-            </label>
+          <label class="pn-field">
+            <span>Title</span>
+            <input id="prompt-title" type="text" placeholder="Give it a name (e.g. My Study Helper)" maxlength="80" />
+          </label>
+          <p id="pn-error-title" class="pn-fill-error pn-hidden"></p>
           </div>
 
           <div class="pn-add-modal__section">
             <label class="pn-field">
               <span>Prompt Text</span>
-              <textarea id="prompt-text" rows="6" placeholder="Write your prompt here..."></textarea>
+              <textarea id="prompt-text" rows="6" placeholder="Type your prompt here..."></textarea>
             </label>
+            <div id="pn-polish-wrap" class="pn-hidden">
+              <button id="pn-polish-btn" class="pn-btn pn-btn--ghost" type="button">✦ Polish</button>
+              <button id="pn-polish-undo" class="pn-btn pn-btn--ghost pn-hidden" type="button">Undo polish</button>
+              <span id="pn-polish-error" class="pn-fill-error pn-hidden"></span>
+            </div>
+            <p id="pn-error-text" class="pn-fill-error pn-hidden"></p>
           </div>
 
           <div class="pn-add-modal__section">
             <label class="pn-field">
               <span>Tags</span>
               <div class="pn-tag-badges" id="tag-badges-wrap">
-                <input id="prompt-tags-input" class="pn-tag-badges__input" type="text" placeholder="Type a tag and press Space" />
+                <input id="prompt-tags-input" class="pn-tag-badges__input" type="text" placeholder="Tags (optional — e.g. study, writing)" />
               </div>
               <input id="prompt-tags" type="hidden" />
             </label>
             <div id="pn-tag-suggestions" class="pn-tag-suggestions"></div>
             <div id="pn-duplicate-warning" class="pn-duplicate-warning pn-hidden"></div>
-          </div>
-
-          <div class="pn-add-modal__section pn-add-modal__section--ai">
-            <div class="pn-add-ai-actions">
-              <select id="pn-improve-style" class="pn-sv-select pn-add-improve-style">
-                <option value="general">General Polish</option>
-                <option value="coding">Coding / Tech</option>
-                <option value="study">Study / Summarize</option>
-                <option value="creative">Creative Writing</option>
-              </select>
-              <button id="pn-improve-prompt-btn" class="pn-btn pn-btn--ghost pn-add-improve-btn" type="button">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v19"></path><path d="M5 10l7-7 7 7"></path></svg>
-                Improve Text
-              </button>
-            </div>
           </div>
 
           <div class="pn-modal__actions pn-add-modal__actions">
@@ -778,11 +986,13 @@
             <button class="pn-back-btn" id="pn-template-back" type="button">← Back</button>
             <span class="pn-form-title">New Template</span>
           </div>
+          <div id="pn-template-ai-status" class="pn-sv-api-hint pn-add-ai-status">○ AI unavailable — enable in Settings</div>
 
           <label class="pn-field">
             <span>Title</span>
-            <input id="pn-template-title" type="text" placeholder="Template name" maxlength="80" />
+            <input id="pn-template-title" type="text" placeholder="Give it a name (e.g. My Study Helper)" maxlength="80" />
           </label>
+          <p id="pn-template-error-title" class="pn-fill-error pn-hidden"></p>
 
           <p class="pn-template-hint">
             Use <strong>[brackets]</strong> for blanks, like <em>[topic]</em>.
@@ -792,22 +1002,29 @@
           <label class="pn-field">
             <span>Template Text</span>
             <div class="pn-textarea-wrap">
-              <textarea id="pn-template-text" class="pn-form-textarea" rows="6" placeholder="Write your template here..."></textarea>
+              <textarea id="pn-template-text" class="pn-form-textarea" rows="6" placeholder="Type your prompt here..."></textarea>
               <div class="pn-var-toolbar" id="pn-var-toolbar">
                 <span class="pn-var-toolbar-label">Add a blank:</span>
                 <button class="pn-var-btn" data-snippet="[label]" type="button" title="Required blank">[blank]</button>
                 <button class="pn-var-btn" data-snippet="[label?]" type="button" title="Optional blank">[optional?]</button>
                 <span class="pn-var-toolbar-divider"></span>
-                <span class="pn-var-toolbar-tip">Inserts at cursor</span>
+                <span class="pn-var-toolbar-tip">Tap to insert at cursor</span>
               </div>
             </div>
           </label>
+          <div id="pn-template-polish-wrap" class="pn-hidden">
+            <button id="pn-template-polish-btn" class="pn-btn pn-btn--ghost" type="button">✦ Polish</button>
+            <button id="pn-template-polish-undo" class="pn-btn pn-btn--ghost pn-hidden" type="button">Undo polish</button>
+            <span id="pn-template-polish-error" class="pn-fill-error pn-hidden"></span>
+          </div>
+          <p id="pn-template-polish-warning" class="pn-fill-error pn-hidden">AI may have altered your blanks — review before saving.</p>
+          <p id="pn-template-error-text" class="pn-fill-error pn-hidden"></p>
 
           <div class="pn-detected-vars" id="pn-detected-vars" aria-live="polite"></div>
 
           <label class="pn-field">
             <span>Tags</span>
-            <input id="pn-template-tags" type="text" placeholder="Comma separated (optional)" />
+            <input id="pn-template-tags" type="text" placeholder="Tags (optional — e.g. study, writing)" />
           </label>
 
           <div class="pn-modal__actions pn-add-modal__actions">
@@ -847,6 +1064,7 @@
           <div class="pn-skeleton-line pn-skeleton-line--wide"></div>
           <div class="pn-skeleton-line pn-skeleton-line--short"></div>
           <p class="pn-improve-loading-text">Improving with AI…</p>
+          <p id="pn-improve-runtime-note" class="pn-improve-runtime-note">Preparing model…</p>
         </div>
 
         <div id="pn-improve-diff" class="pn-improve-diff pn-hidden">
@@ -887,6 +1105,7 @@
     <script src="../utils/dom-helpers.js"></script>
     <script src="../utils/tags.js"></script>
     <script src="../utils/storage.js"></script>
+    <script src="../utils/prompt-duplicate.js"></script>
     <script src="../utils/template-parser.js"></script>
     <script src="../utils/smart-name.js"></script>
     <script src="../utils/exporter.js"></script>

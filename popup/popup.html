@@ -59,14 +59,14 @@
             <span class="pn-mode-icon">✏️</span>
             <span class="pn-mode-text">
               <span class="pn-mode-title">Plain Prompt</span>
-              <span class="pn-mode-desc">Use this when you always run the same prompt text.</span>
+              <span class="pn-mode-desc">Just type and save. Use it as-is every time.</span>
             </span>
           </button>
           <button class="pn-mode-card" id="pn-mode-template" type="button">
             <span class="pn-mode-icon">🧩</span>
             <span class="pn-mode-text">
               <span class="pn-mode-title">Fill-in Template</span>
-              <span class="pn-mode-desc">Use [blanks] you can fill before injecting.</span>
+              <span class="pn-mode-desc">Add blanks to fill in each time — like "Write about [topic]".</span>
             </span>
           </button>
           <button class="pn-mode-cancel" id="pn-mode-cancel" type="button">Cancel</button>
@@ -77,24 +77,34 @@
             <button class="pn-back-btn" id="pn-plain-back" type="button">← Back</button>
             <span class="pn-form-title">New Prompt</span>
           </div>
+          <div id="pn-form-ai-status" class="pn-sv-api-hint pn-add-ai-status">○ AI unavailable — enable in Settings</div>
 
           <label class="pn-field">
             <span>Title</span>
-            <input id="prompt-title" type="text" placeholder="Prompt title" maxlength="80" />
+            <input id="prompt-title" type="text" placeholder="Give it a name (e.g. My Study Helper)" maxlength="80" />
           </label>
+          <p id="pn-error-title" class="pn-fill-error pn-hidden"></p>
 
           <label class="pn-field">
             <span>Prompt Text</span>
-            <textarea id="prompt-text" rows="6" placeholder="Write your prompt here..."></textarea>
+            <textarea id="prompt-text" rows="6" placeholder="Type your prompt here..."></textarea>
           </label>
+          <div id="pn-polish-wrap" class="pn-hidden">
+            <button id="pn-polish-btn" class="pn-btn pn-btn--ghost" type="button">✦ Polish</button>
+            <button id="pn-polish-undo" class="pn-btn pn-btn--ghost pn-hidden" type="button">Undo polish</button>
+            <span id="pn-polish-error" class="pn-fill-error pn-hidden"></span>
+          </div>
+          <p id="pn-error-text" class="pn-fill-error pn-hidden"></p>
 
           <label class="pn-field">
             <span>Tags</span>
             <div class="pn-tag-badges" id="tag-badges-wrap">
-              <input id="prompt-tags-input" class="pn-tag-badges__input" type="text" placeholder="Type a tag and press Space" />
+              <input id="prompt-tags-input" class="pn-tag-badges__input" type="text" placeholder="Tags (optional — e.g. study, writing)" />
             </div>
             <input id="prompt-tags" type="hidden" />
           </label>
+          <div id="pn-tag-suggestions" class="pn-tag-suggestions"></div>
+          <div id="pn-duplicate-warning" class="pn-duplicate-warning pn-hidden"></div>
 
           <div class="pn-modal__actions">
             <button id="cancel-modal" class="pn-btn pn-btn--ghost" type="button">Cancel</button>
@@ -108,11 +118,13 @@
             <button class="pn-back-btn" id="pn-template-back" type="button">← Back</button>
             <span class="pn-form-title">New Template</span>
           </div>
+          <div id="pn-template-ai-status" class="pn-sv-api-hint pn-add-ai-status">○ AI unavailable — enable in Settings</div>
 
           <label class="pn-field">
             <span>Title</span>
-            <input id="pn-template-title" type="text" placeholder="Template name" maxlength="80" />
+            <input id="pn-template-title" type="text" placeholder="Give it a name (e.g. My Study Helper)" maxlength="80" />
           </label>
+          <p id="pn-template-error-title" class="pn-fill-error pn-hidden"></p>
 
           <p class="pn-template-hint">
             Use <strong>[brackets]</strong> for blanks, like <em>[topic]</em>. Add <strong>?</strong> for optional blanks, like <em>[tone?]</em>.
@@ -121,22 +133,29 @@
           <label class="pn-field">
             <span>Template Text</span>
             <div class="pn-textarea-wrap">
-              <textarea id="pn-template-text" class="pn-form-textarea" rows="6" placeholder="Write your template here..."></textarea>
+              <textarea id="pn-template-text" class="pn-form-textarea" rows="6" placeholder="Type your prompt here..."></textarea>
               <div class="pn-var-toolbar" id="pn-var-toolbar">
                 <span class="pn-var-toolbar-label">Add a blank:</span>
                 <button class="pn-var-btn" data-snippet="[label]" type="button">[blank]</button>
                 <button class="pn-var-btn" data-snippet="[label?]" type="button">[optional?]</button>
                 <span class="pn-var-toolbar-divider"></span>
-                <span class="pn-var-toolbar-tip">Inserts at cursor</span>
+                <span class="pn-var-toolbar-tip">Tap to insert at cursor</span>
               </div>
             </div>
           </label>
+          <div id="pn-template-polish-wrap" class="pn-hidden">
+            <button id="pn-template-polish-btn" class="pn-btn pn-btn--ghost" type="button">✦ Polish</button>
+            <button id="pn-template-polish-undo" class="pn-btn pn-btn--ghost pn-hidden" type="button">Undo polish</button>
+            <span id="pn-template-polish-error" class="pn-fill-error pn-hidden"></span>
+          </div>
+          <p id="pn-template-polish-warning" class="pn-fill-error pn-hidden">AI may have altered your blanks — review before saving.</p>
+          <p id="pn-template-error-text" class="pn-fill-error pn-hidden"></p>
 
           <div class="pn-detected-vars" id="pn-detected-vars" aria-live="polite"></div>
 
           <label class="pn-field">
             <span>Tags</span>
-            <input id="pn-template-tags" type="text" placeholder="Comma separated (optional)" />
+            <input id="pn-template-tags" type="text" placeholder="Tags (optional — e.g. study, writing)" />
           </label>
 
           <div class="pn-modal__actions">
@@ -153,10 +172,12 @@
     <script src="../utils/tags.js"></script>
     <script src="../utils/platform.js"></script>
     <script src="../utils/storage.js"></script>
+    <script src="../utils/prompt-duplicate.js"></script>
     <script src="../utils/template-parser.js"></script>
     <script src="../utils/smart-name.js"></script>
     <script src="../utils/exporter.js"></script>
     <script src="../utils/ai.js"></script>
+    <script src="../utils/ai-bridge.js"></script>
     <script src="../utils/templates.js"></script>
     <script src="popup.js"></script>
   </body>
