@@ -79,7 +79,11 @@ let _embeddingProgress = 0;
 let _embeddingError = "";
 const OFFSCREEN_EMBEDDING_URL = "offscreen/embedding.html";
 const OFFSCREEN_EMBEDDING_REASON = "WORKERS";
+const OFFSCREEN_EMBEDDING_TIMEOUT_MS = 30000;
+const OFFSCREEN_EMBEDDING_MAX_RETRIES = 1;
+const OFFSCREEN_EMBEDDING_IDLE_CLOSE_MS = 90000;
 let _offscreenEnsurePromise = null;
+let _offscreenIdleTimer = null;
 
 const normalizeProviderId = (providerId = "") => {
   const normalized = String(providerId || "")
@@ -261,20 +265,102 @@ const ensureOffscreenDocument = async () => {
   }
 };
 
-const sendOffscreenEmbeddingMessage = async (action, payload = {}) => {
-  await ensureOffscreenDocument();
-  const response = await chrome.runtime
-    .sendMessage({
-      type: "OFFSCREEN_EMBEDDING",
-      action: String(action || "").trim(),
-      payload,
-    })
-    .catch((error) => ({ ok: false, error: error?.message || "offscreen_send_failed" }));
-
-  if (!response?.ok) {
-    throw new Error(String(response?.error || "offscreen_embedding_failed"));
+const closeOffscreenDocument = async () => {
+  if (!chrome.offscreen?.closeDocument) {
+    return false;
   }
-  return response;
+  const exists = await hasOffscreenDocument();
+  if (!exists) {
+    return false;
+  }
+
+  try {
+    await chrome.offscreen.closeDocument();
+    return true;
+  } catch (error) {
+    const message = String(error?.message || "").toLowerCase();
+    if (message.includes("no current offscreen document")) {
+      return false;
+    }
+    throw error;
+  }
+};
+
+const scheduleOffscreenIdleClose = () => {
+  if (_offscreenIdleTimer) {
+    clearTimeout(_offscreenIdleTimer);
+    _offscreenIdleTimer = null;
+  }
+
+  _offscreenIdleTimer = setTimeout(() => {
+    _offscreenIdleTimer = null;
+    void (async () => {
+      try {
+        await chrome.runtime
+          .sendMessage({ type: "OFFSCREEN_EMBEDDING", action: "RELEASE", payload: {} })
+          .catch(() => null);
+        await closeOffscreenDocument().catch(() => null);
+      } catch (_error) {
+        // Best-effort cleanup only.
+      }
+    })();
+  }, OFFSCREEN_EMBEDDING_IDLE_CLOSE_MS);
+};
+
+const sendOffscreenMessageWithTimeout = async (message, timeoutMs) => {
+  return Promise.race([
+    chrome.runtime.sendMessage(message),
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error("offscreen_timeout")), timeoutMs);
+    }),
+  ]);
+};
+
+const sendOffscreenEmbeddingMessage = async (action, payload = {}) => {
+  const request = {
+    type: "OFFSCREEN_EMBEDDING",
+    action: String(action || "").trim(),
+    payload,
+  };
+
+  let attempt = 0;
+  let lastError = null;
+
+  while (attempt <= OFFSCREEN_EMBEDDING_MAX_RETRIES) {
+    try {
+      await ensureOffscreenDocument();
+      const response = await sendOffscreenMessageWithTimeout(
+        request,
+        OFFSCREEN_EMBEDDING_TIMEOUT_MS,
+      );
+
+      if (!response?.ok) {
+        throw new Error(String(response?.error || "offscreen_embedding_failed"));
+      }
+
+      scheduleOffscreenIdleClose();
+      return response;
+    } catch (error) {
+      lastError = error;
+      const message = String(error?.message || "").toLowerCase();
+      const retryable =
+        message.includes("receiving end does not exist") ||
+        message.includes("offscreen_timeout") ||
+        message.includes("offscreen_send_failed") ||
+        message.includes("context invalidated") ||
+        message.includes("message port closed");
+
+      if (attempt >= OFFSCREEN_EMBEDDING_MAX_RETRIES || !retryable) {
+        break;
+      }
+
+      await closeOffscreenDocument().catch(() => null);
+      _offscreenEnsurePromise = null;
+      attempt += 1;
+    }
+  }
+
+  throw new Error(String(lastError?.message || "offscreen_embedding_failed"));
 };
 
 /** Redacts obvious secret-like and PII patterns before external API calls. */
@@ -2493,6 +2579,7 @@ const onRuntimeMessage = (message, sender, sendResponse) => {
         _embeddingStatus = "downloading";
         _embeddingProgress = progress;
         _embeddingError = "";
+        scheduleOffscreenIdleClose();
         await broadcastEmbeddingStatus("downloading", progress, modelId);
         respond({ ok: true });
         return;
@@ -2615,6 +2702,10 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.runtime.onStartup.addListener(() => {
   void (async () => {
+    if (_offscreenIdleTimer) {
+      clearTimeout(_offscreenIdleTimer);
+      _offscreenIdleTimer = null;
+    }
     await registerContextMenus();
     const meta = await readEmbeddingMeta();
     await updateSearchModeFromMeta(meta);
@@ -2665,6 +2756,19 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       })
       .catch(() => {});
   })();
+});
+
+chrome.runtime.onSuspend.addListener(() => {
+  if (_offscreenIdleTimer) {
+    clearTimeout(_offscreenIdleTimer);
+    _offscreenIdleTimer = null;
+  }
+
+  // Best-effort release on suspension; no async await allowed in this event.
+  chrome.runtime
+    .sendMessage({ type: "OFFSCREEN_EMBEDDING", action: "RELEASE", payload: {} })
+    .catch(() => null);
+  chrome.offscreen?.closeDocument?.().catch(() => null);
 });
 
 chrome.runtime.onMessage.addListener(onRuntimeMessage);

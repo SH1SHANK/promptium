@@ -26,7 +26,9 @@ const extractEmbeddingVector = (output) => {
 const getResolvedEmbeddingModel = (modelId = "") => {
   const selected = getEmbeddingModelById(modelId) || getDefaultEmbeddingModel();
   return {
-    id: String(selected?.id || getDefaultEmbeddingModel()?.id || "all-minilm-l6-v2"),
+    id: String(
+      selected?.id || getDefaultEmbeddingModel()?.id || "all-minilm-l6-v2",
+    ),
     repo: String(selected?.modelId || "Xenova/all-MiniLM-L6-v2"),
   };
 };
@@ -35,7 +37,9 @@ const reportProgress = (modelId = "", loaded = 0, total = 0) => {
   const safeTotal = Math.max(0, Number(total) || 0);
   const safeLoaded = Math.max(0, Number(loaded) || 0);
   const progress =
-    safeTotal > 0 ? Math.max(0, Math.min(100, Math.round((safeLoaded / safeTotal) * 100))) : 0;
+    safeTotal > 0
+      ? Math.max(0, Math.min(100, Math.round((safeLoaded / safeTotal) * 100)))
+      : 0;
 
   chrome.runtime
     .sendMessage({
@@ -115,7 +119,9 @@ const handleMessage = (message, _sender, sendResponse) => {
 
   void (async () => {
     try {
-      const action = String(message?.action || "").trim().toUpperCase();
+      const action = String(message?.action || "")
+        .trim()
+        .toUpperCase();
       const payload = message?.payload || {};
 
       if (action === "PING") {
@@ -137,9 +143,20 @@ const handleMessage = (message, _sender, sendResponse) => {
         return;
       }
 
+      if (action === "RELEASE") {
+        embeddingPipeline = null;
+        embeddingPipelinePromise = null;
+        activeEmbeddingModelId = "";
+        sendResponse({ ok: true });
+        return;
+      }
+
       sendResponse({ ok: false, error: "unsupported_action" });
     } catch (error) {
-      sendResponse({ ok: false, error: String(error?.message || "offscreen_error") });
+      sendResponse({
+        ok: false,
+        error: String(error?.message || "offscreen_error"),
+      });
     }
   })();
 
