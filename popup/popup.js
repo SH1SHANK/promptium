@@ -819,22 +819,10 @@ const showModalError = async (id, message) => {
   node.classList.toggle('pn-hidden', !node.textContent);
 };
 
-const getLocalModelLabel = (modelId) => {
-  const map = {
-    smollm2_1_7b: 'SmolLM2',
-    phi35_mini: 'Phi-3.5-mini',
-    qwen3_0_6b: 'Qwen3'
-  };
-  return map[String(modelId || '').toLowerCase()] || 'Local AI';
-};
-
 const updateAddAiStatusStrip = async () => {
   const ids = ['pn-form-ai-status', 'pn-template-ai-status'];
   const settingsSnap = await chrome.storage.local.get(['promptiumSettings']).catch(() => ({}));
   const settings = settingsSnap?.promptiumSettings || {};
-  const enableAI = settings?.enableAI !== false;
-  const preferLocal = settings?.preferLocal === true;
-  const localFeaturePolish = settings?.localFeatureFlags?.polish !== false;
   const activeProvider = String(settings?.activeProvider || 'gemini').trim().toLowerCase();
   const providerKeyMap = {
     gemini: 'promptiumGeminiKey',
@@ -849,28 +837,13 @@ const updateAddAiStatusStrip = async () => {
     openrouter: 'OpenRouter'
   };
 
-  let text = '○ AI unavailable — enable in Settings';
+  let text = '○ AI unavailable — add a provider key';
   let unavailable = true;
-
-  if (enableAI) {
-    const localStatus = await window.AIBridge.getLocalModelStatus().catch(() => null);
-    const localReady = String(localStatus?.status || '').toLowerCase() === 'ready';
-    const localLoading = ['loading', 'downloading'].includes(String(localStatus?.status || '').toLowerCase());
-    const keyStorageKey = providerKeyMap[activeProvider] || 'promptiumGeminiKey';
-    const providerKey = String((await chrome.storage.session.get([keyStorageKey]).catch(() => ({})))?.[keyStorageKey] || '').trim();
-    if (preferLocal && localFeaturePolish && localLoading) {
-      text = '⟳ AI loading...';
-      unavailable = false;
-    } else if (localReady && localFeaturePolish) {
-      text = `✦ ${getLocalModelLabel(localStatus?.modelId || settings?.localModelId)} ready`;
-      unavailable = false;
-    } else if (providerKey) {
-      text = `✦ AI via ${providerLabelMap[activeProvider] || 'cloud'}`;
-      unavailable = false;
-    } else if (localLoading) {
-      text = '⟳ AI loading...';
-      unavailable = false;
-    }
+  const keyStorageKey = providerKeyMap[activeProvider] || 'promptiumGeminiKey';
+  const providerKey = String((await chrome.storage.session.get([keyStorageKey]).catch(() => ({})))?.[keyStorageKey] || '').trim();
+  if (providerKey) {
+    text = `✦ AI via ${providerLabelMap[activeProvider] || 'cloud'}`;
+    unavailable = false;
   }
 
   ids.forEach((id) => {
@@ -878,7 +851,7 @@ const updateAddAiStatusStrip = async () => {
     if (!node) return;
     node.textContent = text;
     node.classList.toggle('pn-clickable', unavailable);
-    node.title = unavailable ? 'Open side panel Settings → AI Models' : '';
+    node.title = unavailable ? 'Open side panel Settings → AI Providers' : '';
   });
 
   const canPolish = !unavailable;
@@ -1473,7 +1446,7 @@ const bindEvents = async () => {
   bindVariableToolbar();
   chrome.runtime.onMessage.addListener((message) => {
     const type = String(message?.type || '').trim();
-    if (type === 'AI_LOCAL_MODEL_STATUS' || type === 'AI_LOCAL_STATUS_BROADCAST' || type === 'AI_LOCAL_MODEL_PROGRESS') {
+    if (type === 'AI_EMBEDDING_STATUS') {
       void updateAddAiStatusStrip();
     }
   });

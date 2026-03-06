@@ -46,25 +46,16 @@ body.pn-sidepanel .pn-sv-hero__sub {
 
 body.pn-sidepanel .pn-settings-root-menu {
   display: grid;
-  gap: 10px;
-  padding: 10px;
-}
-
-body.pn-sidepanel .pn-settings-group {
-  border: 1px solid var(--border-subtle);
-  border-radius: 12px;
+  gap: 2px;
   padding: 8px;
-  background: var(--bg-elevated);
 }
 
-body.pn-sidepanel .pn-settings-group-title {
-  padding: 6px 6px 8px;
-  margin: 0;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+body.pn-sidepanel .pn-settings-item-subtitle,
+body.pn-sidepanel .pn-settings-item-desc {
+  font-size: 11px;
   color: var(--text-muted);
+  margin-top: 1px;
+  line-height: 1.3;
 }
 
 body.pn-sidepanel .pn-settings-item,
@@ -112,12 +103,18 @@ body.pn-sidepanel .pn-settings-item-icon {
   flex-shrink: 0;
 }
 
+body.pn-sidepanel .pn-settings-item-text,
+body.pn-sidepanel .pn-settings-item-copy {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+
 body.pn-sidepanel .pn-settings-item-title {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
-  flex: 1;
-  text-align: left;
 }
 
 body.pn-sidepanel .pn-settings-chevron {
@@ -304,44 +301,6 @@ body.pn-sidepanel .pn-provider-tab.is-editing {
 body.pn-sidepanel .pn-provider-model-row,
 body.pn-sidepanel .pn-embedding-row,
 body.pn-sidepanel .pn-platform-card,
-body.pn-sidepanel .pn-local-model-card {
-  border: 1px solid var(--border-subtle);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.02);
-}
-
-body.pn-sidepanel .pn-local-model-card {
-  padding: 10px;
-  box-shadow: none;
-}
-
-body.pn-sidepanel .pn-local-model-card:hover {
-  border-color: var(--border-default);
-  transform: translateY(-1px);
-}
-
-body.pn-sidepanel .pn-local-model-card.is-selected {
-  border-color: var(--accent);
-  background: var(--accent-glow);
-}
-
-body.pn-sidepanel .pn-local-model-card__status {
-  border-color: var(--border-default);
-  color: var(--text-secondary);
-}
-
-body.pn-sidepanel .pn-local-model-card__status.is-ready {
-  border-color: color-mix(in srgb, var(--success) 45%, transparent);
-}
-
-body.pn-sidepanel .pn-local-model-card__status.is-loading {
-  border-color: color-mix(in srgb, var(--warning) 45%, transparent);
-}
-
-body.pn-sidepanel .pn-local-model-card__status.is-error {
-  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
-}
-
 body.pn-sidepanel .pn-sv-api-row {
   border: 1px solid var(--border-default);
   border-radius: 10px;
@@ -382,21 +341,32 @@ body.pn-sidepanel .pn-settings-danger-row {
   background: color-mix(in srgb, var(--danger) 12%, transparent);
 }
 
-body.pn-sidepanel .pn-sv-actions,
-body.pn-sidepanel .pn-settings-actions-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  border-top: 1px solid var(--border-subtle);
-  padding-top: 10px;
-  margin-top: 4px;
+body.pn-sidepanel .pn-sv-autosave-hint {
+  text-align: center;
+  font-size: 11px;
+  padding: 6px 10px;
+  color: var(--text-secondary);
+  border-radius: 8px;
+  transition: opacity 0.2s ease;
 }
 
-body.pn-sidepanel .pn-sv-actions__right {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+body.pn-sidepanel .pn-sv-autosave-hint.pn-status-ok {
+  color: var(--success);
+}
+
+body.pn-sidepanel .pn-sv-autosave-hint.pn-status-error {
+  color: var(--danger);
+}
+
+body.pn-sidepanel .pn-sv-heading--sub {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+  padding-bottom: 4px;
+  border-bottom: none;
 }
 
 body.pn-sidepanel .pn-btn {

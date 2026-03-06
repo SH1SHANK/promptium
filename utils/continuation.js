@@ -9,7 +9,7 @@ const CONTINUATION_TTL_MS = 180000;
 const FALLBACK_MESSAGE_COUNT = 6;
 const MAX_SOURCE_MESSAGES = 24;
 const LONG_CONVERSATION_THRESHOLD = 20;
-const LONG_NO_KEY_ADVISORY = 'Long conversation: quality may be limited without a cloud API key.';
+const LONG_NO_KEY_ADVISORY = 'Long conversation: quality may be limited without a configured provider key.';
 
 const MODE_ALIASES = Object.freeze({
   full_summary: 'FULL_SUMMARY',
@@ -98,27 +98,6 @@ const resolveCloudKey = async (explicitKey) => {
   return '';
 };
 
-const isLocalContinuationAvailable = async () => {
-  try {
-    const snapshot = await chrome.storage.local.get(['promptiumSettings']);
-    const settings = snapshot?.promptiumSettings && typeof snapshot.promptiumSettings === 'object'
-      ? snapshot.promptiumSettings
-      : {};
-    if (settings?.enableAI === false) return false;
-    if (settings?.localFeatureFlags?.continueSummary === false) return false;
-  } catch (_error) {
-    // Ignore settings read failures and continue with runtime status probe.
-  }
-
-  try {
-    const status = await chrome.runtime.sendMessage({ type: 'AI_LOCAL_MODEL_STATUS' });
-    const value = String(status?.status || '').trim().toLowerCase();
-    return ['ready', 'cached', 'loading', 'downloading'].includes(value);
-  } catch (_error) {
-    return false;
-  }
-};
-
 const buildHandoff = async (messages, mode = 'FULL_SUMMARY', userNote = '', cloudKey = '') => {
   const normalized = normalizeMessages(messages).slice(-MAX_SOURCE_MESSAGES);
   if (!normalized.length) {
@@ -127,35 +106,6 @@ const buildHandoff = async (messages, mode = 'FULL_SUMMARY', userNote = '', clou
 
   const key = await resolveCloudKey(cloudKey);
   const isLongConversation = normalized.length > LONG_CONVERSATION_THRESHOLD;
-
-  if (isLongConversation && !key) {
-    const localAvailable = await isLocalContinuationAvailable();
-    if (!localAvailable) {
-      return { ok: false, error: 'no_ai_available' };
-    }
-    try {
-      const response = await chrome.runtime.sendMessage({
-        type: 'AI_CONTINUE_SUMMARY',
-        key: '',
-        mode: normalizeMode(mode),
-        userNote: String(userNote || '').trim(),
-        messages: normalized,
-        forceLocal: true
-      });
-      const text = String(response?.text || '').trim();
-      if (!response?.ok || !text) {
-        return { ok: false, error: 'no_ai_available' };
-      }
-      return {
-        ok: true,
-        text,
-        backend: 'local',
-        advisory: LONG_NO_KEY_ADVISORY
-      };
-    } catch (_error) {
-      return { ok: false, error: 'no_ai_available' };
-    }
-  }
 
   try {
     const response = await chrome.runtime.sendMessage({
@@ -168,19 +118,11 @@ const buildHandoff = async (messages, mode = 'FULL_SUMMARY', userNote = '', clou
 
     const text = String(response?.text || '').trim();
     if (!response?.ok || !text) {
-      if (!key) {
-        return {
-          ok: true,
-          text: buildFallback(normalized),
-          backend: 'fallback',
-          advisory: String(response?.advisory || '').trim() || undefined
-        };
-      }
       return {
         ok: true,
         text: buildFallback(normalized),
         backend: 'fallback',
-        advisory: String(response?.advisory || '').trim() || undefined
+        advisory: String(response?.advisory || (!key && isLongConversation ? LONG_NO_KEY_ADVISORY : '')).trim() || undefined
       };
     }
 

@@ -29,14 +29,19 @@
       state.settings?.enabledPlatforms &&
       typeof state.settings.enabledPlatforms === "object"
         ? state.settings.enabledPlatforms
-        : {};
-    return source;
+        : null;
+    if (source) return source;
+    return Object.fromEntries(
+      Object.keys(window.Bridge?.LLM_URLS || {}).map((platform) => [platform, true]),
+    );
   };
 
   const getEligibleTargets = (sourcePlatform = "") => {
     const bridgeUrls = window.Bridge?.LLM_URLS || {};
     const enabledMap = getEnabledPlatformMap();
-    const all = Object.keys(bridgeUrls).filter((platform) => enabledMap[platform] === true);
+    const all = Object.keys(bridgeUrls).filter(
+      (platform) => enabledMap[platform] !== false,
+    );
 
     if (!all.length) {
       return [];
@@ -110,7 +115,7 @@
     if (
       code.includes("model_not_loaded") ||
       code.includes("model not loaded") ||
-      code.includes("local model")
+      code.includes("embedding model")
     )
       return "Model not loaded";
     return "Continue Chat failed";
@@ -190,7 +195,7 @@
     const note = byId("pn-continue-note");
     if (mode) {
       const preferred = String(
-        state.settings?.continueDefaultMode || "FULL_SUMMARY",
+        "FULL_SUMMARY",
       )
         .trim()
         .toUpperCase();

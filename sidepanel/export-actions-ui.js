@@ -27,9 +27,7 @@ const buildFilename = async (extension, options = {}) => {
     || state.exportPayload?.messages
     || [];
   const platform = String(options.platform || payload?.platform || 'unknown');
-  const namingMode = String(state.settings?.defaultExportNaming || 'smart').toLowerCase();
-
-  if (namingMode !== 'manual' && window.SmartName?.getFilename) {
+  if (window.SmartName?.getFilename) {
     return window.SmartName.getFilename(selectedMessages, platform, extension, fallbackMessages);
   }
 
@@ -39,7 +37,7 @@ const buildFilename = async (extension, options = {}) => {
 };
 
 const persistExportHistory = async (payload) => {
-  if (state.settings?.autoSaveExportsToHistory === false) {
+  if (state.settings?.autoSaveHistory === false) {
     return;
   }
   await window.Store.saveChatToHistory(payload);

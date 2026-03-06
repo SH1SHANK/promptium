@@ -20,12 +20,6 @@
     [MODE_TEMPLATE]: "pn-add-template-form",
   };
 
-  const LOCAL_MODEL_LABEL = {
-    smollm2_1_7b: "SmolLM2",
-    phi35_mini: "Phi-3.5-mini",
-    qwen3_0_6b: "Qwen3",
-  };
-
   let activeMode = MODE_SELECTOR;
   let pendingDuplicatePayload = null;
   let pendingDuplicateMatch = null;
@@ -200,48 +194,7 @@
     syncFormMetrics();
   };
 
-  const getLocalStatus = async () => {
-    try {
-      const status = await window.AIBridge.getLocalModelStatus();
-      if (status && typeof status === "object") return status;
-    } catch (_error) {
-      return null;
-    }
-    return null;
-  };
-
   const resolveAiStripText = async () => {
-    if (state.settings?.enableAI === false) {
-      return {
-        text: "○ AI unavailable — enable in Settings",
-        mode: "unavailable",
-      };
-    }
-
-    const localStatus = await getLocalStatus();
-    const localModelId = String(
-      state.settings?.localModelId || localStatus?.modelId || "smollm2_1_7b",
-    ).toLowerCase();
-    const localLabel = LOCAL_MODEL_LABEL[localModelId] || "Local AI";
-    const localFeatureEnabled =
-      state.settings?.localFeatureFlags?.polish !== false;
-    const localPreferred = state.settings?.preferLocal === true;
-    const localReady =
-      localStatus && String(localStatus.status || "").toLowerCase() === "ready";
-    const localLoading =
-      localStatus &&
-      ["loading", "downloading"].includes(
-        String(localStatus.status || "").toLowerCase(),
-      );
-
-    if (localPreferred && localFeatureEnabled && localLoading) {
-      return { text: "⟳ AI loading...", mode: "loading" };
-    }
-
-    if (localReady && localFeatureEnabled) {
-      return { text: `✦ ${localLabel} ready`, mode: "local" };
-    }
-
     const activeProvider = String(state.settings?.activeProvider || "gemini")
       .trim()
       .toLowerCase();
@@ -249,15 +202,11 @@
       ? await window.SessionStorage.getStoredProviderKey(activeProvider).catch(() => "")
       : await window.SessionStorage.getStoredGeminiKey().catch(() => "");
     if (String(key || "").trim()) {
-      return { text: "✦ AI via cloud", mode: "cloud" };
-    }
-
-    if (localLoading) {
-      return { text: "⟳ AI loading...", mode: "loading" };
+      return { text: `✦ AI via ${activeProvider}`, mode: "cloud" };
     }
 
     return {
-      text: "○ AI unavailable — enable in Settings",
+      text: "○ AI unavailable — add a provider key",
       mode: "unavailable",
     };
   };
@@ -272,10 +221,10 @@
       node.textContent = status.text;
       node.classList.toggle("pn-clickable", status.mode === "unavailable");
       node.title =
-        status.mode === "unavailable" ? "Open Settings → AI Models" : "";
+        status.mode === "unavailable" ? "Open Settings → AI Providers" : "";
     });
 
-    const canPolish = status.mode === "local" || status.mode === "cloud";
+    const canPolish = status.mode === "cloud";
     ["pn-polish-btn", "pn-template-polish-btn"].forEach((id) => {
       const button = byIdSafe(id);
       if (!button) return;
@@ -289,7 +238,7 @@
     if (window.AppShell?.switchTab) {
       await window.AppShell.switchTab("settings");
       const target = document.querySelector(
-        '.pn-settings-item[data-settings-target="ai-models"]',
+        '.pn-settings-item[data-settings-target="ai"]',
       );
       target?.click();
     }
@@ -519,17 +468,7 @@
   const maybeAutoSuggestTags = async ({ text, tags, isTemplate = false }) => {
     if (state.settings?.enableAI === false) return tags;
     if (state.settings?.autoSuggestTags === false) return tags;
-    if (
-      state.settings?.localFeatureFlags?.autoTags === false &&
-      !String(
-        (await (
-          window.SessionStorage.getStoredProviderKey
-            ? window.SessionStorage.getStoredProviderKey(String(state.settings?.activeProvider || "gemini").trim().toLowerCase())
-            : window.SessionStorage.getStoredGeminiKey()
-        ).catch(() => "")) ||
-          "",
-      ).trim()
-    ) {
+    if (state.settings?.featureFlags?.autoTags === false) {
       return tags;
     }
 
@@ -824,16 +763,9 @@
     runtimeMessageBound = true;
     chrome.runtime.onMessage.addListener((message) => {
       const type = String(message?.type || "").trim();
-      if (
-        ![
-          "AI_LOCAL_MODEL_STATUS",
-          "AI_LOCAL_STATUS_BROADCAST",
-          "AI_LOCAL_MODEL_PROGRESS",
-        ].includes(type)
-      ) {
-        return;
+      if (type === "AI_EMBEDDING_STATUS") {
+        void updateAiStatusStrips();
       }
-      void updateAiStatusStrips();
     });
   };
 

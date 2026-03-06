@@ -1,40 +1,48 @@
 /**
  * File: utils/provider-client.js
- * Purpose: Unified cloud provider request + key validation layer.
+ * Purpose: Unified cloud provider client.
  */
 
 import {
   PROVIDER_IDS,
-  getProvider,
   getProviderDefaultModel,
-  getProviderModelById
-} from './model-registry.js';
+  getProviderKeyStorageKey,
+  normalizeProviderId,
+  normalizeProviderModels,
+} from "./model-registry.js";
 
 const DEFAULT_TIMEOUT_MS = 18000;
-const GEMINI_API_ROOT = 'https://generativelanguage.googleapis.com/v1beta';
-const OPENAI_API_ROOT = 'https://api.openai.com/v1';
-const ANTHROPIC_API_ROOT = 'https://api.anthropic.com/v1';
-const OPENROUTER_API_ROOT = 'https://openrouter.ai/api/v1';
+const GEMINI_API_ROOT = "https://generativelanguage.googleapis.com/v1beta";
+const OPENAI_API_ROOT = "https://api.openai.com/v1";
+const ANTHROPIC_API_ROOT = "https://api.anthropic.com/v1";
+const OPENROUTER_API_ROOT = "https://openrouter.ai/api/v1";
+
+const createProviderError = (type, message) => {
+  const error = new Error(String(message || "Provider request failed."));
+  error.type = type;
+  return error;
+};
 
 const withTimeout = async (url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
   try {
     return await fetch(url, {
-      cache: 'no-store',
-      credentials: 'omit',
-      referrerPolicy: 'no-referrer',
+      cache: "no-store",
+      credentials: "omit",
+      referrerPolicy: "no-referrer",
       ...options,
-      signal: controller.signal
+      signal: controller.signal,
     });
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw createProviderError("network", "Request timed out.");
+    }
+    throw createProviderError("network", "Network request failed.");
   } finally {
     clearTimeout(timeoutId);
   }
-};
-
-const normalizeMessage = (value, fallback = 'Provider request failed.') => {
-  const text = String(value || '').trim();
-  return text || fallback;
 };
 
 const parseJson = async (response) => {
@@ -45,324 +53,289 @@ const parseJson = async (response) => {
   }
 };
 
-const classifyValidationError = (status = 0, error = null) => {
-  if (error?.name === 'AbortError') {
-    return { category: 'network_error', message: 'Validation request timed out.' };
-  }
-
+const classifyHttpError = (status = 0, fallback = "Provider request failed.") => {
   if (status === 401 || status === 403) {
-    return { category: 'invalid_key', message: 'Invalid key.' };
+    return createProviderError("invalid_key", "Invalid API key.");
   }
   if (status === 429) {
-    return { category: 'rate_limited', message: 'Rate limited.' };
+    return createProviderError("quota", "Quota exceeded or rate limited.");
   }
-  if (!status) {
-    return { category: 'network_error', message: 'Network error.' };
+  if (!status || status >= 500) {
+    return createProviderError("network", "Provider network error.");
   }
-
-  return { category: 'provider_error', message: `Provider error (${status}).` };
+  return createProviderError("unknown", fallback);
 };
 
-const readGeminiText = (data) => String(data?.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
+const resolveModelId = (providerId = "", providerModels = {}) =>
+  String(
+    providerModels?.[providerId] || getProviderDefaultModel(providerId)?.id || "",
+  ).trim();
 
-const readOpenAIText = (data) => String(data?.choices?.[0]?.message?.content || '').trim();
+export const getProviderKey = async (providerId = "") => {
+  const storageKey = getProviderKeyStorageKey(providerId);
+  if (!storageKey) return "";
+  const snapshot = await chrome.storage.session.get([storageKey]).catch(() => ({}));
+  return String(snapshot?.[storageKey] || "").trim();
+};
+
+const readGeminiText = (data) =>
+  String(data?.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
+
+const readOpenAIText = (data) =>
+  String(data?.choices?.[0]?.message?.content || "").trim();
 
 const readAnthropicText = (data) => {
   const content = Array.isArray(data?.content) ? data.content : [];
-  const firstText = content.find((entry) => String(entry?.type || '').toLowerCase() === 'text');
-  return String(firstText?.text || '').trim();
+  const firstText = content.find((entry) => String(entry?.type || "").toLowerCase() === "text");
+  return String(firstText?.text || "").trim();
 };
 
-const readOpenRouterText = (data) => String(data?.choices?.[0]?.message?.content || '').trim();
+const readOpenRouterText = (data) =>
+  String(data?.choices?.[0]?.message?.content || "").trim();
 
-const resolveModelId = (providerId = '', selectedModelId = '') => {
-  const selected = getProviderModelById(providerId, selectedModelId);
-  if (selected?.id) return selected.id;
-  return String(getProviderDefaultModel(providerId)?.id || '').trim();
-};
-
-const assertProviderConfig = ({ providerId = '', apiKey = '' } = {}) => {
-  const provider = getProvider(providerId);
-  const key = String(apiKey || '').trim();
-  if (!provider) {
-    throw new Error(`Unsupported provider: ${providerId || 'unknown'}`);
+const throwIfEmptyText = (text, providerLabel) => {
+  if (!String(text || "").trim()) {
+    throw createProviderError("unknown", `${providerLabel} returned empty output.`);
   }
-  if (!key) {
-    throw new Error('Missing API key.');
-  }
-  return { provider, key };
+  return String(text || "").trim();
 };
 
-const callGemini = async ({ modelId, apiKey, prompt, systemPrompt }) => {
-  const body = {
-    contents: [{ role: 'user', parts: [{ text: [systemPrompt, prompt].filter(Boolean).join('\n\n') }] }],
-    generationConfig: {
-      temperature: 0.3,
-      maxOutputTokens: 920
-    }
-  };
-
-  const response = await withTimeout(`${GEMINI_API_ROOT}/models/${modelId}:generateContent`, {
-    method: 'POST',
-    headers: {
-      'x-goog-api-key': apiKey,
-      'Content-Type': 'application/json'
+async function callGemini(systemPrompt, userPrompt, modelId, key) {
+  const response = await withTimeout(
+    `${GEMINI_API_ROOT}/models/${modelId}:generateContent`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": key,
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                text: [systemPrompt, userPrompt].filter(Boolean).join("\n\n"),
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: 900,
+        },
+      }),
     },
-    body: JSON.stringify(body)
-  });
+  );
 
   const data = await parseJson(response);
   if (!response.ok) {
-    throw new Error(`Gemini request failed (${response.status}).`);
+    throw classifyHttpError(response.status, "Gemini request failed.");
   }
 
-  const text = readGeminiText(data);
-  if (!text) {
-    throw new Error('Gemini returned empty output.');
-  }
+  return throwIfEmptyText(readGeminiText(data), "Gemini");
+}
 
-  return text;
-};
-
-const callOpenAI = async ({ modelId, apiKey, prompt, systemPrompt }) => {
+async function callOpenAI(systemPrompt, userPrompt, modelId, key) {
   const messages = [];
   if (systemPrompt) {
-    messages.push({ role: 'system', content: String(systemPrompt) });
+    messages.push({ role: "system", content: String(systemPrompt) });
   }
-  messages.push({ role: 'user', content: String(prompt || '') });
+  messages.push({ role: "user", content: String(userPrompt || "") });
 
   const response = await withTimeout(`${OPENAI_API_ROOT}/chat/completions`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
       model: modelId,
       messages,
-      temperature: 0.3
-    })
+      temperature: 0.3,
+    }),
   });
 
   const data = await parseJson(response);
   if (!response.ok) {
-    throw new Error(`OpenAI request failed (${response.status}).`);
+    throw classifyHttpError(response.status, "OpenAI request failed.");
   }
 
-  const text = readOpenAIText(data);
-  if (!text) {
-    throw new Error('OpenAI returned empty output.');
-  }
+  return throwIfEmptyText(readOpenAIText(data), "OpenAI");
+}
 
-  return text;
-};
-
-const callAnthropic = async ({ modelId, apiKey, prompt, systemPrompt }) => {
+async function callAnthropic(systemPrompt, userPrompt, modelId, key) {
   const response = await withTimeout(`${ANTHROPIC_API_ROOT}/messages`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'Content-Type': 'application/json'
+      "Content-Type": "application/json",
+      "anthropic-version": "2023-06-01",
+      "x-api-key": key,
     },
     body: JSON.stringify({
       model: modelId,
       max_tokens: 900,
-      system: String(systemPrompt || '').trim() || undefined,
-      messages: [{ role: 'user', content: String(prompt || '') }]
-    })
+      system: String(systemPrompt || "").trim() || undefined,
+      messages: [{ role: "user", content: String(userPrompt || "") }],
+    }),
   });
 
   const data = await parseJson(response);
   if (!response.ok) {
-    throw new Error(`Anthropic request failed (${response.status}).`);
+    throw classifyHttpError(response.status, "Anthropic request failed.");
   }
 
-  const text = readAnthropicText(data);
-  if (!text) {
-    throw new Error('Anthropic returned empty output.');
-  }
+  return throwIfEmptyText(readAnthropicText(data), "Anthropic");
+}
 
-  return text;
-};
-
-const callOpenRouter = async ({ modelId, apiKey, prompt, systemPrompt, extensionId = '' }) => {
+async function callOpenRouter(systemPrompt, userPrompt, modelId, key) {
   const messages = [];
   if (systemPrompt) {
-    messages.push({ role: 'system', content: String(systemPrompt) });
+    messages.push({ role: "system", content: String(systemPrompt) });
   }
-  messages.push({ role: 'user', content: String(prompt || '') });
-
-  const referer = extensionId
-    ? `chrome-extension://${extensionId}`
-    : 'chrome-extension://promptium';
+  messages.push({ role: "user", content: String(userPrompt || "") });
 
   const response = await withTimeout(`${OPENROUTER_API_ROOT}/chat/completions`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'HTTP-Referer': referer,
-      'Content-Type': 'application/json'
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": chrome.runtime?.id
+        ? `chrome-extension://${chrome.runtime.id}`
+        : "chrome-extension://promptium",
     },
     body: JSON.stringify({
       model: modelId,
       messages,
-      temperature: 0.3
-    })
+      temperature: 0.3,
+    }),
   });
 
   const data = await parseJson(response);
   if (!response.ok) {
-    throw new Error(`OpenRouter request failed (${response.status}).`);
+    throw classifyHttpError(response.status, "OpenRouter request failed.");
   }
 
-  const text = readOpenRouterText(data);
-  if (!text) {
-    throw new Error('OpenRouter returned empty output.');
+  return throwIfEmptyText(readOpenRouterText(data), "OpenRouter");
+}
+
+export async function callProvider(systemPrompt, userPrompt, settings = {}) {
+  const providerId = normalizeProviderId(
+    settings.providerId || settings.activeProvider || PROVIDER_IDS.GEMINI,
+  );
+  const providerModels = normalizeProviderModels(settings.providerModels || {});
+  const modelId = resolveModelId(providerId, providerModels);
+  const key = String(settings.apiKey || (await getProviderKey(providerId)) || "").trim();
+
+  if (!key) {
+    throw createProviderError("invalid_key", "Provider API key is missing.");
   }
 
-  return text;
-};
-
-export const callProvider = async ({
-  providerId = PROVIDER_IDS.GEMINI,
-  modelId = '',
-  apiKey = '',
-  prompt = '',
-  systemPrompt = '',
-  extensionId = ''
-} = {}) => {
-  const { key } = assertProviderConfig({ providerId, apiKey });
-  const resolvedModelId = resolveModelId(providerId, modelId);
-  const safePrompt = normalizeMessage(prompt, '');
-
-  if (!safePrompt) {
-    throw new Error('Missing user prompt.');
+  switch (providerId) {
+    case PROVIDER_IDS.GEMINI:
+      return callGemini(systemPrompt, userPrompt, modelId, key);
+    case PROVIDER_IDS.OPENAI:
+      return callOpenAI(systemPrompt, userPrompt, modelId, key);
+    case PROVIDER_IDS.ANTHROPIC:
+      return callAnthropic(systemPrompt, userPrompt, modelId, key);
+    case PROVIDER_IDS.OPENROUTER:
+      return callOpenRouter(systemPrompt, userPrompt, modelId, key);
+    default:
+      throw createProviderError("unknown", `Unknown provider: ${providerId}`);
   }
-
-  if (providerId === PROVIDER_IDS.GEMINI) {
-    return callGemini({ modelId: resolvedModelId, apiKey: key, prompt: safePrompt, systemPrompt });
-  }
-  if (providerId === PROVIDER_IDS.OPENAI) {
-    return callOpenAI({ modelId: resolvedModelId, apiKey: key, prompt: safePrompt, systemPrompt });
-  }
-  if (providerId === PROVIDER_IDS.ANTHROPIC) {
-    return callAnthropic({ modelId: resolvedModelId, apiKey: key, prompt: safePrompt, systemPrompt });
-  }
-  if (providerId === PROVIDER_IDS.OPENROUTER) {
-    return callOpenRouter({ modelId: resolvedModelId, apiKey: key, prompt: safePrompt, systemPrompt, extensionId });
-  }
-
-  throw new Error(`Unsupported provider: ${providerId || 'unknown'}`);
-};
+}
 
 const validateGemini = async (apiKey) => {
   const response = await withTimeout(`${GEMINI_API_ROOT}/models`, {
-    method: 'GET',
-    headers: {
-      'x-goog-api-key': apiKey
-    }
+    method: "GET",
+    headers: { "x-goog-api-key": apiKey },
   });
-
-  if (response.ok) {
-    return { ok: true, category: 'ok', message: 'Connected' };
-  }
-
-  const normalized = classifyValidationError(response.status);
-  return { ok: false, category: normalized.category, message: normalized.message, status: response.status };
+  if (response.ok) return { ok: true, category: "ok", message: "Connected" };
+  const error = classifyHttpError(response.status, "Gemini validation failed.");
+  return { ok: false, category: error.type, message: error.message, status: response.status };
 };
 
 const validateOpenAI = async (apiKey) => {
   const response = await withTimeout(`${OPENAI_API_ROOT}/models`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${apiKey}`
-    }
+    method: "GET",
+    headers: { Authorization: `Bearer ${apiKey}` },
   });
-
-  if (response.ok) {
-    return { ok: true, category: 'ok', message: 'Connected' };
-  }
-
-  const normalized = classifyValidationError(response.status);
-  return { ok: false, category: normalized.category, message: normalized.message, status: response.status };
+  if (response.ok) return { ok: true, category: "ok", message: "Connected" };
+  const error = classifyHttpError(response.status, "OpenAI validation failed.");
+  return { ok: false, category: error.type, message: error.message, status: response.status };
 };
 
 const validateAnthropic = async (apiKey, modelId) => {
-  const resolvedModelId = resolveModelId(PROVIDER_IDS.ANTHROPIC, modelId);
   const response = await withTimeout(`${ANTHROPIC_API_ROOT}/messages`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'Content-Type': 'application/json'
+      "Content-Type": "application/json",
+      "anthropic-version": "2023-06-01",
+      "x-api-key": apiKey,
     },
     body: JSON.stringify({
-      model: resolvedModelId,
+      model: modelId,
       max_tokens: 4,
-      messages: [{ role: 'user', content: 'Hi' }]
-    })
+      messages: [{ role: "user", content: "Hi" }],
+    }),
   });
 
-  if (response.status === 429) {
-    const normalized = classifyValidationError(response.status);
-    return { ok: false, category: normalized.category, message: normalized.message, status: response.status };
+  if (response.status !== 401 && response.status !== 403 && response.status !== 429) {
+    return { ok: true, category: "ok", message: "Connected" };
   }
 
-  if (response.status !== 401 && response.status !== 403) {
-    return { ok: true, category: 'ok', message: 'Connected' };
-  }
-
-  const normalized = classifyValidationError(response.status);
-  return { ok: false, category: normalized.category, message: normalized.message, status: response.status };
+  const error = classifyHttpError(response.status, "Anthropic validation failed.");
+  return { ok: false, category: error.type, message: error.message, status: response.status };
 };
 
 const validateOpenRouter = async (apiKey) => {
   const response = await withTimeout(`${OPENROUTER_API_ROOT}/models`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${apiKey}`
-    }
+    method: "GET",
+    headers: { Authorization: `Bearer ${apiKey}` },
   });
-
-  if (response.ok) {
-    return { ok: true, category: 'ok', message: 'Connected' };
-  }
-
-  const normalized = classifyValidationError(response.status);
-  return { ok: false, category: normalized.category, message: normalized.message, status: response.status };
+  if (response.ok) return { ok: true, category: "ok", message: "Connected" };
+  const error = classifyHttpError(response.status, "OpenRouter validation failed.");
+  return { ok: false, category: error.type, message: error.message, status: response.status };
 };
 
-export const validateProviderKey = async ({ providerId = '', apiKey = '', modelId = '' } = {}) => {
-  try {
-    assertProviderConfig({ providerId, apiKey });
-  } catch (error) {
-    return { ok: false, category: 'invalid_key', message: normalizeMessage(error?.message, 'Invalid key.') };
+export const validateProviderKey = async ({
+  providerId = "",
+  apiKey = "",
+  modelId = "",
+} = {}) => {
+  const resolvedProviderId = normalizeProviderId(providerId);
+  const key = String(apiKey || "").trim();
+  if (!key) {
+    return { ok: false, category: "invalid_key", message: "Missing API key." };
   }
 
-  const key = String(apiKey || '').trim();
+  const resolvedModels = normalizeProviderModels({
+    [resolvedProviderId]: modelId,
+  });
+  const resolvedModelId = resolveModelId(resolvedProviderId, resolvedModels);
 
   try {
-    if (providerId === PROVIDER_IDS.GEMINI) {
-      return await validateGemini(key);
+    switch (resolvedProviderId) {
+      case PROVIDER_IDS.GEMINI:
+        return await validateGemini(key);
+      case PROVIDER_IDS.OPENAI:
+        return await validateOpenAI(key);
+      case PROVIDER_IDS.ANTHROPIC:
+        return await validateAnthropic(key, resolvedModelId);
+      case PROVIDER_IDS.OPENROUTER:
+        return await validateOpenRouter(key);
+      default:
+        return {
+          ok: false,
+          category: "unknown",
+          message: `Unknown provider: ${resolvedProviderId}`,
+        };
     }
-    if (providerId === PROVIDER_IDS.OPENAI) {
-      return await validateOpenAI(key);
-    }
-    if (providerId === PROVIDER_IDS.ANTHROPIC) {
-      return await validateAnthropic(key, modelId);
-    }
-    if (providerId === PROVIDER_IDS.OPENROUTER) {
-      return await validateOpenRouter(key);
-    }
-
-    return { ok: false, category: 'provider_error', message: `Unsupported provider: ${providerId || 'unknown'}` };
   } catch (error) {
-    const normalized = classifyValidationError(0, error);
     return {
       ok: false,
-      category: normalized.category,
-      message: normalized.message
+      category: String(error?.type || "network"),
+      message: String(error?.message || "Validation failed."),
     };
   }
 };

@@ -17,7 +17,7 @@
       id: "welcome",
       headline: "Meet Promptium",
       subline: "Your AI workflow, elevated.",
-      hint: "private \u00B7 local \u00B7 powerful",
+      hint: "private \u00B7 flexible \u00B7 powerful",
     },
     {
       id: "templates",
@@ -41,8 +41,8 @@
     {
       id: "ai",
       headline: "Smart AI built in",
-      subline: "Local embeddings and prompt polish \u2014 no API key needed.",
-      hint: "\u2726 SmolLM2 ready",
+      subline: "Semantic search and provider routing \u2014 ready when you are.",
+      hint: "\u2726 Search model ready",
     },
     {
       id: "ready",
@@ -296,7 +296,7 @@
           <div class="pn-ob-ai-section">
             <div class="pn-ob-ai-badge">
               <span class="pn-ob-ai-dot"></span>
-              <span class="pn-ob-ai-text">\u2726 SmolLM2 ready</span>
+              <span class="pn-ob-ai-text">\u2726 Search model ready</span>
             </div>
             <div class="pn-ob-waveform">
               <div class="pn-waveform-bar"></div>

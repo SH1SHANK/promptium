@@ -1,2792 +1,911 @@
 (() => {
 /**
  * File: sidepanel/settings-ai-ui.js
- * Purpose: Settings panel state management, tabs, autosave preferences, and AI runtime synchronization.
+ * Purpose: Settings panel state, provider setup, embedding controls, and data tools.
  */
 
-const { KEYS, DEFAULT_SETTINGS, state, UI_FEEDBACK_MS } = window.SidepanelState;
+const { KEYS, DEFAULT_SETTINGS, state } = window.SidepanelState;
 
 const callbacks = {
   onApplyExportDefaults: null,
   onRenderExportPreview: null,
-  onLoadSmartSuggestions: null
+  onLoadSmartSuggestions: null,
 };
 
-const PLATFORM_ORDER = Object.freeze([
-  'chatgpt',
-  'claude',
-  'gemini',
-  'perplexity',
-  'copilot',
-  'deepseek',
-  'qwen',
-  'mistral',
-  'kimi',
-  'moonshot',
-  'grok',
-  'huggingchat',
-  'poe',
-  'you',
-  'phind',
-  'characterai',
-  'pi',
-  'metaai',
-  'amazonq',
-  'ernie',
-  'doubao',
-  'yichat',
-  'coherecoral',
-  'groq',
-  'fireworks',
-  'together'
-]);
+const PROVIDER_VALIDATION_SESSION_KEY = "promptiumProviderValidationState";
+const PROVIDER_ORDER = ["gemini", "openai", "anthropic", "openrouter"];
+const EXPORT_FORMATS = ["markdown", "txt", "pdf", "notion", "obsidian"];
 
-const DEFAULT_PLATFORM_LABELS = Object.freeze({
-  chatgpt: 'ChatGPT',
-  claude: 'Claude',
-  gemini: 'Gemini',
-  perplexity: 'Perplexity',
-  copilot: 'Copilot',
-  deepseek: 'DeepSeek',
-  qwen: 'Qwen (Tongyi)',
-  mistral: 'Mistral Chat',
-  kimi: 'Kimi',
-  moonshot: 'Moonshot',
-  grok: 'Grok',
-  huggingchat: 'HuggingChat',
-  poe: 'Poe',
-  you: 'You.com Chat',
-  phind: 'Phind',
-  characterai: 'Character.AI',
-  pi: 'Pi',
-  metaai: 'Meta AI',
-  amazonq: 'Amazon Q',
-  ernie: 'ERNIE Bot',
-  doubao: 'Doubao',
-  yichat: 'Yi Chat',
-  coherecoral: 'Cohere Coral',
-  groq: 'Groq Chat',
-  fireworks: 'Fireworks AI Chat',
-  together: 'Together.ai Playground'
-});
-
-const LOCAL_MODEL_META = Object.freeze({
-  smollm2_1_7b: { label: 'SmolLM2-1.7B', sizeLabel: '400MB' },
-  phi35_mini: { label: 'Phi-3.5-mini', sizeLabel: '1.5GB' },
-  qwen3_0_6b: { label: 'Qwen3-0.6B', sizeLabel: '300MB' }
-});
-
-const DEFAULT_LOCAL_FEATURE_FLAGS = Object.freeze({
-  polish: true,
-  autoTags: true,
-  improvePrompt: true,
-  continueSummary: true,
-  smartExportTitle: false
-});
-
-const LEGACY_PROVIDER_MODEL_MAP = Object.freeze({
+const FALLBACK_PROVIDERS = {
   gemini: {
-    'gemini-3.1-flash-lite': 'gemini-3.0-flash-preview',
-    'gemini-3-pro': 'gemini-3.1-pro-preview'
+    id: "gemini",
+    label: "Gemini",
+    docsUrl: "https://aistudio.google.com/apikey",
+    keyPlaceholder: "AIza...",
+    models: [
+      { id: "gemini-2.0-flash", label: "gemini-2.0-flash" },
+      { id: "gemini-2.0-flash-lite", label: "gemini-2.0-flash-lite" },
+      { id: "gemini-1.5-pro", label: "gemini-1.5-pro" },
+      { id: "gemini-1.5-flash", label: "gemini-1.5-flash" },
+    ],
   },
   openai: {
-    'gpt-5.2-spark': 'gpt-5.2-mini',
-    'gpt-4-turbo': 'gpt-4.1'
+    id: "openai",
+    label: "OpenAI",
+    docsUrl: "https://platform.openai.com/api-keys",
+    keyPlaceholder: "sk-...",
+    models: [
+      { id: "gpt-4o-mini", label: "gpt-4o-mini" },
+      { id: "gpt-4o", label: "gpt-4o" },
+      { id: "gpt-4-turbo", label: "gpt-4-turbo" },
+    ],
   },
   anthropic: {
-    'claude-sonnet-4-6': 'claude-sonnet-4-5'
+    id: "anthropic",
+    label: "Claude",
+    docsUrl: "https://console.anthropic.com/settings/keys",
+    keyPlaceholder: "sk-ant-...",
+    models: [
+      { id: "claude-haiku-4-5-20251001", label: "claude-haiku-4-5-20251001" },
+      { id: "claude-sonnet-4-6", label: "claude-sonnet-4-6" },
+    ],
   },
   openrouter: {
-    'meta-llama/llama-3.1-8b-instruct:free': 'openrouter/auto',
-    'mistralai/mistral-7b-instruct:free': 'openrouter/auto',
-    'anthropic/claude-haiku': 'anthropic/claude-sonnet-4.5',
-    'google/gemini-flash-1.5': 'google/gemini-3-pro-preview',
-    'openai/gpt-4o-mini': 'openai/gpt-5.2'
-  }
-});
-
-const localModelStatuses = {
-  smollm2_1_7b: { status: 'not_downloaded', progress: 0, backend: 'webgpu', error: '', cpuMode: false },
-  phi35_mini: { status: 'not_downloaded', progress: 0, backend: 'webgpu', error: '', cpuMode: false },
-  qwen3_0_6b: { status: 'not_downloaded', progress: 0, backend: 'webgpu', error: '', cpuMode: false }
+    id: "openrouter",
+    label: "OpenRouter",
+    docsUrl: "https://openrouter.ai/keys",
+    keyPlaceholder: "sk-or-...",
+    models: [
+      {
+        id: "meta-llama/llama-3.1-8b-instruct:free",
+        label: "meta-llama/llama-3.1-8b-instruct:free",
+      },
+      {
+        id: "mistralai/mistral-7b-instruct:free",
+        label: "mistralai/mistral-7b-instruct:free",
+      },
+      { id: "anthropic/claude-haiku", label: "anthropic/claude-haiku" },
+      { id: "google/gemini-flash-1.5", label: "google/gemini-flash-1.5" },
+      { id: "openai/gpt-4o-mini", label: "openai/gpt-4o-mini" },
+    ],
+  },
 };
 
-const providerUiState = {
-  editingProviderId: 'gemini',
-  providerKeys: {},
+const FALLBACK_EMBEDDINGS = [
+  {
+    id: "all-minilm-l6-v2",
+    label: "MiniLM-L6",
+    size: "23MB",
+    note: "Fast, balanced",
+  },
+  {
+    id: "all-mpnet-base-v2",
+    label: "MPNet Base",
+    size: "86MB",
+    note: "Higher accuracy",
+  },
+  {
+    id: "bge-small-en-v1.5",
+    label: "BGE Small",
+    size: "33MB",
+    note: "Strong retrieval",
+  },
+  {
+    id: "gte-small",
+    label: "GTE Small",
+    size: "34MB",
+    note: "Technical prompts",
+  },
+];
+
+const uiState = {
+  bound: false,
+  pane: "ai",
+  providerId: "gemini",
+  providers: FALLBACK_PROVIDERS,
+  embeddings: FALLBACK_EMBEDDINGS,
+  providerDraftKeys: {},
   providerValidation: {},
   embeddingStatus: null,
-  embeddingConfirmModelId: ''
+  pendingEmbeddingModelId: "",
+  keyVisible: false,
 };
 
-let MODEL_REGISTRY_RUNTIME = null;
-let EMBEDDING_MODELS_RUNTIME = null;
-const PROVIDER_VALIDATION_SESSION_KEY = 'promptiumProviderValidationState';
+let statusTimer = null;
 
-let aiStatusHandler = null;
-let autoSaveTimer = null;
-let statusResetTimer = null;
-let autoSaveSourceId = '';
-let inlineSavedResetTimer = null;
-let semanticSetupPromise = null;
+const byId = (id) => document.getElementById(id);
 
-const loadModelRegistryRuntime = async () => {
-  if (MODEL_REGISTRY_RUNTIME && EMBEDDING_MODELS_RUNTIME) {
-    return { registry: MODEL_REGISTRY_RUNTIME, embeddings: EMBEDDING_MODELS_RUNTIME };
-  }
+const asObject = (value) => (value && typeof value === "object" ? value : {});
 
-  try {
-    const mod = await import(chrome.runtime.getURL('utils/model-registry.js'));
-    MODEL_REGISTRY_RUNTIME = mod.MODEL_REGISTRY || { providers: {} };
-    EMBEDDING_MODELS_RUNTIME = Array.isArray(mod.EMBEDDING_MODELS) ? mod.EMBEDDING_MODELS : [];
-  } catch (_error) {
-    MODEL_REGISTRY_RUNTIME = {
-      providers: {
-        gemini: {
-          id: 'gemini',
-          label: 'Google Gemini',
-          keyLabel: 'Gemini API Key',
-          keyPlaceholder: 'AIza...',
-          docsUrl: 'https://aistudio.google.com/apikey',
-          models: [{ id: 'gemini-3.0-flash-preview', label: 'Gemini 3.0 Flash (Preview)', default: true, speed: 'fast', note: 'Latest balanced model' }]
-        }
-      }
-    };
-    EMBEDDING_MODELS_RUNTIME = [{ id: 'all-minilm-l6-v2', label: 'MiniLM-L6', size: '23MB', note: 'Default - fast, balanced', default: true }];
-  }
+const deepClone = (value) => JSON.parse(JSON.stringify(value));
 
-  return { registry: MODEL_REGISTRY_RUNTIME, embeddings: EMBEDDING_MODELS_RUNTIME };
+const normalizeProviderId = (value = "") =>
+  PROVIDER_ORDER.includes(String(value || "").trim().toLowerCase())
+    ? String(value || "").trim().toLowerCase()
+    : DEFAULT_SETTINGS.activeProvider;
+
+const normalizeFeatureFlags = (value = {}, legacy = {}) => {
+  const source = asObject(value);
+  const fallback = asObject(legacy);
+  return {
+    polish: source.polish !== false && fallback.polish !== false,
+    autoTags: source.autoTags !== false && fallback.autoTags !== false,
+    improvePrompt:
+      source.improvePrompt !== false && fallback.improvePrompt !== false,
+    continueSummary:
+      source.continueSummary !== false && fallback.continueSummary !== false,
+  };
 };
 
-const persistProviderValidationState = async () => {
-  await chrome.storage.session.set({
-    [PROVIDER_VALIDATION_SESSION_KEY]: providerUiState.providerValidation
-  }).catch(() => {});
+const normalizeBooleanMap = (value = {}, fallback = {}) => {
+  const source = asObject(value);
+  return Object.fromEntries(
+    Object.keys(fallback).map((key) => [key, source[key] !== false]),
+  );
 };
 
-const EXPORT_FORMAT_ALIASES = Object.freeze({
-  text: 'txt',
-  jpg: 'jpeg',
-  image: 'png'
-});
+const normalizeExportFormat = (value = "") =>
+  EXPORT_FORMATS.includes(String(value || "").trim().toLowerCase())
+    ? String(value || "").trim().toLowerCase()
+    : DEFAULT_SETTINGS.defaultExportFormat;
 
-const ALLOWED_EXPORT_FORMATS = new Set([
-  'markdown',
-  'txt',
-  'json',
-  'pdf',
-  'png',
-  'jpeg',
-  'notion',
-  'obsidian'
-]);
-
-const normalizeDefaultExportFormat = (value) => {
-  const raw = String(value || '').toLowerCase().trim();
-  const alias = EXPORT_FORMAT_ALIASES[raw] || raw;
-  return ALLOWED_EXPORT_FORMATS.has(alias) ? alias : 'markdown';
-};
-
-const cloneObject = (value) => JSON.parse(JSON.stringify(value));
-
-const normalizePlatformKey = (value) => String(value || '')
-  .trim()
-  .toLowerCase()
-  .replace(/[^a-z0-9]+/g, '');
-
-const getKnownPlatforms = (settingsInput = state.settings) => {
-  const settings = normalizeSettings(settingsInput);
-  const keySet = new Set([
-    ...PLATFORM_ORDER,
-    ...Object.keys(settings.enabledPlatforms || {}),
-    ...Object.keys(settings.platformLabels || {})
-  ]);
-
-  const keys = Array.from(keySet)
-    .map((key) => normalizePlatformKey(key))
-    .filter(Boolean);
-
-  const sortedKeys = keys.sort((left, right) => {
-    const leftIndex = PLATFORM_ORDER.indexOf(left);
-    const rightIndex = PLATFORM_ORDER.indexOf(right);
-    const leftRank = leftIndex === -1 ? Number.MAX_SAFE_INTEGER : leftIndex;
-    const rightRank = rightIndex === -1 ? Number.MAX_SAFE_INTEGER : rightIndex;
-    if (leftRank !== rightRank) return leftRank - rightRank;
-    return left.localeCompare(right);
+const normalizeSettings = (value = {}) => {
+  const source = asObject(value);
+  const activeProvider = normalizeProviderId(source.activeProvider || source.aiBackend);
+  const providerModels = deepClone(DEFAULT_SETTINGS.providerModels);
+  PROVIDER_ORDER.forEach((providerId) => {
+    const requested = String(source.providerModels?.[providerId] || "").trim();
+    if (requested) {
+      providerModels[providerId] = requested;
+    }
   });
-
-  return sortedKeys.map((key) => ({
-    key,
-    label: String(settings.platformLabels?.[key] || DEFAULT_PLATFORM_LABELS[key] || key).trim() || key
-  }));
-};
-
-const normalizeCustomPlatforms = (value) => {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((entry) => ({
-      id: String(entry?.id || crypto.randomUUID()),
-      name: String(entry?.name || '').trim(),
-      urlPattern: String(entry?.urlPattern || '').trim(),
-      input: String(entry?.input || '').trim(),
-      userMsg: String(entry?.userMsg || '').trim(),
-      botMsg: String(entry?.botMsg || '').trim(),
-      inputParent: String(entry?.inputParent || 'form, body').trim()
-    }))
-    .filter((entry) => entry.name && entry.urlPattern && entry.input && entry.userMsg && entry.botMsg);
-};
-
-const normalizeSettings = (raw) => {
-  const source = raw && typeof raw === 'object' ? raw : {};
-  const enabledPlatforms = source.enabledPlatforms && typeof source.enabledPlatforms === 'object'
-    ? source.enabledPlatforms
-    : DEFAULT_SETTINGS.enabledPlatforms;
-  const platformLabels = source.platformLabels && typeof source.platformLabels === 'object'
-    ? source.platformLabels
-    : DEFAULT_SETTINGS.platformLabels;
-  const fabActions = source.fabActions && typeof source.fabActions === 'object'
-    ? source.fabActions
-    : DEFAULT_SETTINGS.fabActions;
-  const visibleTabs = source.visibleTabs && typeof source.visibleTabs === 'object'
-    ? source.visibleTabs
-    : DEFAULT_SETTINGS.visibleTabs;
-
-  const platformKeys = new Set([
-    ...PLATFORM_ORDER,
-    ...Object.keys(enabledPlatforms || {}),
-    ...Object.keys(platformLabels || {}),
-    ...Object.keys(DEFAULT_PLATFORM_LABELS),
-    ...Object.keys(DEFAULT_SETTINGS.enabledPlatforms || {})
-  ]);
-
-  const normalizedEnabledPlatforms = {};
-  const normalizedPlatformLabels = {};
-  platformKeys.forEach((key) => {
-    const safeKey = String(key || '').trim().toLowerCase();
-    if (!safeKey) return;
-
-    normalizedEnabledPlatforms[safeKey] = enabledPlatforms?.[safeKey] !== false;
-    const fallbackLabel = DEFAULT_PLATFORM_LABELS[safeKey] || safeKey;
-    const rawLabel = String(platformLabels?.[safeKey] || '').trim();
-    normalizedPlatformLabels[safeKey] = rawLabel || fallbackLabel;
-  });
-
-  const preferLocal = typeof source.preferLocal === 'boolean'
-    ? source.preferLocal
-    : String(source.aiBackend || 'gemini').toLowerCase() === 'local';
-  const useLocalFallback = typeof source.useLocalFallback === 'boolean'
-    ? source.useLocalFallback
-    : source.aiAutoFallback !== false;
-  const localModelIdRaw = String(source.localModelId || 'smollm2_1_7b').trim().toLowerCase();
-  const localModelId = Object.prototype.hasOwnProperty.call(LOCAL_MODEL_META, localModelIdRaw)
-    ? localModelIdRaw
-    : 'smollm2_1_7b';
-  const localFeatureFlagsSource = source.localFeatureFlags && typeof source.localFeatureFlags === 'object'
-    ? source.localFeatureFlags
-    : {};
-  const localFeatureFlags = {
-    polish: localFeatureFlagsSource.polish !== false,
-    autoTags: localFeatureFlagsSource.autoTags !== false,
-    improvePrompt: localFeatureFlagsSource.improvePrompt !== false,
-    continueSummary: localFeatureFlagsSource.continueSummary !== false,
-    smartExportTitle: localFeatureFlagsSource.smartExportTitle === true
-  };
-  const providerModelsSource = source.providerModels && typeof source.providerModels === 'object'
-    ? source.providerModels
-    : {};
-  const normalizeProviderModelId = (providerId, modelId, fallbackId) => {
-    const raw = String(modelId || fallbackId || '').trim();
-    if (!raw) return String(fallbackId || '').trim();
-    const providerMap = LEGACY_PROVIDER_MODEL_MAP[providerId] || {};
-    return String(providerMap[raw] || raw).trim() || String(fallbackId || '').trim();
-  };
-  const providerModels = {
-    gemini: normalizeProviderModelId('gemini', providerModelsSource.gemini, DEFAULT_SETTINGS.providerModels.gemini),
-    openai: normalizeProviderModelId('openai', providerModelsSource.openai, DEFAULT_SETTINGS.providerModels.openai),
-    anthropic: normalizeProviderModelId('anthropic', providerModelsSource.anthropic, DEFAULT_SETTINGS.providerModels.anthropic),
-    openrouter: normalizeProviderModelId('openrouter', providerModelsSource.openrouter, DEFAULT_SETTINGS.providerModels.openrouter)
-  };
-  const activeProviderRaw = String(source.activeProvider || DEFAULT_SETTINGS.activeProvider || 'gemini').trim().toLowerCase();
-  const activeProvider = ['gemini', 'openai', 'anthropic', 'openrouter'].includes(activeProviderRaw)
-    ? activeProviderRaw
-    : 'gemini';
-  const embeddingModelId = String(source.embeddingModelId || DEFAULT_SETTINGS.embeddingModelId || 'all-minilm-l6-v2').trim() || 'all-minilm-l6-v2';
 
   return {
-    enableAI: Boolean(source.enableAI),
+    ...deepClone(DEFAULT_SETTINGS),
     activeProvider,
     providerModels,
-    embeddingModelId,
-    preferLocal,
-    useLocalFallback,
-    localModelId,
-    legacyAutoRewriteOnSave: typeof source.legacyAutoRewriteOnSave === 'boolean' ? source.legacyAutoRewriteOnSave : false,
+    embeddingModelId:
+      String(source.embeddingModelId || "").trim() ||
+      DEFAULT_SETTINGS.embeddingModelId,
+    featureFlags: normalizeFeatureFlags(
+      source.featureFlags,
+      source["local" + "FeatureFlags"],
+    ),
+    fabPosition:
+      source.fabPosition === "left" || source.fabPosition === "bottom-left"
+        ? "bottom-left"
+        : DEFAULT_SETTINGS.fabPosition,
+    fabStyle: ["circle", "pill", "icon-only"].includes(source.fabStyle)
+      ? source.fabStyle
+      : DEFAULT_SETTINGS.fabStyle,
+    fabButtons: {
+      ...deepClone(DEFAULT_SETTINGS.fabButtons),
+      ...normalizeBooleanMap(source.fabButtons || source.fabActions, DEFAULT_SETTINGS.fabButtons),
+      library:
+        source.fabButtons?.library !== false &&
+        source.fabActions?.promptLibrary !== false,
+    },
+    visibleTabs: normalizeBooleanMap(source.visibleTabs, DEFAULT_SETTINGS.visibleTabs),
+    cardDensity:
+      String(source.cardDensity || source.promptCardDensity || "")
+        .trim()
+        .toLowerCase() === "compact"
+        ? "compact"
+        : DEFAULT_SETTINGS.cardDensity,
+    defaultExportFormat: normalizeExportFormat(source.defaultExportFormat),
+    autoSaveHistory:
+      source.autoSaveHistory ?? source.autoSaveExportsToHistory ?? true,
     settingsMigratedV2: source.settingsMigratedV2 === true,
-    localFeatureFlags,
-    geminiPrimary: typeof source.geminiPrimary === 'boolean' ? source.geminiPrimary : !preferLocal,
-    aiBackend: preferLocal ? 'local' : 'gemini',
-    aiAutoFallback: useLocalFallback,
-    semanticSearch: source.semanticSearch !== false,
-    autoSuggestTags: source.autoSuggestTags !== false,
-    duplicateCheck: source.duplicateCheck !== false,
-    polishWithGemini: source.polishWithGemini !== false,
-    enabledPlatforms: normalizedEnabledPlatforms,
-    platformLabels: normalizedPlatformLabels,
-    customPlatforms: normalizeCustomPlatforms(source.customPlatforms),
-    fabPosition: source.fabPosition === 'left' ? 'left' : 'right',
-    fabStyle: ['circle', 'pill', 'icon-only'].includes(String(source.fabStyle || '')) ? source.fabStyle : 'circle',
-    fabActions: {
-      savePrompt: fabActions.savePrompt !== false,
-      exportChat: fabActions.exportChat !== false,
-      continueChat: fabActions.continueChat !== false,
-      promptLibrary: fabActions.promptLibrary !== false
-    },
-    visibleTabs: {
-      prompts: visibleTabs.prompts !== false,
-      export: visibleTabs.export !== false,
-      history: visibleTabs.history !== false,
-      tags: visibleTabs.tags !== false
-    },
-    promptCardDensity: String(source.promptCardDensity || DEFAULT_SETTINGS.promptCardDensity) === 'compact'
-      ? 'compact'
-      : 'comfortable',
-    defaultExportFormat: normalizeDefaultExportFormat(source.defaultExportFormat || DEFAULT_SETTINGS.defaultExportFormat),
-    defaultExportNaming: String(source.defaultExportNaming || DEFAULT_SETTINGS.defaultExportNaming) === 'manual' ? 'manual' : 'smart',
-    autoSaveExportsToHistory: source.autoSaveExportsToHistory !== false,
-    defaultIncludeDate: Boolean(source.defaultIncludeDate),
-    defaultIncludePlatform: Boolean(source.defaultIncludePlatform),
-    bookmarkShortcut: String(source.bookmarkShortcut || DEFAULT_SETTINGS.bookmarkShortcut || 'Alt+Shift+B').trim() || 'Alt+Shift+B',
-    hoverPreviewEnabled: source.hoverPreviewEnabled !== false,
-    hoverPreviewDelay: Math.min(800, Math.max(200, Number(source.hoverPreviewDelay) || 400)),
-    continueDefaultMode: ['FULL_SUMMARY', 'KEY_POINTS', 'RECENT_ONLY'].includes(String(source.continueDefaultMode || ''))
-      ? String(source.continueDefaultMode)
-      : 'FULL_SUMMARY',
-    userContext: String(source.userContext || '').trim()
+    onboardingComplete: source.onboardingComplete === true,
   };
 };
 
-const migrateSettingsV2 = (rawSettings, { hasExistingSettings = false } = {}) => {
-  const source = rawSettings && typeof rawSettings === 'object' ? rawSettings : {};
-  if (source.settingsMigratedV2 === true) {
-    return normalizeSettings(source);
-  }
-
-  const legacyBackend = String(source.aiBackend || 'gemini').trim().toLowerCase();
-  const preferLocal = typeof source.preferLocal === 'boolean'
-    ? source.preferLocal
-    : legacyBackend === 'local';
-  const useLocalFallback = typeof source.useLocalFallback === 'boolean'
-    ? source.useLocalFallback
-    : source.aiAutoFallback !== false;
-  const localModelId = Object.prototype.hasOwnProperty.call(LOCAL_MODEL_META, String(source.localModelId || '').toLowerCase())
-    ? String(source.localModelId).toLowerCase()
-    : 'smollm2_1_7b';
-  const existingFlags = source.localFeatureFlags && typeof source.localFeatureFlags === 'object'
-    ? source.localFeatureFlags
-    : {};
-
-  const localFeatureFlags = {
-    polish: existingFlags.polish !== false,
-    autoTags: existingFlags.autoTags !== false,
-    improvePrompt: existingFlags.improvePrompt !== false,
-    continueSummary: existingFlags.continueSummary !== false,
-    smartExportTitle: existingFlags.smartExportTitle === true
-  };
-
-  const migrated = {
-    ...source,
-    preferLocal,
-    useLocalFallback,
-    localModelId,
-    geminiPrimary: !preferLocal,
-    localFeatureFlags,
-    legacyAutoRewriteOnSave: typeof source.legacyAutoRewriteOnSave === 'boolean'
-      ? source.legacyAutoRewriteOnSave
-      : Boolean(hasExistingSettings),
-    settingsMigratedV2: true
-  };
-
-  return normalizeSettings(migrated);
-};
-
-const load = async () => {
-  try {
-    const snapshot = await chrome.storage.local.get([KEYS.SETTINGS_KEY, 'userContext']);
-    const saved = snapshot?.[KEYS.SETTINGS_KEY] || {};
-    const merged = { ...cloneObject(DEFAULT_SETTINGS), ...(saved || {}) };
-    const legacyContext = String(snapshot?.userContext || '').trim();
-    if (!merged.userContext && legacyContext) merged.userContext = legacyContext;
-    const hasExistingSettings = Boolean(saved && Object.keys(saved).length > 0);
-    state.settings = migrateSettingsV2(merged, { hasExistingSettings });
-    if (!saved?.settingsMigratedV2) {
-      await chrome.storage.local.set({
-        [KEYS.SETTINGS_KEY]: state.settings,
-        userContext: String(state.settings.userContext || '').trim()
-      });
-    }
-  } catch (_error) {
-    state.settings = normalizeSettings({
-      ...DEFAULT_SETTINGS,
-      settingsMigratedV2: true,
-      legacyAutoRewriteOnSave: false
-    });
-  }
-
-  providerUiState.editingProviderId = String(state.settings?.activeProvider || 'gemini').trim().toLowerCase() || 'gemini';
-  const validationSnapshot = await chrome.storage.session.get([PROVIDER_VALIDATION_SESSION_KEY]).catch(() => ({}));
-  providerUiState.providerValidation = validationSnapshot?.[PROVIDER_VALIDATION_SESSION_KEY]
-    && typeof validationSnapshot[PROVIDER_VALIDATION_SESSION_KEY] === 'object'
-    ? validationSnapshot[PROVIDER_VALIDATION_SESSION_KEY]
-    : {};
-  await loadModelRegistryRuntime();
-};
-
-const save = async () => {
-  await chrome.storage.local.set({
-    [KEYS.SETTINGS_KEY]: state.settings,
-    userContext: String(state.settings.userContext || '').trim()
-  });
-};
-
-const getControls = () => ({
-  enableAI: byId('setting-enable-ai'),
-  aiBackend: byId('setting-ai-backend'),
-  aiAutoFallback: byId('setting-ai-auto-fallback'),
-  geminiPrimary: byId('setting-gemini-primary'),
-  semanticSearch: byId('setting-semantic-search'),
-  autoSuggestTags: byId('setting-auto-suggest'),
-  duplicateCheck: byId('setting-duplicate-check'),
-  polishWithGemini: byId('setting-polish-toggle'),
-  localModelSmollm2: byId('setting-local-model-smollm2'),
-  localModelPhi35: byId('setting-local-model-phi35'),
-  localModelQwen3: byId('setting-local-model-qwen3'),
-  localFallback: byId('setting-local-fallback'),
-  preferLocal: byId('setting-prefer-local'),
-  localPreferNote: byId('pn-local-prefer-note'),
-  localFeaturePolish: byId('setting-local-feature-polish'),
-  localFeatureAutoTags: byId('setting-local-feature-autotags'),
-  localFeatureImprove: byId('setting-local-feature-improve'),
-  localFeatureContinue: byId('setting-local-feature-continue'),
-  localFeatureSmartExport: byId('setting-local-feature-smart-export'),
-  modelStatusSmollm2: byId('pn-model-status-smollm2_1_7b'),
-  modelStatusPhi35: byId('pn-model-status-phi35_mini'),
-  modelStatusQwen3: byId('pn-model-status-qwen3_0_6b'),
-  localModelActionBtn: byId('pn-local-model-action-btn'),
-  localModelActionMeta: byId('pn-local-model-action-meta'),
-  geminiPrimaryNote: byId('pn-gemini-primary-note'),
-  defaultExportFormat: byId('setting-export-format'),
-  defaultIncludeDate: byId('setting-export-date'),
-  defaultIncludePlatform: byId('setting-export-platform'),
-  userContext: byId('setting-user-context'),
-
-  fabPosition: byId('setting-fab-position'),
-  fabStyle: byId('setting-fab-style'),
-  fabSave: byId('setting-fab-save'),
-  fabExport: byId('setting-fab-export'),
-  fabContinue: byId('setting-fab-continue'),
-  fabLibrary: byId('setting-fab-library'),
-
-  tabPrompts: byId('setting-tab-prompts'),
-  tabExport: byId('setting-tab-export'),
-  tabHistory: byId('setting-tab-history'),
-  tabTags: byId('setting-tab-tags'),
-  tabWarning: byId('pn-tab-warning'),
-
-  density: byId('setting-density'),
-  exportNaming: byId('setting-export-naming'),
-  autoSaveHistory: byId('setting-auto-save-history'),
-  bookmarkShortcut: byId('setting-bookmark-shortcut'),
-  hoverPreview: byId('setting-hover-preview'),
-  hoverDelay: byId('setting-hover-delay'),
-  continueMode: byId('setting-continue-mode'),
-
-  platformWarning: byId('pn-platform-warning'),
-  platformEnabledCount: byId('pn-platform-enabled-count'),
-  platformFilter: byId('pn-platform-filter'),
-  platformEnableAll: byId('pn-platform-enable-all'),
-  platformDisableAll: byId('pn-platform-disable-all'),
-  platformList: byId('pn-platform-list'),
-  customPlatforms: byId('pn-custom-platforms'),
-  platformLabelKey: byId('setting-platform-label-key'),
-  platformLabelValue: byId('setting-platform-label-value'),
-  platformLabelError: byId('pn-platform-label-error'),
-  localModelProgressWrap: byId('pn-local-model-progress-wrap'),
-  localModelProgress: byId('pn-local-model-progress'),
-  localModelProgressText: byId('pn-local-model-progress-text'),
-  localModelLibrary: byId('pn-local-model-library'),
-  aiRoutingNote: byId('pn-ai-routing-note'),
-  aiSetupHeadline: byId('pn-ai-setup-headline'),
-  aiSetupProgress: byId('pn-ai-setup-progress'),
-  aiSetupPercent: byId('pn-ai-setup-percent'),
-  aiSetupDetail: byId('pn-ai-setup-detail'),
-  aiSetupActionBtn: byId('pn-ai-setup-action-btn'),
-  quickProviderStatus: byId('pn-quick-provider-status'),
-  quickLocalStatus: byId('pn-quick-local-status'),
-  quickSemanticStatus: byId('pn-quick-semantic-status'),
-  providerTabs: byId('pn-provider-tabs'),
-  providerKey: byId('pn-provider-key'),
-  providerKeyToggle: byId('pn-provider-key-toggle'),
-  providerTest: byId('pn-provider-test'),
-  providerStatus: byId('pn-provider-status'),
-  providerDocs: byId('pn-provider-docs'),
-  providerSetPrimary: byId('pn-provider-set-primary'),
-  providerModels: byId('pn-provider-models'),
-  embeddingModels: byId('pn-embedding-models'),
-  embeddingConfirm: byId('pn-embedding-confirm'),
-  embeddingConfirmText: byId('pn-embedding-confirm-text'),
-  embeddingConfirmYes: byId('pn-embedding-confirm-yes'),
-  embeddingConfirmNo: byId('pn-embedding-confirm-no'),
-  embeddingReindexWrap: byId('pn-embedding-reindex-wrap'),
-  embeddingReindexProgress: byId('pn-embedding-reindex-progress'),
-  embeddingReindexText: byId('pn-embedding-reindex-text'),
-  searchSetupIndicator: byId('pn-search-setup-indicator'),
-  searchModeBadge: byId('pn-search-mode-badge')
-});
-
-const setSettingsStatus = (message, tone = '') => {
-  const node = byId('settings-status');
+const setSettingsStatus = (text = "", isError = false) => {
+  const node = byId("settings-status");
   if (!node) return;
-
-  node.textContent = String(message || '').trim();
-  node.classList.remove('pn-status-error', 'pn-status-ok', 'pn-status-info');
-
-  const normalized = String(tone || '').toLowerCase();
-  if (normalized === 'error') node.classList.add('pn-status-error');
-  if (normalized === 'ok') node.classList.add('pn-status-ok');
-  if (normalized === 'info') node.classList.add('pn-status-info');
-};
-
-const flashAutoSaveStatus = (message, tone = 'ok') => {
-  setSettingsStatus(message, tone);
-  if (statusResetTimer) clearTimeout(statusResetTimer);
-  statusResetTimer = setTimeout(() => {
-    setSettingsStatus('');
-    statusResetTimer = null;
-  }, 1800);
-};
-
-const getConfiguredEmbeddingModelId = () => {
-  const fromSettings = String(state.settings?.embeddingModelId || '').trim();
-  if (fromSettings) return fromSettings;
-  return String(providerUiState.embeddingStatus?.activeModelId || 'all-minilm-l6-v2').trim() || 'all-minilm-l6-v2';
-};
-
-const setAiSetupState = ({
-  headline = 'Checking runtime state…',
-  detail = '',
-  progress = null,
-  mode = 'idle'
-} = {}) => {
-  const controls = getControls();
-  if (controls.aiSetupHeadline) controls.aiSetupHeadline.textContent = String(headline || '').trim() || 'Checking runtime state…';
-  if (controls.aiSetupDetail) controls.aiSetupDetail.textContent = String(detail || '').trim();
-  if (controls.aiSetupProgress instanceof HTMLProgressElement) {
-    const safe = Number.isFinite(Number(progress)) ? Math.max(0, Math.min(100, Math.round(Number(progress)))) : 0;
-    controls.aiSetupProgress.value = safe;
-    controls.aiSetupProgress.dataset.mode = String(mode || 'idle').trim().toLowerCase();
-    if (controls.aiSetupPercent) controls.aiSetupPercent.textContent = `${safe}%`;
+  node.textContent = String(text || "").trim();
+  node.className = "pn-sv-autosave-hint";
+  node.classList.toggle("pn-hidden", !node.textContent);
+  if (node.textContent) {
+    node.classList.add(isError ? "pn-status-error" : "pn-status-ok");
   }
-  if (controls.aiSetupActionBtn) {
-    const normalizedMode = String(mode || 'idle').trim().toLowerCase();
-    controls.aiSetupActionBtn.disabled = normalizedMode === 'busy';
-    controls.aiSetupActionBtn.textContent = normalizedMode === 'ready'
-      ? 'Rebuild Semantic Search'
-      : normalizedMode === 'busy'
-        ? 'Preparing...'
-        : 'Prepare Semantic Search';
+  if (statusTimer) {
+    clearTimeout(statusTimer);
+    statusTimer = null;
+  }
+  if (!node.textContent) return;
+  statusTimer = setTimeout(() => {
+    node.classList.add("pn-hidden");
+    statusTimer = null;
+  }, isError ? 2400 : 1600);
+};
+
+const loadRuntimeRegistry = async () => {
+  try {
+    const mod = await import(chrome.runtime.getURL("utils/model-registry.js"));
+    const providers = {};
+    Object.values(mod.MODEL_REGISTRY?.providers || {}).forEach((provider) => {
+      providers[provider.id] = {
+        id: provider.id,
+        label: provider.label,
+        docsUrl: provider.docsUrl,
+        keyPlaceholder: provider.keyPlaceholder,
+        models: Array.isArray(provider.models) ? provider.models : [],
+      };
+    });
+    uiState.providers = Object.keys(providers).length ? providers : FALLBACK_PROVIDERS;
+    uiState.embeddings = Array.isArray(mod.EMBEDDING_MODELS) && mod.EMBEDDING_MODELS.length
+      ? mod.EMBEDDING_MODELS
+      : FALLBACK_EMBEDDINGS;
+  } catch (error) {
+    console.warn("[Promptium][Settings] Failed to load model registry.", error);
+    uiState.providers = FALLBACK_PROVIDERS;
+    uiState.embeddings = FALLBACK_EMBEDDINGS;
   }
 };
 
-const updateQuickProviderHealth = async () => {
-  const controls = getControls();
-  if (!controls.quickProviderStatus) return;
-
-  if (!state.settings?.enableAI) {
-    controls.quickProviderStatus.textContent = 'Disabled';
-    return;
-  }
-
-  if (state.settings?.preferLocal === true) {
-    controls.quickProviderStatus.textContent = 'Local Priority';
-    return;
-  }
-
-  const activeProvider = String(state.settings?.activeProvider || 'gemini').trim().toLowerCase();
-  const providerLabel = ({
-    gemini: 'Gemini',
-    openai: 'OpenAI',
-    anthropic: 'Claude',
-    openrouter: 'OpenRouter'
-  })[activeProvider] || 'Cloud';
-  const typedKey = String(getControls().providerKey?.value || '').trim();
-  const storedKey = String(
-    window.SessionStorage?.getStoredProviderKey
-      ? await window.SessionStorage.getStoredProviderKey(activeProvider).catch(() => '')
-      : await window.SessionStorage.getStoredGeminiKey().catch(() => '')
-  ).trim();
-  const hasKey = Boolean(typedKey || storedKey);
-  controls.quickProviderStatus.textContent = hasKey ? `${providerLabel} Ready` : `${providerLabel} Key Needed`;
+const persistValidationState = async () => {
+  await chrome.storage.session
+    .set({ [PROVIDER_VALIDATION_SESSION_KEY]: uiState.providerValidation })
+    .catch((error) => {
+      console.warn("[Promptium][Settings] Failed to persist validation state.", error);
+    });
 };
 
-const updateQuickLocalHealth = () => {
-  const controls = getControls();
-  if (!controls.quickLocalStatus) return;
-  const selected = selectedModelStatus();
-  const label = LOCAL_MODEL_META[selected.id]?.label || selected.id;
-  const statusText = formatModelStatusText(selected.status);
-  controls.quickLocalStatus.textContent = `${label} • ${statusText}`;
+const loadValidationState = async () => {
+  const snapshot = await chrome.storage.session
+    .get([PROVIDER_VALIDATION_SESSION_KEY])
+    .catch(() => ({}));
+  uiState.providerValidation = asObject(snapshot?.[PROVIDER_VALIDATION_SESSION_KEY]);
 };
 
-const updateQuickSemanticHealth = (embeddingStatus = null) => {
-  const controls = getControls();
-  if (!controls.quickSemanticStatus) return;
-  const status = embeddingStatus && typeof embeddingStatus === 'object'
-    ? embeddingStatus
-    : providerUiState.embeddingStatus || {};
-  const semanticReady = String(status.searchMode || '').toLowerCase() === 'semantic'
-    && String(status.status || '').toLowerCase() === 'ready';
-  if (!state.settings?.enableAI) {
-    controls.quickSemanticStatus.textContent = 'Disabled';
-    return;
+const readSettings = async () => {
+  const snapshot = await chrome.storage.local
+    .get([KEYS.SETTINGS_KEY])
+    .catch(() => ({}));
+  const normalized = normalizeSettings(snapshot?.[KEYS.SETTINGS_KEY]);
+  if (!normalized.settingsMigratedV2) {
+    normalized.settingsMigratedV2 = true;
+    await chrome.storage.local
+      .set({ [KEYS.SETTINGS_KEY]: normalized })
+      .catch((error) => {
+        console.warn("[Promptium][Settings] Failed to persist migrated settings.", error);
+      });
   }
-  if (semanticReady) {
-    controls.quickSemanticStatus.textContent = 'Semantic Ready';
-    return;
-  }
-  if (Boolean(status?.reindex?.running)) {
-    controls.quickSemanticStatus.textContent = 'Indexing';
-    return;
-  }
-  const raw = String(status.status || '').toLowerCase();
-  if (raw === 'downloading' || raw === 'loading') {
-    controls.quickSemanticStatus.textContent = 'Preparing';
-    return;
-  }
-  if (raw === 'error') {
-    controls.quickSemanticStatus.textContent = 'Setup Error';
-    return;
-  }
-  controls.quickSemanticStatus.textContent = 'Not Ready';
+  state.settings = normalized;
+  uiState.providerId = normalized.activeProvider;
 };
 
-const emitPromptsModelFeedback = async () => {
-  if (typeof window.PromptsUI?.renderModelFeedback !== 'function') return;
+const persistSettings = async (nextSettings) => {
+  state.settings = normalizeSettings(nextSettings);
+  state.settings.settingsMigratedV2 = true;
+  await chrome.storage.local
+    .set({ [KEYS.SETTINGS_KEY]: state.settings })
+    .catch((error) => {
+      console.warn("[Promptium][Settings] Failed to persist settings.", error);
+      throw error;
+    });
+  applyInterfaceSettings(state.settings);
+  callbacks.onApplyExportDefaults?.(state.settings);
+  callbacks.onRenderExportPreview?.();
+};
 
-  const { registry } = await loadModelRegistryRuntime();
-  const activeProviderId = String(state.settings?.activeProvider || 'gemini').trim().toLowerCase();
-  const provider = registry?.providers?.[activeProviderId] || null;
-  const providerModels = Array.isArray(provider?.models) ? provider.models : [];
-  const providerLabel = String(provider?.label || activeProviderId || 'Cloud').trim();
-  const selectedCloudModelId = String(
-    state.settings?.providerModels?.[activeProviderId]
-    || providerModels.find((entry) => entry?.default)?.id
-    || ''
-  ).trim();
-  const selectedCloudModel = providerModels.find((entry) => String(entry?.id || '') === selectedCloudModelId);
+const getProviderMeta = (providerId = uiState.providerId) =>
+  uiState.providers[normalizeProviderId(providerId)] || uiState.providers.gemini;
 
-  const localModelId = String(state.settings?.localModelId || 'smollm2_1_7b').trim().toLowerCase();
-  const localModelMeta = LOCAL_MODEL_META[localModelId] || LOCAL_MODEL_META.smollm2_1_7b;
-  const localModelStatus = localModelStatuses[localModelId] || {};
+const getProviderDraftKey = async (providerId = uiState.providerId) => {
+  const normalized = normalizeProviderId(providerId);
+  if (Object.prototype.hasOwnProperty.call(uiState.providerDraftKeys, normalized)) {
+    return String(uiState.providerDraftKeys[normalized] || "");
+  }
+  const stored = window.SessionStorage?.getStoredProviderKey
+    ? await window.SessionStorage.getStoredProviderKey(normalized).catch(() => "")
+    : "";
+  uiState.providerDraftKeys[normalized] = stored;
+  return String(stored || "");
+};
 
-  const status = providerUiState.embeddingStatus || {};
-  const semanticReady = String(status.searchMode || '').toLowerCase() === 'semantic'
-    && String(status.status || '').toLowerCase() === 'ready';
-  const isBusy = ['downloading', 'loading'].includes(String(status.status || '').toLowerCase())
-    || Boolean(status?.reindex?.running);
-  const hasError = String(status.status || '').toLowerCase() === 'error';
+const getProviderStatusLabel = async (providerId = uiState.providerId) => {
+  const key = String(await getProviderDraftKey(providerId) || "").trim();
+  if (!key) return "Not configured";
+  const status = String(uiState.providerValidation?.[providerId]?.status || "").trim();
+  if (status === "connected") return "Connected";
+  if (status === "invalid") return "Invalid key";
+  return "Not configured";
+};
 
-  const semanticPhase = semanticReady
-    ? 'ready'
-    : hasError
-      ? 'error'
-      : isBusy
-        ? 'busy'
-        : 'idle';
+const syncDownloadIndicator = () => {
+  const indicator = byId("pn-search-setup-indicator");
+  const downloading =
+    uiState.embeddingStatus?.status === "downloading" ||
+    uiState.embeddingStatus?.reindex?.running === true;
+  indicator?.classList.toggle("pn-hidden", !downloading);
+};
 
-  window.PromptsUI.renderModelFeedback({
-    enabled: state.settings?.enableAI !== false,
-    preferLocal: state.settings?.preferLocal === true,
-    providerLabel,
-    providerId: activeProviderId,
-    cloudModelId: selectedCloudModelId,
-    cloudModelLabel: String(selectedCloudModel?.label || selectedCloudModelId || '').trim(),
-    localModelId,
-    localModelLabel: String(localModelMeta?.label || localModelId || 'Local model').trim(),
-    localModelStatus: String(localModelStatus?.status || '').trim().toLowerCase(),
-    semanticPhase
+const renderProviderTabs = async () => {
+  const node = byId("pn-provider-tabs");
+  if (!node) return;
+  const parts = [];
+  for (const providerId of PROVIDER_ORDER) {
+    const status = await getProviderStatusLabel(providerId);
+    const meta = getProviderMeta(providerId);
+    const active = providerId === uiState.providerId;
+    parts.push(
+      `<button class="pn-provider-tab${active ? " is-editing" : ""}" type="button" data-provider-tab="${providerId}" data-status="${status.toLowerCase().replace(/\s+/g, "-")}">${meta.label}</button>`,
+    );
+  }
+  node.innerHTML = parts.join("");
+};
+
+const renderProviderModels = () => {
+  const node = byId("pn-provider-models");
+  if (!node) return;
+  const provider = getProviderMeta();
+  const selected = state.settings.providerModels?.[provider.id];
+  node.innerHTML = provider.models
+    .map(
+      (model) => `
+        <label class="pn-sv-row pn-sv-row--compact pn-provider-model-row">
+          <span class="pn-sv-row__copy">
+            <span class="pn-sv-row__label">${model.label}</span>
+          </span>
+          <input type="radio" name="pn-provider-model" value="${model.id}" ${selected === model.id ? "checked" : ""} />
+        </label>`,
+    )
+    .join("");
+};
+
+const renderProviderEditor = async () => {
+  const provider = getProviderMeta();
+  const keyInput = byId("pn-provider-key");
+  const docs = byId("pn-provider-docs");
+  const status = byId("pn-provider-status");
+  const primary = byId("pn-provider-set-primary");
+  const draftKey = await getProviderDraftKey(provider.id);
+  if (keyInput) {
+    keyInput.type = uiState.keyVisible ? "text" : "password";
+    keyInput.placeholder = provider.keyPlaceholder || "API key";
+    keyInput.value = draftKey;
+  }
+  if (docs) docs.href = provider.docsUrl || "#";
+  if (status) status.textContent = await getProviderStatusLabel(provider.id);
+  if (primary) {
+    primary.textContent =
+      state.settings.activeProvider === provider.id ? "Primary provider" : "Set as primary";
+    primary.disabled = state.settings.activeProvider === provider.id;
+  }
+  renderProviderModels();
+};
+
+const getEmbeddingActionLabel = (modelId, activeId, status, downloaded) => {
+  if (modelId === activeId && status === "ready") return "Active";
+  if (modelId === activeId && status === "downloading") {
+    return `Downloading ${Math.max(0, Number(uiState.embeddingStatus?.progress || 0))}%`;
+  }
+  return downloaded.has(modelId) ? "Switch" : "Download";
+};
+
+const renderEmbeddingModels = () => {
+  const node = byId("pn-embedding-models");
+  if (!node) return;
+  const status = uiState.embeddingStatus || {};
+  const activeId = String(state.settings.embeddingModelId || DEFAULT_SETTINGS.embeddingModelId);
+  const downloaded = new Set(Array.isArray(status.downloadedModelIds) ? status.downloadedModelIds : []);
+  node.innerHTML = uiState.embeddings
+    .map((model) => {
+      const actionLabel = getEmbeddingActionLabel(model.id, activeId, status.status, downloaded);
+      const checked = model.id === activeId;
+      return `
+        <label class="pn-sv-row pn-embedding-row${checked ? " is-selected" : ""}">
+          <span class="pn-sv-row__copy">
+            <span class="pn-sv-row__label">${checked ? "●" : "○"} ${model.label}</span>
+            <span class="pn-sv-row__desc">${model.size} · ${model.note}</span>
+          </span>
+          <button class="pn-btn pn-btn--ghost" type="button" data-embedding-action="${model.id}">${actionLabel}</button>
+        </label>`;
+    })
+    .join("");
+  syncDownloadIndicator();
+};
+
+const updateEmbeddingProgress = () => {
+  const wrap = byId("pn-embedding-reindex-wrap");
+  const progress = byId("pn-embedding-reindex-progress");
+  const text = byId("pn-embedding-reindex-text");
+  const reindex = uiState.embeddingStatus?.reindex || {};
+  wrap?.classList.toggle("pn-hidden", !reindex.running && !reindex.error);
+  if (progress) progress.value = Number(reindex.progress || 0);
+  if (!text) return;
+  if (reindex.error) {
+    text.textContent = reindex.error;
+    return;
+  }
+  text.textContent = reindex.running
+    ? `Re-indexing prompts… ${Math.round(Number(reindex.progress || 0))}%`
+    : "Re-indexing prompts…";
+};
+
+const renderFeaturePane = () => {
+  const settings = state.settings;
+  const assign = (id, value) => {
+    const input = byId(id);
+    if (input) input.checked = Boolean(value);
+  };
+  assign("setting-feature-polish", settings.featureFlags.polish);
+  assign("setting-feature-autotags", settings.featureFlags.autoTags);
+  assign("setting-feature-improve", settings.featureFlags.improvePrompt);
+  assign("setting-feature-continue", settings.featureFlags.continueSummary);
+  assign("setting-fab-position-right", settings.fabPosition === "bottom-right");
+  assign("setting-fab-position-left", settings.fabPosition === "bottom-left");
+  assign("setting-fab-style-circle", settings.fabStyle === "circle");
+  assign("setting-fab-style-pill", settings.fabStyle === "pill");
+  assign("setting-fab-style-icon", settings.fabStyle === "icon-only");
+  assign("setting-density-comfortable", settings.cardDensity === "comfortable");
+  assign("setting-density-compact", settings.cardDensity === "compact");
+  assign("setting-tab-prompts", settings.visibleTabs.prompts);
+  assign("setting-tab-export", settings.visibleTabs.export);
+  assign("setting-tab-history", settings.visibleTabs.history);
+  assign("setting-tab-tags", settings.visibleTabs.tags);
+  assign("setting-auto-save-history", settings.autoSaveHistory);
+  EXPORT_FORMATS.forEach((format) => {
+    assign(`setting-export-format-${format}`, settings.defaultExportFormat === format);
   });
 };
 
-const updateAiSetupFromEmbeddingStatus = (embeddingStatus = null) => {
-  const status = embeddingStatus && typeof embeddingStatus === 'object'
-    ? embeddingStatus
-    : providerUiState.embeddingStatus || {};
-  const reindex = status?.reindex || {};
-  const modelId = String(status.activeModelId || getConfiguredEmbeddingModelId()).trim();
-  const modelName = modelId || 'default model';
-  const normalizedStatus = String(status.status || '').trim().toLowerCase();
-  const semanticReady = String(status.searchMode || '').toLowerCase() === 'semantic'
-    && normalizedStatus === 'ready';
-
-  if (!state.settings?.enableAI) {
-    setAiSetupState({
-      headline: 'AI is disabled',
-      detail: 'Enable AI to prepare semantic search.',
-      progress: 0,
-      mode: 'disabled'
-    });
-    updateQuickSemanticHealth(status);
-    return;
+const renderAboutPane = () => {
+  const version = byId("pn-version-label");
+  if (version) {
+    version.textContent = String(chrome.runtime.getManifest()?.version || "0.1.0");
   }
-
-  if (state.settings?.semanticSearch === false) {
-    setAiSetupState({
-      headline: 'Semantic search is turned off',
-      detail: 'Turn on semantic search to prepare embeddings.',
-      progress: 0,
-      mode: 'disabled'
-    });
-    updateQuickSemanticHealth(status);
-    return;
-  }
-
-  if (Boolean(reindex.running)) {
-    setAiSetupState({
-      headline: 'Indexing prompts for semantic search',
-      detail: `Indexing ${Number(reindex.done || 0)} / ${Number(reindex.total || 0)} prompts with ${modelName}.`,
-      progress: Number(reindex.progress || 0),
-      mode: 'busy'
-    });
-    updateQuickSemanticHealth(status);
-    return;
-  }
-
-  if (semanticReady) {
-    setAiSetupState({
-      headline: 'Semantic search is ready',
-      detail: `Search model ${modelName} is downloaded and active.`,
-      progress: 100,
-      mode: 'ready'
-    });
-    updateQuickSemanticHealth(status);
-    return;
-  }
-
-  if (normalizedStatus === 'downloading' || normalizedStatus === 'loading') {
-    setAiSetupState({
-      headline: 'Downloading search model',
-      detail: `Preparing ${modelName} for semantic search.`,
-      progress: Number(status.progress || 0),
-      mode: 'busy'
-    });
-    updateQuickSemanticHealth(status);
-    return;
-  }
-
-  if (normalizedStatus === 'error') {
-    setAiSetupState({
-      headline: 'Setup needs attention',
-      detail: String(status.error || 'Failed to prepare semantic search model.'),
-      progress: Number(status.progress || 0),
-      mode: 'error'
-    });
-    updateQuickSemanticHealth(status);
-    return;
-  }
-
-  setAiSetupState({
-    headline: 'Semantic search not prepared yet',
-    detail: 'Promptium auto-prepares this on startup. Use setup to rebuild manually.',
-    progress: Number(status.progress || 0),
-    mode: 'idle'
-  });
-  updateQuickSemanticHealth(status);
 };
 
-const refreshAiControlCenter = async ({ includeProvider = true } = {}) => {
-  if (includeProvider) await updateQuickProviderHealth();
-  updateQuickLocalHealth();
-  updateQuickSemanticHealth(providerUiState.embeddingStatus);
-  await emitPromptsModelFeedback();
+const getPaneTitle = (pane = uiState.pane) => {
+  if (pane === "ai") return "AI Providers";
+  if (pane === "platforms") return "Search Model";
+  if (pane === "general") return "Features & Preferences";
+  return "Data & About";
 };
 
-const clearInlineSavedBadge = () => {
-  document.querySelectorAll('.pn-inline-saved-badge').forEach((node) => {
-    node.classList.remove('is-visible');
+const showPane = (pane = "ai") => {
+  uiState.pane = pane;
+  const hero = byId("pn-settings-main-hero");
+  const rootMenu = byId("pn-settings-root-menu");
+  const wrapper = byId("pn-settings-panes-wrapper");
+  const title = byId("pn-settings-pane-title");
+  hero?.classList.add("pn-hidden");
+  rootMenu?.classList.add("pn-hidden");
+  wrapper?.classList.remove("pn-hidden");
+  if (title) title.textContent = getPaneTitle(pane);
+  document.querySelectorAll(".pn-settings-pane").forEach((node) => {
+    node.classList.toggle("pn-hidden", node.dataset.settingsPane !== pane);
   });
 };
 
-const showInlineSavedBadge = (controlId) => {
-  const id = String(controlId || '').trim();
-  if (!id) return;
+const showRootMenu = () => {
+  byId("pn-settings-main-hero")?.classList.remove("pn-hidden");
+  byId("pn-settings-root-menu")?.classList.remove("pn-hidden");
+  byId("pn-settings-panes-wrapper")?.classList.add("pn-hidden");
+};
 
-  const control = byId(id);
-  if (!control) return;
+const ensurePaneMarkup = () => {
+  const panes = {
+    ai: `
+      <div class="pn-sv-section">
+        <h4 class="pn-sv-heading">Provider Setup</h4>
+        <div id="pn-provider-tabs" class="pn-provider-tabs"></div>
+        <div class="pn-provider-editor">
+          <div class="pn-sv-api-row">
+            <div class="pn-sv-api-row__icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <input id="pn-provider-key" type="password" class="pn-sv-api-row__input" placeholder="API key" autocomplete="off" />
+            <button id="pn-provider-test" type="button" class="pn-sv-api-row__check">Test</button>
+            <button id="pn-provider-key-toggle" type="button" class="pn-sv-api-row__eye">Show</button>
+          </div>
+          <div class="pn-provider-controls">
+            <a id="pn-provider-docs" href="#" target="_blank" rel="noreferrer" class="pn-sv-api-link">Get API key →</a>
+            <button id="pn-provider-set-primary" class="pn-btn pn-btn--ghost" type="button">Set as primary</button>
+          </div>
+          <p id="pn-provider-status" class="pn-sv-api-hint">Not configured</p>
+          <div id="pn-provider-models" class="pn-provider-models"></div>
+        </div>
+      </div>`,
+    platforms: `
+      <div class="pn-sv-section">
+        <h4 class="pn-sv-heading">Semantic Search Model</h4>
+        <p class="pn-sv-api-hint">Powers intelligent prompt search.</p>
+        <div id="pn-embedding-models" class="pn-embedding-models"></div>
+        <div id="pn-embedding-confirm" class="pn-embedding-confirm pn-hidden">
+          <p id="pn-embedding-confirm-text" class="pn-sv-api-hint">Switch model and re-index prompts?</p>
+          <div class="pn-embedding-confirm-actions">
+            <button id="pn-embedding-confirm-yes" class="pn-btn pn-btn--primary" type="button">Confirm</button>
+            <button id="pn-embedding-confirm-no" class="pn-btn pn-btn--ghost" type="button">Cancel</button>
+          </div>
+        </div>
+        <div id="pn-embedding-reindex-wrap" class="pn-local-model-progress pn-hidden">
+          <progress id="pn-embedding-reindex-progress" max="100" value="0"></progress>
+          <span id="pn-embedding-reindex-text">Re-indexing prompts…</span>
+        </div>
+      </div>`,
+    general: `
+      <div class="pn-sv-section">
+        <h4 class="pn-sv-heading">AI Features</h4>
+        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Polish prompts when saving</span><label class="pn-toggle pn-toggle--sm"><input id="setting-feature-polish" type="checkbox" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Auto-suggest tags</span><label class="pn-toggle pn-toggle--sm"><input id="setting-feature-autotags" type="checkbox" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Improve Prompt</span><label class="pn-toggle pn-toggle--sm"><input id="setting-feature-improve" type="checkbox" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Continue Chat summarisation</span><label class="pn-toggle pn-toggle--sm"><input id="setting-feature-continue" type="checkbox" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+      </div>
+      <div class="pn-sv-section">
+        <h4 class="pn-sv-heading">Interface</h4>
+        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Bottom-right FAB</span><label class="pn-toggle pn-toggle--sm"><input id="setting-fab-position-right" type="radio" name="setting-fab-position" value="bottom-right" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Bottom-left FAB</span><label class="pn-toggle pn-toggle--sm"><input id="setting-fab-position-left" type="radio" name="setting-fab-position" value="bottom-left" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Circle FAB</span><label class="pn-toggle pn-toggle--sm"><input id="setting-fab-style-circle" type="radio" name="setting-fab-style" value="circle" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Pill FAB</span><label class="pn-toggle pn-toggle--sm"><input id="setting-fab-style-pill" type="radio" name="setting-fab-style" value="pill" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Icon-only FAB</span><label class="pn-toggle pn-toggle--sm"><input id="setting-fab-style-icon" type="radio" name="setting-fab-style" value="icon-only" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Comfortable density</span><label class="pn-toggle pn-toggle--sm"><input id="setting-density-comfortable" type="radio" name="setting-density" value="comfortable" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Compact density</span><label class="pn-toggle pn-toggle--sm"><input id="setting-density-compact" type="radio" name="setting-density" value="compact" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Prompts tab</span><label class="pn-toggle pn-toggle--sm"><input id="setting-tab-prompts" type="checkbox" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Export tab</span><label class="pn-toggle pn-toggle--sm"><input id="setting-tab-export" type="checkbox" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">History tab</span><label class="pn-toggle pn-toggle--sm"><input id="setting-tab-history" type="checkbox" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Tags tab</span><label class="pn-toggle pn-toggle--sm"><input id="setting-tab-tags" type="checkbox" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+      </div>
+      <div class="pn-sv-section">
+        <h4 class="pn-sv-heading">Export Defaults</h4>
+        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Markdown</span><label class="pn-toggle pn-toggle--sm"><input id="setting-export-format-markdown" type="radio" name="setting-export-format" value="markdown" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">TXT</span><label class="pn-toggle pn-toggle--sm"><input id="setting-export-format-txt" type="radio" name="setting-export-format" value="txt" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">PDF</span><label class="pn-toggle pn-toggle--sm"><input id="setting-export-format-pdf" type="radio" name="setting-export-format" value="pdf" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Notion</span><label class="pn-toggle pn-toggle--sm"><input id="setting-export-format-notion" type="radio" name="setting-export-format" value="notion" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Obsidian</span><label class="pn-toggle pn-toggle--sm"><input id="setting-export-format-obsidian" type="radio" name="setting-export-format" value="obsidian" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Auto-save to history</span><label class="pn-toggle pn-toggle--sm"><input id="setting-auto-save-history" type="checkbox" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
+      </div>
+      <p id="settings-status" class="pn-sv-autosave-hint pn-hidden"></p>`,
+    about: `
+      <div class="pn-sv-section">
+        <h4 class="pn-sv-heading">Your Data</h4>
+        <div class="pn-settings-actions">
+          <button id="pn-export-all-data" class="pn-btn pn-btn--ghost" type="button">Export all data →</button>
+          <label class="pn-btn pn-btn--ghost pn-inline-file">Import data →<input id="pn-import-all-data" type="file" accept="application/json" /></label>
+        </div>
+        <div class="pn-settings-danger-row"><button id="pn-clear-prompts" class="pn-btn pn-btn-danger" type="button">Clear all prompts</button><button id="pn-confirm-clear-prompts" class="pn-btn pn-btn--ghost pn-hidden" type="button">Confirm</button></div>
+        <div class="pn-settings-danger-row"><button id="pn-clear-history" class="pn-btn pn-btn-danger" type="button">Clear history</button><button id="pn-confirm-clear-history" class="pn-btn pn-btn--ghost pn-hidden" type="button">Confirm</button></div>
+        <div class="pn-settings-danger-row"><button id="pn-reset-all-settings" class="pn-btn pn-btn-danger" type="button">Reset all settings</button><button id="pn-confirm-reset-settings" class="pn-btn pn-btn--ghost pn-hidden" type="button">Confirm</button></div>
+      </div>
+      <div class="pn-sv-section">
+        <h4 class="pn-sv-heading">About</h4>
+        <p class="pn-sv-api-hint">Version <span id="pn-version-label">0.1.0</span></p>
+        <a href="https://github.com/sh1shank/promptium/releases" target="_blank" rel="noreferrer" class="pn-sv-api-link">View changelog →</a>
+      </div>`,
+  };
 
-  const row = control.closest('.pn-sv-row');
-  if (!row) return;
-
-  const copy = row.querySelector('.pn-sv-row__copy');
-  const label = row.querySelector('.pn-sv-row__label');
-  const anchor = label || copy;
-  if (!anchor) return;
-
-  let badge = row.querySelector('.pn-inline-saved-badge');
-  if (!badge) {
-    badge = document.createElement('span');
-    badge.className = 'pn-inline-saved-badge';
-    badge.textContent = 'Saved';
-    if (label?.parentElement) {
-      label.insertAdjacentElement('afterend', badge);
-    } else {
-      anchor.appendChild(badge);
+  Object.entries(panes).forEach(([paneId, markup]) => {
+    const pane = document.querySelector(`.pn-settings-pane[data-settings-pane="${paneId}"]`);
+    if (pane && pane.dataset.rendered !== "true") {
+      pane.innerHTML = markup;
+      pane.dataset.rendered = "true";
     }
-  }
+  });
+};
 
-  clearInlineSavedBadge();
-  badge.classList.add('is-visible');
-
-  if (inlineSavedResetTimer) clearTimeout(inlineSavedResetTimer);
-  inlineSavedResetTimer = setTimeout(() => {
-    clearInlineSavedBadge();
-    inlineSavedResetTimer = null;
-  }, 2000);
+const renderControls = () => {
+  ensurePaneMarkup();
+  showPane(uiState.pane);
+  void renderProviderTabs();
+  void renderProviderEditor();
+  renderEmbeddingModels();
+  updateEmbeddingProgress();
+  renderFeaturePane();
+  renderAboutPane();
+  applyInterfaceSettings(state.settings);
 };
 
 const applyInterfaceSettings = (settingsInput = state.settings) => {
   const settings = normalizeSettings(settingsInput);
-  const body = document.body;
-  body?.classList.toggle('pn-density-compact', settings.promptCardDensity === 'compact');
-
-  const promptsTab = document.querySelector('.tab[data-tab="prompts"]');
-  const tagsTab = document.querySelector('.tab[data-tab="tags"]');
-  const historyBtn = byId('history-btn');
-
-  if (promptsTab) promptsTab.classList.toggle('hidden', !settings.visibleTabs.prompts);
-  if (tagsTab) tagsTab.classList.toggle('hidden', !settings.visibleTabs.tags);
-  if (historyBtn) historyBtn.classList.toggle('hidden', !settings.visibleTabs.history || ['settings', 'export', 'history', 'continue'].includes(state.activeTab));
+  state.settings = settings;
+  document.body.classList.toggle("pn-density-compact", settings.cardDensity === "compact");
+  document.querySelector('.tab[data-tab="prompts"]')?.classList.toggle("hidden", !settings.visibleTabs.prompts);
+  document.querySelector('.tab[data-tab="tags"]')?.classList.toggle("hidden", !settings.visibleTabs.tags);
+  window.AppShell?.refreshHeaderControls?.();
 };
 
-const renderPlatformRows = () => {
-  const controls = getControls();
-  if (!controls.platformList) return;
-
-  controls.platformList.innerHTML = '';
-  const normalizedSettings = normalizeSettings(state.settings);
-  const enabled = normalizedSettings.enabledPlatforms || {};
-  const knownPlatforms = getKnownPlatforms(normalizedSettings);
-  const query = String(controls.platformFilter?.value || '').trim().toLowerCase();
-  const visiblePlatforms = !query
-    ? knownPlatforms
-    : knownPlatforms.filter((platform) => {
-      const key = String(platform.key || '').toLowerCase();
-      const label = String(platform.label || '').toLowerCase();
-      return key.includes(query) || label.includes(query);
-    });
-
-  const enabledCount = Object.values(enabled).filter(Boolean).length;
-  if (controls.platformEnabledCount) {
-    controls.platformEnabledCount.textContent = `${enabledCount} / ${knownPlatforms.length} enabled`;
-  }
-
-  visiblePlatforms.forEach((platform) => {
-    const platformEnabled = enabled[platform.key] === true;
-    const row = document.createElement('div');
-    row.className = `pn-platform-card${platformEnabled ? '' : ' is-disabled'}`;
-    row.innerHTML = `
-      <div class="pn-platform-card__meta">
-        <div class="pn-platform-card__head">
-          <strong class="pn-platform-card__title">${escapeHtml(platform.label)}</strong>
-          <span class="pn-platform-key">${escapeHtml(platform.key)}</span>
-        </div>
-        <label class="pn-platform-label-wrap">
-          <span class="pn-platform-label-caption">Display label</span>
-          <input
-            type="text"
-            class="pn-platform-label-input"
-            data-platform-label="${platform.key}"
-            value="${escapeHtml(platform.label)}"
-            placeholder="Display name"
-          />
-        </label>
-      </div>
-      <label class="pn-toggle pn-toggle--sm">
-        <input type="checkbox" data-platform-toggle="${platform.key}" ${platformEnabled ? 'checked' : ''} />
-        <span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span>
-      </label>
-    `;
-    controls.platformList.appendChild(row);
-  });
-
-  if (!visiblePlatforms.length) {
-    const empty = document.createElement('p');
-    empty.className = 'pn-sv-api-hint';
-    empty.textContent = 'No platforms matched your filter.';
-    controls.platformList.appendChild(empty);
-  }
-
-  controls.platformWarning?.classList.toggle('pn-hidden', enabledCount > 0);
-};
-
-const renderCustomPlatforms = () => {
-  const container = byId('pn-custom-platforms');
-  if (!container) return;
-
-  const custom = Array.isArray(state.settings.customPlatforms) ? state.settings.customPlatforms : [];
-  container.innerHTML = '';
-
-  custom.forEach((entry) => {
-    const row = document.createElement('div');
-    row.className = 'pn-settings-row';
-    row.innerHTML = `
-      <div class="pn-settings-row__copy">
-        <strong>${escapeHtml(entry.name)}</strong>
-        <span>${escapeHtml(entry.urlPattern)}</span>
-      </div>
-      <button type="button" class="pn-btn pn-btn-danger" data-custom-delete="${entry.id}">Remove</button>
-    `;
-    container.appendChild(row);
-  });
-
-  if (!custom.length) {
-    const empty = document.createElement('p');
-    empty.className = 'pn-sv-api-hint';
-    empty.textContent = 'No custom LLMs configured.';
-    container.appendChild(empty);
-  }
-};
-
-const renderSettingsTab = (targetId, titleText) => {
-  const isRoot = !targetId;
-  const rootMenu = byId('pn-settings-root-menu');
-  const hero = byId('pn-settings-main-hero');
-  const wrapper = byId('pn-settings-panes-wrapper');
-  const titleEl = byId('pn-settings-pane-title');
-
-  if (isRoot) {
-    rootMenu?.classList.remove('pn-hidden');
-    hero?.classList.remove('pn-hidden');
-    wrapper?.classList.add('pn-hidden');
-    return;
-  }
-
-  rootMenu?.classList.add('pn-hidden');
-  hero?.classList.add('pn-hidden');
-  wrapper?.classList.remove('pn-hidden');
-
-  if (titleEl && titleText) {
-    titleEl.textContent = titleText;
-  }
-
-  document.querySelectorAll('.pn-settings-pane').forEach((pane) => {
-    pane.classList.toggle('pn-hidden', pane.dataset.settingsPane !== targetId);
-  });
-};
-
-const renderControls = (settingsInput = state.settings) => {
-  const wrapperVisible = !byId('pn-settings-panes-wrapper')?.classList.contains('pn-hidden');
-  const activePane = document.querySelector('.pn-settings-pane:not(.pn-hidden)')?.dataset?.settingsPane || '';
-  const currentTarget = wrapperVisible ? activePane : '';
-  state.settings = normalizeSettings(settingsInput);
-  const controls = getControls();
-  const s = state.settings;
-
-  if (controls.enableAI) controls.enableAI.checked = s.enableAI;
-  if (controls.aiBackend) controls.aiBackend.value = s.preferLocal ? 'local' : 'gemini';
-  if (controls.aiAutoFallback) controls.aiAutoFallback.checked = s.useLocalFallback;
-  if (controls.geminiPrimary) controls.geminiPrimary.checked = s.geminiPrimary !== false;
-  if (controls.semanticSearch) controls.semanticSearch.checked = s.semanticSearch;
-  if (controls.autoSuggestTags) controls.autoSuggestTags.checked = s.autoSuggestTags;
-  if (controls.duplicateCheck) controls.duplicateCheck.checked = s.duplicateCheck;
-  if (controls.polishWithGemini) controls.polishWithGemini.checked = s.polishWithGemini;
-  if (controls.localModelSmollm2) controls.localModelSmollm2.checked = s.localModelId === 'smollm2_1_7b';
-  if (controls.localModelPhi35) controls.localModelPhi35.checked = s.localModelId === 'phi35_mini';
-  if (controls.localModelQwen3) controls.localModelQwen3.checked = s.localModelId === 'qwen3_0_6b';
-  if (controls.localFallback) controls.localFallback.checked = s.useLocalFallback;
-  if (controls.preferLocal) controls.preferLocal.checked = s.preferLocal;
-  if (controls.localFeaturePolish) controls.localFeaturePolish.checked = s.localFeatureFlags?.polish !== false;
-  if (controls.localFeatureAutoTags) controls.localFeatureAutoTags.checked = s.localFeatureFlags?.autoTags !== false;
-  if (controls.localFeatureImprove) controls.localFeatureImprove.checked = s.localFeatureFlags?.improvePrompt !== false;
-  if (controls.localFeatureContinue) controls.localFeatureContinue.checked = s.localFeatureFlags?.continueSummary !== false;
-  if (controls.localFeatureSmartExport) controls.localFeatureSmartExport.checked = s.localFeatureFlags?.smartExportTitle === true;
-  if (controls.defaultExportFormat) controls.defaultExportFormat.value = s.defaultExportFormat;
-  if (controls.defaultIncludeDate) controls.defaultIncludeDate.checked = s.defaultIncludeDate;
-  if (controls.defaultIncludePlatform) controls.defaultIncludePlatform.checked = s.defaultIncludePlatform;
-  if (controls.userContext) controls.userContext.value = s.userContext;
-
-  if (controls.fabPosition) controls.fabPosition.value = s.fabPosition;
-  if (controls.fabStyle) controls.fabStyle.value = s.fabStyle;
-  if (controls.fabSave) controls.fabSave.checked = s.fabActions.savePrompt;
-  if (controls.fabExport) controls.fabExport.checked = s.fabActions.exportChat;
-  if (controls.fabContinue) controls.fabContinue.checked = s.fabActions.continueChat;
-  if (controls.fabLibrary) controls.fabLibrary.checked = s.fabActions.promptLibrary;
-
-  if (controls.tabPrompts) controls.tabPrompts.checked = s.visibleTabs.prompts;
-  if (controls.tabExport) controls.tabExport.checked = s.visibleTabs.export;
-  if (controls.tabHistory) controls.tabHistory.checked = s.visibleTabs.history;
-  if (controls.tabTags) controls.tabTags.checked = s.visibleTabs.tags;
-
-  if (controls.density) controls.density.value = s.promptCardDensity;
-  if (controls.exportNaming) controls.exportNaming.value = s.defaultExportNaming;
-  if (controls.autoSaveHistory) controls.autoSaveHistory.checked = s.autoSaveExportsToHistory;
-  if (controls.bookmarkShortcut) controls.bookmarkShortcut.value = s.bookmarkShortcut;
-  if (controls.hoverPreview) controls.hoverPreview.checked = s.hoverPreviewEnabled;
-  if (controls.hoverDelay) controls.hoverDelay.value = String(s.hoverPreviewDelay);
-  if (controls.continueMode) controls.continueMode.value = s.continueDefaultMode;
-
-  const anyVisibleTabs = Object.values(s.visibleTabs).some(Boolean);
-  controls.tabWarning?.classList.toggle('pn-hidden', anyVisibleTabs);
-
-  renderPlatformRows();
-  renderCustomPlatforms();
-  renderSettingsTab(currentTarget);
-  applyInterfaceSettings(s);
-  renderLocalModelStatus();
-  updateLocalModelProgressUI();
-  void refreshAiRoutingNote();
-  void refreshAiControlCenter();
-  void renderProviderEditor();
-  void renderEmbeddingRows();
-
-  if (window.PLATFORM_LABELS && s.platformLabels) {
-    Object.entries(s.platformLabels).forEach(([key, label]) => {
-      const safeKey = normalizePlatformKey(key);
-      const safeLabel = String(label || '').trim();
-      if (!safeKey || !safeLabel) return;
-      window.PLATFORM_LABELS[safeKey] = safeLabel;
-    });
-  }
-
-  const versionLabel = byId('pn-version-label');
-  if (versionLabel) {
-    versionLabel.textContent = chrome.runtime.getManifest()?.version || '0.1.0';
-  }
-};
-
-const readPlatformSettingsFromControls = (baselineSettings) => {
-  const enabledPlatforms = { ...(baselineSettings.enabledPlatforms || {}) };
-  const platformLabels = { ...(baselineSettings.platformLabels || {}) };
-
-  const platformToggles = Array.from(document.querySelectorAll('[data-platform-toggle]'));
-  platformToggles.forEach((input) => {
-    if (!(input instanceof HTMLInputElement)) return;
-    const platformKey = normalizePlatformKey(input.dataset.platformToggle || '');
-    if (!platformKey) return;
-    enabledPlatforms[platformKey] = Boolean(input.checked);
-  });
-
-  const platformLabelInputs = Array.from(document.querySelectorAll('[data-platform-label]'));
-  platformLabelInputs.forEach((input) => {
-    if (!(input instanceof HTMLInputElement)) return;
-    const platformKey = normalizePlatformKey(input.dataset.platformLabel || '');
-    if (!platformKey) return;
-    const fallbackLabel = DEFAULT_PLATFORM_LABELS[platformKey] || platformKey;
-    const label = String(input.value || '').trim() || fallbackLabel;
-    platformLabels[platformKey] = label;
-  });
-
-  return { enabledPlatforms, platformLabels };
-};
-
-const setPlatformLabelError = (message = '') => {
-  const controls = getControls();
-  if (!controls.platformLabelError) return;
-  controls.platformLabelError.textContent = String(message || '').trim();
-  controls.platformLabelError.classList.toggle('pn-hidden', !controls.platformLabelError.textContent);
-};
-
-const readControlsSnapshot = () => {
-  const controls = getControls();
-  const current = normalizeSettings(state.settings);
-  const selectedModelId = controls.localModelPhi35?.checked
-    ? 'phi35_mini'
-    : controls.localModelQwen3?.checked
-      ? 'qwen3_0_6b'
-      : 'smollm2_1_7b';
-  const geminiPrimary = controls.geminiPrimary?.checked !== false;
-  const preferLocal = controls.preferLocal?.checked === true
-    || !geminiPrimary
-    || String(controls.aiBackend?.value || '').toLowerCase() === 'local';
-
-  const next = normalizeSettings({
-    ...current,
-    enableAI: controls.enableAI?.checked,
-    activeProvider: state.settings?.activeProvider || current.activeProvider,
-    providerModels: { ...(state.settings?.providerModels || current.providerModels || {}) },
-    embeddingModelId: state.settings?.embeddingModelId || current.embeddingModelId,
-    geminiPrimary,
-    preferLocal,
-    useLocalFallback: controls.localFallback?.checked,
-    aiBackend: preferLocal ? 'local' : 'gemini',
-    aiAutoFallback: controls.localFallback?.checked,
-    localModelId: selectedModelId,
-    localFeatureFlags: {
-      polish: controls.localFeaturePolish?.checked,
-      autoTags: controls.localFeatureAutoTags?.checked,
-      improvePrompt: controls.localFeatureImprove?.checked,
-      continueSummary: controls.localFeatureContinue?.checked,
-      smartExportTitle: controls.localFeatureSmartExport?.checked
-    },
-    semanticSearch: controls.semanticSearch?.checked,
-    autoSuggestTags: controls.autoSuggestTags?.checked,
-    duplicateCheck: controls.duplicateCheck?.checked,
-    polishWithGemini: controls.polishWithGemini?.checked,
-    defaultExportFormat: controls.defaultExportFormat?.value,
-    defaultIncludeDate: controls.defaultIncludeDate?.checked,
-    defaultIncludePlatform: controls.defaultIncludePlatform?.checked,
-    userContext: controls.userContext?.value,
-
-    fabPosition: controls.fabPosition?.value,
-    fabStyle: controls.fabStyle?.value,
-    fabActions: {
-      savePrompt: controls.fabSave?.checked,
-      exportChat: controls.fabExport?.checked,
-      continueChat: controls.fabContinue?.checked,
-      promptLibrary: controls.fabLibrary?.checked
-    },
-    visibleTabs: {
-      prompts: controls.tabPrompts?.checked,
-      export: controls.tabExport?.checked,
-      history: controls.tabHistory?.checked,
-      tags: controls.tabTags?.checked
-    },
-    promptCardDensity: controls.density?.value,
-    defaultExportNaming: controls.exportNaming?.value,
-    autoSaveExportsToHistory: controls.autoSaveHistory?.checked,
-    bookmarkShortcut: controls.bookmarkShortcut?.value,
-    hoverPreviewEnabled: controls.hoverPreview?.checked,
-    hoverPreviewDelay: controls.hoverDelay?.value,
-    continueDefaultMode: controls.continueMode?.value,
-    customPlatforms: current.customPlatforms
-  });
-
-  const platformSettings = readPlatformSettingsFromControls(next);
-  next.enabledPlatforms = platformSettings.enabledPlatforms;
-  next.platformLabels = platformSettings.platformLabels;
-
+const readFeatureSettings = () => {
+  const next = deepClone(state.settings);
+  next.featureFlags.polish = byId("setting-feature-polish")?.checked !== false;
+  next.featureFlags.autoTags = byId("setting-feature-autotags")?.checked !== false;
+  next.featureFlags.improvePrompt = byId("setting-feature-improve")?.checked !== false;
+  next.featureFlags.continueSummary = byId("setting-feature-continue")?.checked !== false;
+  next.fabPosition = byId("setting-fab-position-left")?.checked ? "bottom-left" : "bottom-right";
+  next.fabStyle = byId("setting-fab-style-pill")?.checked
+    ? "pill"
+    : byId("setting-fab-style-icon")?.checked
+      ? "icon-only"
+      : "circle";
+  next.cardDensity = byId("setting-density-compact")?.checked ? "compact" : "comfortable";
+  next.visibleTabs.prompts = byId("setting-tab-prompts")?.checked !== false;
+  next.visibleTabs.export = byId("setting-tab-export")?.checked !== false;
+  next.visibleTabs.history = byId("setting-tab-history")?.checked !== false;
+  next.visibleTabs.tags = byId("setting-tab-tags")?.checked !== false;
   if (!Object.values(next.visibleTabs).some(Boolean)) {
     next.visibleTabs.prompts = true;
   }
-
+  const format = EXPORT_FORMATS.find((item) => byId(`setting-export-format-${item}`)?.checked);
+  next.defaultExportFormat = format || DEFAULT_SETTINGS.defaultExportFormat;
+  next.autoSaveHistory = byId("setting-auto-save-history")?.checked !== false;
   return next;
-};
-
-const readNonAiSnapshot = () => {
-  const controls = getControls();
-  const current = normalizeSettings(state.settings);
-  const next = normalizeSettings({
-    ...current,
-    fabPosition: controls.fabPosition?.value,
-    fabStyle: controls.fabStyle?.value,
-    fabActions: {
-      savePrompt: controls.fabSave?.checked,
-      exportChat: controls.fabExport?.checked,
-      continueChat: controls.fabContinue?.checked,
-      promptLibrary: controls.fabLibrary?.checked
-    },
-    visibleTabs: {
-      prompts: controls.tabPrompts?.checked,
-      export: controls.tabExport?.checked,
-      history: controls.tabHistory?.checked,
-      tags: controls.tabTags?.checked
-    },
-    promptCardDensity: controls.density?.value,
-    defaultExportNaming: controls.exportNaming?.value,
-    autoSaveExportsToHistory: controls.autoSaveHistory?.checked,
-    bookmarkShortcut: controls.bookmarkShortcut?.value,
-    hoverPreviewEnabled: controls.hoverPreview?.checked,
-    hoverPreviewDelay: controls.hoverDelay?.value,
-    continueDefaultMode: controls.continueMode?.value,
-    customPlatforms: current.customPlatforms
-  });
-
-  const platformSettings = readPlatformSettingsFromControls(next);
-  next.enabledPlatforms = platformSettings.enabledPlatforms;
-  next.platformLabels = platformSettings.platformLabels;
-
-  if (!Object.values(next.visibleTabs).some(Boolean)) {
-    next.visibleTabs.prompts = true;
-  }
-
-  return next;
-};
-
-const areSettingsEqual = (left, right) => JSON.stringify(normalizeSettings(left)) === JSON.stringify(normalizeSettings(right));
-
-const setAiDisabledBadge = async () => {
-  const statusNode = byId('ai-status');
-  const progressTrack = byId('ai-progress-track');
-  const progressText = byId('ai-progress-text');
-  const controls = getControls();
-
-  if (statusNode) {
-    statusNode.classList.remove('pn-ai-status--loading', 'pn-ai-status--ready');
-    statusNode.classList.add('pn-ai-status--unavailable');
-    statusNode.innerHTML = '<span class="pn-ai-dot"></span><span class="pn-ai-status__text">AI Disabled</span>';
-  }
-
-  if (progressTrack) progressTrack.classList.add('hidden');
-  if (progressTrack instanceof HTMLProgressElement) progressTrack.value = 0;
-  if (progressText) progressText.textContent = 'Disabled';
-
-  if (controls.localModelProgressWrap) {
-    controls.localModelProgressWrap.classList.add('pn-hidden');
-  }
-  if (controls.localModelProgress instanceof HTMLProgressElement) {
-    controls.localModelProgress.value = 0;
-  }
-  if (controls.localModelProgressText) {
-    controls.localModelProgressText.textContent = 'Local model inactive.';
-  }
-  void refreshAiRoutingNote();
-
-  const modelPill = byId('pn-model-pill');
-  if (modelPill) modelPill.classList.remove('pn-sv-model-pill--ready');
-  providerUiState.embeddingStatus = {
-    ...(providerUiState.embeddingStatus || {}),
-    status: 'error',
-    searchMode: 'keyword'
-  };
-  renderEmbeddingIndicator(providerUiState.embeddingStatus);
-  updateAiSetupFromEmbeddingStatus(providerUiState.embeddingStatus);
-  await refreshAiControlCenter();
-};
-
-const updateLocalModelProgressUI = (payload = {}, backendOverride = '') => {
-  const controls = getControls();
-  const selectedBackend = String(backendOverride || state.settings?.aiBackend || 'gemini').toLowerCase();
-  const isLocalMode = selectedBackend === 'local';
-
-  if (controls.localModelProgressWrap) {
-    controls.localModelProgressWrap.classList.toggle('pn-hidden', !isLocalMode);
-  }
-  if (!isLocalMode) {
-    return;
-  }
-
-  const status = String(payload.status || '').trim().toLowerCase();
-  const progressRaw = Number(payload.progress);
-  const progress = Number.isFinite(progressRaw) ? Math.max(0, Math.min(100, Math.round(progressRaw))) : null;
-  const error = String(payload.error || '').trim();
-
-  if (controls.localModelProgress instanceof HTMLProgressElement && Number.isFinite(progress)) {
-    controls.localModelProgress.value = progress;
-  }
-
-  if (!controls.localModelProgressText) {
-    return;
-  }
-
-  if (status === 'loading') {
-    const label = Number.isFinite(progress) ? `Downloading model... ${progress}%` : 'Preparing local model...';
-    controls.localModelProgressText.textContent = label;
-    return;
-  }
-
-  if (status === 'ready') {
-    const backendEngine = String(payload.backend || '').trim().toLowerCase();
-    controls.localModelProgressText.textContent = backendEngine === 'wasm'
-      ? 'Local model ready (WASM fallback). Runs fully on-device.'
-      : 'Local model ready (WebGPU). Runs fully on-device.';
-    return;
-  }
-
-  if (status === 'failed' || status === 'error') {
-    controls.localModelProgressText.textContent = error ? `Local model unavailable: ${error}` : 'Local model failed to initialize.';
-    return;
-  }
-
-  controls.localModelProgressText.textContent = 'Local model not initialized yet.';
-};
-
-const getSelectedLocalModelId = () => {
-  const controls = getControls();
-  if (controls.localModelPhi35?.checked) return 'phi35_mini';
-  if (controls.localModelQwen3?.checked) return 'qwen3_0_6b';
-  return 'smollm2_1_7b';
-};
-
-const selectedModelStatus = () => {
-  const selectedId = getSelectedLocalModelId();
-  return {
-    id: selectedId,
-    status: localModelStatuses[selectedId] || { status: 'not_downloaded', progress: 0, backend: 'webgpu', error: '' }
-  };
-};
-
-const formatModelStatusText = (entry = {}) => {
-  const status = String(entry.status || '').trim().toLowerCase();
-  const progress = Number(entry.progress || 0);
-  if (status === 'downloading') return `Downloading ${progress}%`;
-  if (status === 'cached') return 'Cached';
-  if (status === 'ready') return entry.cpuMode ? 'Ready (CPU)' : 'Ready';
-  if (status === 'loading') return 'Loading...';
-  if (status === 'error') return 'Error';
-  return 'Not downloaded';
-};
-
-const getLocalModelActionDescriptor = (entry = {}, modelId = '') => {
-  const status = String(entry.status || '').trim().toLowerCase();
-  const meta = LOCAL_MODEL_META[modelId] || LOCAL_MODEL_META.smollm2_1_7b;
-  if (status === 'downloading') {
-    return { label: 'Cancel Download', intent: 'cancel', toneClass: 'pn-btn--ghost' };
-  }
-  if (status === 'cached' || status === 'ready') {
-    return { label: 'Clear Cache', intent: 'clear', toneClass: 'pn-btn-danger' };
-  }
-  if (status === 'error') {
-    return { label: 'Retry Download', intent: 'download', toneClass: 'pn-btn--ghost' };
-  }
-  return { label: `Download (${meta.sizeLabel})`, intent: 'download', toneClass: 'pn-btn--primary' };
-};
-
-const renderLocalModelLibrary = () => {
-  const controls = getControls();
-  if (!controls.localModelLibrary) return;
-
-  const selectedModelId = getSelectedLocalModelId();
-  controls.localModelLibrary.innerHTML = '';
-
-  Object.entries(LOCAL_MODEL_META).forEach(([modelId, meta]) => {
-    const entry = localModelStatuses[modelId] || { status: 'not_downloaded', progress: 0, backend: 'webgpu', error: '' };
-    const status = String(entry.status || '').trim().toLowerCase();
-    const card = document.createElement('article');
-    card.className = `pn-local-model-card${modelId === selectedModelId ? ' is-selected' : ''}`;
-    const statusClass = status === 'ready' || status === 'cached'
-      ? 'is-ready'
-      : status === 'error'
-        ? 'is-error'
-        : status === 'downloading' || status === 'loading'
-          ? 'is-loading'
-          : '';
-    const action = getLocalModelActionDescriptor(entry, modelId);
-    const description = entry.cpuMode
-      ? 'Running with CPU fallback (slower).'
-      : status === 'error'
-        ? String(entry.error || 'Model setup failed.')
-        : status === 'cached'
-          ? 'Cached locally and ready to initialize.'
-          : status === 'ready'
-            ? 'Ready for local AI tasks.'
-            : 'Download to use this model offline.';
-
-    card.innerHTML = `
-      <div class="pn-local-model-card__head">
-        <h5 class="pn-local-model-card__title">${escapeHtml(meta.label)}</h5>
-        <span class="pn-local-model-card__size">${escapeHtml(meta.sizeLabel)}</span>
-      </div>
-      <span class="pn-local-model-card__status ${statusClass}">${escapeHtml(formatModelStatusText(entry))}</span>
-      <p class="pn-local-model-card__desc">${escapeHtml(description)}</p>
-      <div class="pn-local-model-card__actions">
-        <button type="button" class="pn-btn ${modelId === selectedModelId ? 'pn-btn--ghost' : 'pn-btn--primary'}" data-local-model-select="${escapeHtml(modelId)}">${modelId === selectedModelId ? 'Selected' : 'Use Model'}</button>
-        <button type="button" class="pn-btn ${action.toneClass}" data-local-model-action="${escapeHtml(modelId)}">${escapeHtml(action.label)}</button>
-      </div>
-    `;
-    controls.localModelLibrary.appendChild(card);
-  });
-};
-
-const renderLocalModelStatus = () => {
-  const controls = getControls();
-  const pairs = [
-    ['smollm2_1_7b', controls.modelStatusSmollm2],
-    ['phi35_mini', controls.modelStatusPhi35],
-    ['qwen3_0_6b', controls.modelStatusQwen3]
-  ];
-
-  pairs.forEach(([modelId, node]) => {
-    if (!node) return;
-    node.textContent = formatModelStatusText(localModelStatuses[modelId]);
-  });
-
-  const preferLocalEnabled = controls.preferLocal?.checked === true;
-  controls.localPreferNote?.classList.toggle('pn-hidden', !preferLocalEnabled);
-
-  const geminiPrimaryEnabled = controls.geminiPrimary?.checked !== false;
-  const selected = selectedModelStatus();
-  const localReady = ['cached', 'ready', 'loading'].includes(String(selected.status?.status || '').toLowerCase());
-  const anyModelAvailable = Object.values(localModelStatuses).some((entry) => ['cached', 'ready', 'loading', 'downloading'].includes(String(entry?.status || '').toLowerCase()));
-  if (controls.geminiPrimary) {
-    controls.geminiPrimary.disabled = !anyModelAvailable;
-    if (!anyModelAvailable) controls.geminiPrimary.checked = true;
-  }
-  controls.geminiPrimaryNote?.classList.toggle('pn-hidden', !(geminiPrimaryEnabled && localReady));
-
-  if (controls.localModelActionBtn) {
-      const status = String(selected.status?.status || 'not_downloaded').toLowerCase();
-    const meta = LOCAL_MODEL_META[selected.id] || LOCAL_MODEL_META.smollm2_1_7b;
-    const action = getLocalModelActionDescriptor(selected.status, selected.id);
-    controls.localModelActionBtn.classList.remove('pn-btn--primary', 'pn-btn--ghost', 'pn-btn-danger');
-    controls.localModelActionBtn.textContent = action.intent === 'clear' ? 'Clear cached model data' : action.label;
-    controls.localModelActionBtn.classList.add(action.toneClass);
-
-    if (controls.localModelActionMeta) {
-      if (selected.status?.cpuMode) {
-        controls.localModelActionMeta.textContent = 'Running on CPU — may be slower';
-      } else if (status === 'ready') {
-        controls.localModelActionMeta.textContent = `${meta.label} is ready.`;
-      } else if (status === 'cached') {
-        controls.localModelActionMeta.textContent = `${meta.label} is cached and will load on first use.`;
-      } else if (status === 'error') {
-        controls.localModelActionMeta.textContent = selected.status?.error || 'Model failed. Retry or clear cache.';
-      } else {
-        controls.localModelActionMeta.textContent = 'Download starts only when you click.';
-      }
-    }
-  }
-
-  renderLocalModelLibrary();
-  updateQuickLocalHealth();
-};
-
-const getProviderEntries = async () => {
-  const { registry } = await loadModelRegistryRuntime();
-  return Object.values(registry?.providers || {});
-};
-
-const getEditingProvider = async () => {
-  const providers = await getProviderEntries();
-  const requested = String(providerUiState.editingProviderId || state.settings?.activeProvider || 'gemini').trim().toLowerCase();
-  return providers.find((entry) => entry.id === requested) || providers[0] || null;
-};
-
-const ensureProviderKeyLoaded = async (providerId) => {
-  const key = String(providerId || '').trim().toLowerCase();
-  if (!key) return '';
-  if (Object.prototype.hasOwnProperty.call(providerUiState.providerKeys, key)) {
-    return String(providerUiState.providerKeys[key] || '').trim();
-  }
-  const value = window.SessionStorage?.getStoredProviderKey
-    ? await window.SessionStorage.getStoredProviderKey(key).catch(() => '')
-    : (key === 'gemini' ? await window.SessionStorage.getStoredGeminiKey().catch(() => '') : '');
-  providerUiState.providerKeys[key] = String(value || '').trim();
-  return providerUiState.providerKeys[key];
-};
-
-const renderProviderTabs = async () => {
-  const controls = getControls();
-  const providers = await getProviderEntries();
-  if (!controls.providerTabs || !providers.length) return;
-  controls.providerTabs.innerHTML = '';
-
-  providers.forEach((provider) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'pn-provider-tab';
-    const validationState = String(providerUiState.providerValidation?.[provider.id]?.state || 'idle').trim().toLowerCase();
-    const shortLabel = provider.label.replace('Google ', '').replace('Anthropic ', '');
-    button.innerHTML = `
-      <span class="pn-provider-tab__name">${escapeHtml(shortLabel)}</span>
-      <span class="pn-provider-tab__state is-${escapeHtml(validationState)}"></span>
-    `;
-    if (provider.id === providerUiState.editingProviderId) button.classList.add('is-editing');
-    if (provider.id === state.settings.activeProvider) button.classList.add('is-primary');
-    button.dataset.providerTab = provider.id;
-    button.addEventListener('click', async () => {
-      const previousProvider = String(providerUiState.editingProviderId || '').trim().toLowerCase();
-      if (previousProvider) {
-        providerUiState.providerKeys[previousProvider] = String(getControls().providerKey?.value || '').trim();
-      }
-      providerUiState.editingProviderId = provider.id;
-      await renderProviderEditor();
-    });
-    controls.providerTabs.appendChild(button);
-  });
-};
-
-const setProviderValidationStatus = (status = 'idle', detail = '') => {
-  const controls = getControls();
-  if (!controls.providerStatus) return;
-  controls.providerStatus.classList.remove('pn-status-ok', 'pn-status-error', 'pn-status-info');
-  const label = String(detail || '').trim();
-  if (status === 'checking') {
-    controls.providerStatus.textContent = 'Status: checking connection...';
-    controls.providerStatus.classList.add('pn-status-info');
-    void updateQuickProviderHealth();
-    return;
-  }
-  if (status === 'connected') {
-    controls.providerStatus.textContent = 'Status: connected';
-    controls.providerStatus.classList.add('pn-status-ok');
-    void updateQuickProviderHealth();
-    return;
-  }
-  if (status === 'invalid') {
-    controls.providerStatus.textContent = `Status: ${label || 'invalid key'}`;
-    controls.providerStatus.classList.add('pn-status-error');
-    void updateQuickProviderHealth();
-    return;
-  }
-  controls.providerStatus.textContent = 'Status: idle';
-  void updateQuickProviderHealth();
-};
-
-const renderProviderModels = async (provider) => {
-  const controls = getControls();
-  if (!controls.providerModels || !provider) return;
-  controls.providerModels.innerHTML = '';
-
-  const selectedModelId = String(state.settings?.providerModels?.[provider.id] || provider.models?.find((row) => row.default)?.id || '').trim();
-  (provider.models || []).forEach((model) => {
-    const row = document.createElement('label');
-    row.className = 'pn-provider-model-row';
-    row.innerHTML = `
-      <div class="pn-provider-model-row__meta">
-        <span class="pn-provider-model-row__title">${escapeHtml(model.label)}</span>
-        <span class="pn-provider-model-row__note">${escapeHtml(model.note || '')}</span>
-        <span class="pn-provider-model-row__speed">${escapeHtml(model.speed || '')}</span>
-      </div>
-    `;
-    const radio = document.createElement('input');
-    radio.type = 'radio';
-    radio.name = `pn-provider-model-${provider.id}`;
-    radio.value = String(model.id || '');
-    radio.checked = model.id === selectedModelId;
-    radio.addEventListener('change', () => {
-      void (async () => {
-        state.settings.providerModels = {
-          ...(state.settings.providerModels || {}),
-          [provider.id]: String(model.id || '')
-        };
-        await save();
-        flashAutoSaveStatus('Model updated.', 'ok');
-        await syncSaveState();
-      })();
-    });
-    row.appendChild(radio);
-    controls.providerModels.appendChild(row);
-  });
-};
-
-const renderProviderEditor = async () => {
-  const controls = getControls();
-  const provider = await getEditingProvider();
-  if (!provider) return;
-  providerUiState.editingProviderId = provider.id;
-
-  await renderProviderTabs();
-  await ensureProviderKeyLoaded(provider.id);
-  if (controls.providerKey) {
-    controls.providerKey.placeholder = String(provider.keyPlaceholder || '');
-    controls.providerKey.value = String(providerUiState.providerKeys[provider.id] || '');
-  }
-  if (controls.providerDocs) {
-    controls.providerDocs.href = String(provider.docsUrl || '#');
-  }
-  if (controls.providerSetPrimary) {
-    controls.providerSetPrimary.textContent = provider.id === state.settings.activeProvider
-      ? 'Primary provider'
-      : 'Use this provider';
-  }
-
-  const status = providerUiState.providerValidation[provider.id];
-  if (!status) {
-    setProviderValidationStatus('idle');
-  } else {
-    setProviderValidationStatus(status.state, status.message);
-  }
-
-  await renderProviderModels(provider);
-  await updateQuickProviderHealth();
-};
-
-const renderEmbeddingIndicator = (embeddingStatus = null) => {
-  const controls = getControls();
-  if (!controls.searchSetupIndicator || !controls.searchModeBadge) return;
-  const status = embeddingStatus && typeof embeddingStatus === 'object'
-    ? embeddingStatus
-    : providerUiState.embeddingStatus;
-  const current = status || {};
-  const isBusy = ['downloading', 'loading'].includes(String(current.status || '').toLowerCase())
-    || Boolean(current?.reindex?.running);
-  controls.searchSetupIndicator.classList.toggle('pn-hidden', !isBusy);
-
-  const semanticReady = String(current.searchMode || '').toLowerCase() === 'semantic'
-    && String(current.status || '').toLowerCase() === 'ready';
-  controls.searchModeBadge.textContent = semanticReady ? 'Semantic search' : 'Keyword search';
-  controls.searchModeBadge.classList.toggle('pn-hidden', semanticReady);
-};
-
-const renderEmbeddingRows = async () => {
-  const controls = getControls();
-  if (!controls.embeddingModels) return;
-  const { embeddings } = await loadModelRegistryRuntime();
-  const status = providerUiState.embeddingStatus || await window.AIBridge.getEmbeddingStatus().catch(() => null) || {};
-  providerUiState.embeddingStatus = status;
-  const downloaded = new Set(Array.isArray(status.downloadedModelIds) ? status.downloadedModelIds : []);
-  const activeModelId = String(status.activeModelId || state.settings.embeddingModelId || 'all-minilm-l6-v2');
-
-  controls.embeddingModels.innerHTML = '';
-  (embeddings || []).forEach((model) => {
-    const row = document.createElement('div');
-    row.className = 'pn-embedding-row';
-    const downloadingModelId = String(status.modelId || '').trim();
-    const isDownloadingThis = String(status.status || '').toLowerCase() === 'downloading' && downloadingModelId === model.id;
-    const rowStatus = (() => {
-      if (isDownloadingThis) return 'downloading';
-      if (model.id === activeModelId && String(status.status || '').toLowerCase() === 'ready') return 'active';
-      if (model.id === activeModelId && Boolean(status?.reindex?.running)) return 'switching';
-      if (downloaded.has(model.id)) return 'downloaded';
-      return 'download';
-    })();
-
-    const badgeText = rowStatus === 'active'
-      ? 'Active'
-      : rowStatus === 'switching'
-        ? 'Switching...'
-        : rowStatus === 'downloading'
-          ? `Downloading ${Math.max(0, Math.min(100, Number(status.progress || 0)))}%`
-        : rowStatus === 'downloaded'
-          ? 'Ready'
-          : 'Download';
-    row.innerHTML = `
-      <div class="pn-embedding-row__meta">
-        <div class="pn-embedding-row__title">${escapeHtml(model.label)} <span class="pn-provider-model-row__speed">${escapeHtml(model.size || '')}</span></div>
-        <div class="pn-embedding-row__note">${escapeHtml(model.note || '')}</div>
-      </div>
-      <button type="button" class="pn-embedding-badge ${rowStatus === 'active' ? 'is-active' : ''}" data-embedding-model="${escapeHtml(model.id)}">${escapeHtml(badgeText)}</button>
-    `;
-    controls.embeddingModels.appendChild(row);
-  });
-
-  if (controls.embeddingReindexWrap && controls.embeddingReindexProgress && controls.embeddingReindexText) {
-    const reindex = status?.reindex || {};
-    const running = Boolean(reindex.running);
-    controls.embeddingReindexWrap.classList.toggle('pn-hidden', !running);
-    controls.embeddingReindexProgress.value = Number(reindex.progress || 0);
-    controls.embeddingReindexText.textContent = running
-      ? `Re-indexing ${Number(reindex.done || 0)} / ${Number(reindex.total || 0)} prompts...`
-      : 'Re-indexing complete.';
-  }
-
-  renderEmbeddingIndicator(status);
-  updateAiSetupFromEmbeddingStatus(status);
-  updateQuickSemanticHealth(status);
-};
-
-const refreshAiRoutingNote = async () => {
-  const controls = getControls();
-  if (!controls.aiRoutingNote) return;
-
-  if (!state.settings?.enableAI) {
-    controls.aiRoutingNote.textContent = 'AI features are disabled.';
-    return;
-  }
-
-  const preferLocal = state.settings?.preferLocal === true;
-  const autoFallback = state.settings?.useLocalFallback !== false;
-  const activeProvider = String(state.settings?.activeProvider || 'gemini').trim().toLowerCase();
-  const providerLabel = ({
-    gemini: 'Gemini',
-    openai: 'OpenAI',
-    anthropic: 'Claude',
-    openrouter: 'OpenRouter'
-  })[activeProvider] || 'Cloud';
-  const typedKey = String(getControls().providerKey?.value || '').trim();
-  const storedKey = String(
-    window.SessionStorage?.getStoredProviderKey
-      ? await window.SessionStorage.getStoredProviderKey(activeProvider).catch(() => '')
-      : await window.SessionStorage.getStoredGeminiKey().catch(() => '')
-  ).trim();
-  const hasProviderKey = Boolean(typedKey || storedKey);
-
-  if (preferLocal) {
-    controls.aiRoutingNote.textContent = 'Active backend: Local model first.';
-    return;
-  }
-
-  if (hasProviderKey) {
-    controls.aiRoutingNote.textContent = autoFallback
-      ? `Active backend: ${providerLabel}. Auto-fallback to local model is enabled.`
-      : `Active backend: ${providerLabel}.`;
-    return;
-  }
-
-  controls.aiRoutingNote.textContent = autoFallback
-    ? `${providerLabel} key not set. Promptium will auto-fallback to the local model.`
-    : `${providerLabel} selected without API key. Add key or switch to Local Model.`;
-};
-
-const ensureSemanticSearchReady = async ({ force = false } = {}) => {
-  if (!state.settings?.enableAI || state.settings?.semanticSearch === false) {
-    updateAiSetupFromEmbeddingStatus(providerUiState.embeddingStatus);
-    return { ok: false, skipped: true };
-  }
-
-  if (semanticSetupPromise && !force) {
-    return semanticSetupPromise;
-  }
-
-  semanticSetupPromise = (async () => {
-    const targetModelId = getConfiguredEmbeddingModelId();
-    const currentStatus = await window.AIBridge.getEmbeddingStatus().catch(() => providerUiState.embeddingStatus || {});
-    if (currentStatus && typeof currentStatus === 'object') {
-      providerUiState.embeddingStatus = {
-        ...currentStatus,
-        reindex: currentStatus?.reindex || providerUiState.embeddingStatus?.reindex
-      };
-      updateAiSetupFromEmbeddingStatus(providerUiState.embeddingStatus);
-    }
-
-    const semanticReady = String(providerUiState.embeddingStatus?.searchMode || '').toLowerCase() === 'semantic'
-      && String(providerUiState.embeddingStatus?.status || '').toLowerCase() === 'ready'
-      && String(providerUiState.embeddingStatus?.activeModelId || '').trim() === targetModelId;
-    if (semanticReady && !force) {
-      return { ok: true, alreadyReady: true, status: providerUiState.embeddingStatus };
-    }
-
-    const currentPhase = String(providerUiState.embeddingStatus?.status || '').toLowerCase();
-    const reindexRunning = Boolean(providerUiState.embeddingStatus?.reindex?.running);
-    if (!force && (currentPhase === 'downloading' || currentPhase === 'loading' || reindexRunning)) {
-      updateAiSetupFromEmbeddingStatus(providerUiState.embeddingStatus);
-      return { ok: true, pending: true, status: providerUiState.embeddingStatus };
-    }
-
-    setAiSetupState({
-      headline: 'Preparing semantic search',
-      detail: `Downloading and indexing ${targetModelId}.`,
-      progress: Number(providerUiState.embeddingStatus?.progress || 0),
-      mode: 'busy'
-    });
-
-    const switched = await window.AIBridge.switchEmbeddingModel(targetModelId).catch(() => null);
-    if (!switched?.ok) {
-      const error = String(switched?.error || 'Failed to prepare semantic search.').trim();
-      setAiSetupState({
-        headline: 'Setup failed',
-        detail: error,
-        progress: Number(providerUiState.embeddingStatus?.progress || 0),
-        mode: 'error'
-      });
-      byId('pn-ai-retry-btn')?.classList.remove('pn-hidden');
-      return { ok: false, error };
-    }
-
-    providerUiState.embeddingStatus = switched;
-    await renderEmbeddingRows();
-    byId('pn-ai-retry-btn')?.classList.add('pn-hidden');
-    return { ok: true, status: switched };
-  })();
-
-  try {
-    return await semanticSetupPromise;
-  } finally {
-    semanticSetupPromise = null;
-    await refreshAiControlCenter();
-  }
-};
-
-const syncAiState = async () => {
-  if (!state.settings.enableAI) {
-    await setAiDisabledBadge();
-    state.aiReady = false;
-    return false;
-  }
-
-  const aiBar = byId('pn-ai-bar');
-  const retryButton = byId('pn-ai-retry-btn');
-  if (aiBar) {
-    aiBar.classList.remove('pn-ai-bar--hidden', 'pn-ai-bar--ready');
-    aiBar.classList.add('pn-ai-bar--loading');
-  }
-  retryButton?.classList.add('pn-hidden');
-  setAiSetupState({
-    headline: 'Initializing AI runtime',
-    detail: 'Checking model and provider status.',
-    progress: 0,
-    mode: 'busy'
-  });
-
-  const initResponse = await window.AIBridge.init().catch(() => null);
-  if (initResponse?.embedding && typeof initResponse.embedding === 'object') {
-    providerUiState.embeddingStatus = {
-      ...initResponse.embedding,
-      reindex: initResponse.embedding?.reindex || providerUiState.embeddingStatus?.reindex
-    };
-  }
-
-  if (aiStatusHandler) chrome.runtime.onMessage.removeListener(aiStatusHandler);
-  aiStatusHandler = (msg) => {
-    if (msg?.type === 'AI_LOCAL_MODEL_PROGRESS' || msg?.type === 'AI_LOCAL_MODEL_STATUS' || msg?.type === 'AI_LOCAL_STATUS_BROADCAST') {
-      const modelId = String(msg?.modelId || state.settings?.localModelId || 'smollm2_1_7b').toLowerCase();
-      if (Object.prototype.hasOwnProperty.call(localModelStatuses, modelId)) {
-        localModelStatuses[modelId] = {
-          ...localModelStatuses[modelId],
-          status: String(msg.status || localModelStatuses[modelId].status),
-          progress: Number.isFinite(Number(msg.progress)) ? Math.max(0, Math.min(100, Math.round(Number(msg.progress)))) : localModelStatuses[modelId].progress,
-          backend: String(msg.backend || localModelStatuses[modelId].backend),
-          error: String(msg.error || '').trim(),
-          cpuMode: Boolean(msg.cpuMode)
-        };
-      }
-      updateLocalModelProgressUI(localModelStatuses[modelId] || {});
-      renderLocalModelStatus();
-      void refreshAiControlCenter({ includeProvider: false });
-      return;
-    }
-
-    if (msg?.type === 'AI_EMBEDDING_STATUS' || msg?.type === 'AI_EMBEDDING_PROGRESS') {
-      providerUiState.embeddingStatus = {
-        ...(providerUiState.embeddingStatus || {}),
-        ...msg
-      };
-      void renderEmbeddingRows();
-      void refreshAiControlCenter({ includeProvider: false });
-      return;
-    }
-
-    if (msg?.type === 'AI_EMBEDDING_REINDEX_PROGRESS') {
-      providerUiState.embeddingStatus = {
-        ...(providerUiState.embeddingStatus || {}),
-        reindex: {
-          ...(providerUiState.embeddingStatus?.reindex || {}),
-          ...msg
-        }
-      };
-      void renderEmbeddingRows();
-      void refreshAiControlCenter({ includeProvider: false });
-      return;
-    }
-
-    if (msg?.type === 'AI_SEARCH_MODE') {
-      providerUiState.embeddingStatus = {
-        ...(providerUiState.embeddingStatus || {}),
-        searchMode: String(msg.mode || 'keyword')
-      };
-      renderEmbeddingIndicator(providerUiState.embeddingStatus);
-      updateAiSetupFromEmbeddingStatus(providerUiState.embeddingStatus);
-      void refreshAiControlCenter({ includeProvider: false });
-      byId('pn-search-spark')?.classList.add('pn-hidden');
-    }
-  };
-  chrome.runtime.onMessage.addListener(aiStatusHandler);
-
-  const localStatus = await window.AIBridge.getLocalModelStatus();
-  if (localStatus?.status) {
-    const modelId = String(localStatus.modelId || state.settings.localModelId || 'smollm2_1_7b').toLowerCase();
-    if (Object.prototype.hasOwnProperty.call(localModelStatuses, modelId)) {
-      localModelStatuses[modelId] = {
-        ...localModelStatuses[modelId],
-        ...localStatus,
-        status: String(localStatus.status || localModelStatuses[modelId].status)
-      };
-    }
-    updateLocalModelProgressUI(localModelStatuses[modelId] || localStatus);
-  }
-
-  const [embeddingStatus, reindexStatus] = await Promise.all([
-    window.AIBridge.getEmbeddingStatus().catch(() => null),
-    window.AIBridge.getEmbeddingReindexStatus().catch(() => null)
-  ]);
-  if (embeddingStatus && typeof embeddingStatus === 'object') {
-    providerUiState.embeddingStatus = {
-      ...embeddingStatus,
-      reindex: reindexStatus && typeof reindexStatus === 'object'
-        ? reindexStatus
-        : embeddingStatus.reindex
-    };
-  }
-  await renderEmbeddingRows();
-  if (state.settings?.semanticSearch) {
-    await ensureSemanticSearchReady();
-  } else {
-    updateAiSetupFromEmbeddingStatus(providerUiState.embeddingStatus);
-  }
-
-  state.aiReady = true;
-  if (aiBar) {
-    aiBar.classList.remove('pn-ai-bar--loading');
-    aiBar.classList.add('pn-ai-bar--ready');
-  }
-  const progressText = byId('ai-progress-text');
-  if (progressText) progressText.textContent = '✦ Ready';
-  byId('pn-model-pill')?.classList.add('pn-sv-model-pill--ready');
-  byId('pn-search-spark')?.classList.add('pn-hidden');
-  retryButton?.classList.add('pn-hidden');
-
-  const statusNode = byId('ai-status');
-  if (statusNode) {
-    statusNode.classList.remove('pn-ai-status--loading', 'pn-ai-status--unavailable');
-    statusNode.classList.add('pn-ai-status--ready');
-    statusNode.innerHTML = '<span class="pn-ai-dot"></span><span class="pn-ai-status__text">Smart Features Ready</span>';
-  }
-  if (typeof callbacks.onLoadSmartSuggestions === 'function') {
-    void callbacks.onLoadSmartSuggestions();
-  }
-
-  void refreshAiRoutingNote();
-  await refreshAiControlCenter();
-  renderLocalModelStatus();
-
-  return state.aiReady;
-};
-
-const syncSaveState = async () => {
-  const saveButton = byId('save-settings-btn');
-  if (!saveButton) return;
-
-  const draft = readControlsSnapshot();
-  const provider = await getEditingProvider();
-  const providerId = String(provider?.id || 'gemini');
-  const currentKey = String(getControls().providerKey?.value || providerUiState.providerKeys?.[providerId] || '').trim();
-  const storedKey = String(
-    window.SessionStorage?.getStoredProviderKey
-      ? await window.SessionStorage.getStoredProviderKey(providerId).catch(() => '')
-      : await window.SessionStorage.getStoredGeminiKey().catch(() => '')
-  ).trim();
-
-  const hasChanges = !areSettingsEqual(draft, state.settings) || currentKey !== storedKey;
-  saveButton.disabled = !hasChanges;
-
-  if (hasChanges) {
-    setSettingsStatus('Unsaved AI/API changes. Save to apply.', 'info');
-  } else if (byId('settings-status')?.classList.contains('pn-status-info')) {
-    setSettingsStatus('');
-  }
-};
-
-const persistRuntimeAfterSave = async () => {
-  if (window.PLATFORM_LABELS && state.settings?.platformLabels) {
-    Object.entries(state.settings.platformLabels).forEach(([key, label]) => {
-      const safeKey = normalizePlatformKey(key);
-      const safeLabel = String(label || '').trim();
-      if (!safeKey || !safeLabel) return;
-      window.PLATFORM_LABELS[safeKey] = safeLabel;
-    });
-  }
-
-  if (typeof callbacks.onApplyExportDefaults === 'function') {
-    callbacks.onApplyExportDefaults(state.settings);
-  }
-  if (typeof callbacks.onRenderExportPreview === 'function') {
-    await callbacks.onRenderExportPreview();
-  }
-
-  applyInterfaceSettings(state.settings);
-
-  if (window.PromptsUI?.render) {
-    await window.PromptsUI.render(window.PromptsUI.getSearchValue());
-  }
-  if (typeof window.ContinuationUI?.refreshTargets === 'function') {
-    window.ContinuationUI.refreshTargets();
-  }
-};
-
-const autoSaveNonAi = async () => {
-  state.settings = readNonAiSnapshot();
-  await save();
-  renderControls(state.settings);
-  await persistRuntimeAfterSave();
-  flashAutoSaveStatus('Preferences saved.', 'ok');
-  if (autoSaveSourceId) showInlineSavedBadge(autoSaveSourceId);
-  autoSaveSourceId = '';
-};
-
-const scheduleAutoSaveNonAi = (sourceId = '') => {
-  autoSaveSourceId = String(sourceId || autoSaveSourceId || '').trim();
-  if (autoSaveTimer) clearTimeout(autoSaveTimer);
-  autoSaveTimer = setTimeout(() => {
-    autoSaveTimer = null;
-    void autoSaveNonAi();
-  }, 180);
 };
 
 const saveFromPanel = async () => {
-  state.settings = readControlsSnapshot();
-  await save();
-
-  const editingProvider = await getEditingProvider();
-  if (editingProvider) {
-    const controls = getControls();
-    providerUiState.providerKeys[editingProvider.id] = String(controls.providerKey?.value || '').trim();
-  }
-
-  if (window.SessionStorage?.setStoredProviderKey) {
-    const entries = Object.entries(providerUiState.providerKeys || {});
-    await Promise.all(entries.map(([providerId, key]) => window.SessionStorage.setStoredProviderKey(providerId, key)));
-  } else {
-    const geminiKey = String(providerUiState.providerKeys?.gemini || '').trim();
-    await window.SessionStorage.setStoredGeminiKey(geminiKey);
-  }
-
-  await persistRuntimeAfterSave();
-
-  if (state.settings.enableAI) {
-    await syncAiState();
-  } else {
-    await setAiDisabledBadge();
-  }
-
-  setSettingsStatus('Settings saved.', 'ok');
-  await syncSaveState();
-};
-
-const resetDraft = async () => {
-  renderControls({
-    ...DEFAULT_SETTINGS,
-    settingsMigratedV2: true,
-    legacyAutoRewriteOnSave: false
-  });
-  providerUiState.providerKeys = {};
-  const keyInput = getControls().providerKey;
-  if (keyInput) keyInput.value = '';
-  setSettingsStatus('Defaults loaded. Save AI/API changes to apply.', 'info');
-  await syncSaveState();
-};
-
-const setCustomLlmError = (msg) => {
-  const errNode = byId('pn-custom-llm-error');
-  if (!errNode) return;
-  if (!msg) {
-    errNode.classList.add('pn-hidden');
-    errNode.textContent = '';
-  } else {
-    errNode.classList.remove('pn-hidden');
-    errNode.textContent = msg;
-  }
-};
-
-const guessSelectorsFromHtml = (html) => {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  let input = 'textarea';
-  let userMsg = '[data-role="user"]';
-  let botMsg = '[data-role="assistant"]';
-  
-  if (doc.querySelector('div[contenteditable="true"]') || doc.querySelector('div[contenteditable="plaintext-only"]')) {
-    input = 'div[contenteditable], textarea';
-  } else if (doc.querySelector('textarea')) {
-    input = 'textarea';
-  }
-  
-  const commonUserAttrs = ['[data-message-author="user"]', '[data-role="user"]', '[data-author="user"]', '.user-message'];
-  const commonBotAttrs = ['[data-message-author="assistant"]', '[data-role="assistant"]', '[data-message-author="bot"]', '[data-author="bot"]', '.bot-message', '.assistant-message'];
-
-  for (const sel of commonUserAttrs) {
-    if (doc.querySelector(sel)) { userMsg = sel; break; }
-  }
-  for (const sel of commonBotAttrs) {
-    if (doc.querySelector(sel)) { botMsg = sel; break; }
-  }
-
-  return { input, userMsg, botMsg };
-};
-
-const commitCustomPlatform = async (name, urlPattern, input, userMsg, botMsg) => {
-  if (!name || !urlPattern || !input || !userMsg || !botMsg) {
-    setCustomLlmError('Missing properties to register LLM.');
-    return false;
-  }
-  state.settings.customPlatforms = [
-    ...(state.settings.customPlatforms || []),
-    { id: crypto.randomUUID(), name, urlPattern, input, userMsg, botMsg, inputParent: 'form, body' }
-  ];
-  renderCustomPlatforms();
-  await autoSaveNonAi();
-  
-  if (byId('setting-custom-name')) byId('setting-custom-name').value = '';
-  if (byId('setting-custom-url')) byId('setting-custom-url').value = '';
-  if (byId('setting-custom-html')) byId('setting-custom-html').value = '';
-  if (byId('setting-custom-input')) byId('setting-custom-input').value = '';
-  if (byId('setting-custom-user')) byId('setting-custom-user').value = '';
-  if (byId('setting-custom-bot')) byId('setting-custom-bot').value = '';
-  setCustomLlmError('');
-  
-  flashAutoSaveStatus(`Added ${name}`, 'ok');
-  return true;
-};
-
-const addCustomPlatformSmart = async () => {
-  setCustomLlmError('');
-  const name = String(byId('setting-custom-name')?.value || '').trim() || 'Custom LLM';
-  const urlParams = String(byId('setting-custom-url')?.value || '').trim();
-  
-  if (!urlParams) {
-    setCustomLlmError('Please enter a valid Chat URL first.');
-    return;
-  }
-  
-  let urlPattern = urlParams;
   try {
-    const parsed = new URL(urlPattern);
-    urlPattern = `${parsed.protocol}//${parsed.host}/*`;
-  } catch(e) { }
-
-  const btn = byId('pn-add-custom-platform-smart');
-  if (!btn) return;
-  const orgText = btn.textContent;
-  btn.textContent = 'Detecting...';
-  btn.disabled = true;
-
-  try {
-    const realRes = await fetch(urlParams);
-    const html = await realRes.text();
-    const guessed = guessSelectorsFromHtml(html);
-    await commitCustomPlatform(name, urlPattern, guessed.input, guessed.userMsg, guessed.botMsg);
-    if (byId('pn-custom-llm-advanced')) byId('pn-custom-llm-advanced').open = false;
-  } catch (err) {
-    setCustomLlmError('Auto-detect failed (likely blocked by CORS/Login). Please open Advanced to paste HTML or add manually.');
-    if (byId('pn-custom-llm-advanced')) byId('pn-custom-llm-advanced').open = true;
-    
-    if (byId('setting-custom-url')) byId('setting-custom-url').value = urlPattern;
-    if (byId('setting-custom-input')) byId('setting-custom-input').value = 'textarea, div[contenteditable]';
-    if (byId('setting-custom-user')) byId('setting-custom-user').value = '[data-role="user"]';
-    if (byId('setting-custom-bot')) byId('setting-custom-bot').value = '[data-role="assistant"]';
-  } finally {
-    btn.textContent = orgText;
-    btn.disabled = false;
+    await persistSettings(readFeatureSettings());
+    setSettingsStatus("Saved");
+  } catch (_error) {
+    setSettingsStatus("Save failed", true);
   }
 };
 
-const addCustomPlatformHtml = async () => {
-  setCustomLlmError('');
-  const name = String(byId('setting-custom-name')?.value || '').trim() || 'Custom LLM';
-  const rawUrl = String(byId('setting-custom-url')?.value || '').trim() || 'https://example.com/*';
-  const html = String(byId('setting-custom-html')?.value || '').trim();
-  
-  if (!html) {
-    setCustomLlmError('Please paste the webpage HTML content.');
-    return;
-  }
+const syncSaveState = async () => state.settings;
 
-  let urlPattern = rawUrl;
-  try {
-    const parsed = new URL(urlPattern);
-    urlPattern = `${parsed.protocol}//${parsed.host}/*`;
-  } catch(e) {}
-
-  const guessed = guessSelectorsFromHtml(html);
-  
-  if (byId('setting-custom-input')) byId('setting-custom-input').value = guessed.input;
-  if (byId('setting-custom-user')) byId('setting-custom-user').value = guessed.userMsg;
-  if (byId('setting-custom-bot')) byId('setting-custom-bot').value = guessed.botMsg;
-
-  await commitCustomPlatform(name, urlPattern, guessed.input, guessed.userMsg, guessed.botMsg);
-  if (byId('pn-custom-llm-advanced')) byId('pn-custom-llm-advanced').open = false;
+const syncAiState = async () => {
+  uiState.embeddingStatus = await window.AIBridge.getEmbeddingStatus().catch(() => null);
+  renderEmbeddingModels();
+  updateEmbeddingProgress();
+  syncDownloadIndicator();
+  await renderProviderTabs();
+  await renderProviderEditor();
+  return uiState.embeddingStatus;
 };
 
-const addCustomPlatform = async () => {
-  setCustomLlmError('');
-  const name = String(byId('setting-custom-name')?.value || '').trim();
-  const urlPattern = String(byId('setting-custom-url')?.value || '').trim();
-  const input = String(byId('setting-custom-input')?.value || '').trim();
-  const userMsg = String(byId('setting-custom-user')?.value || '').trim();
-  const botMsg = String(byId('setting-custom-bot')?.value || '').trim();
-
-  if (!name || !urlPattern || !input || !userMsg || !botMsg) {
-    setCustomLlmError('Fill all manual LLM fields first.');
-    return;
-  }
-
-  await commitCustomPlatform(name, urlPattern, input, userMsg, botMsg);
+const setAiDisabledBadge = async () => {
+  setSettingsStatus("Add a provider key to use AI features.", true);
 };
 
-const addPlatformLabel = async () => {
-  const controls = getControls();
-  const rawKey = String(controls.platformLabelKey?.value || '');
-  const label = String(controls.platformLabelValue?.value || '').trim();
-  const key = normalizePlatformKey(rawKey);
-
+const testProviderKey = async () => {
+  const provider = getProviderMeta();
+  const key = String(byId("pn-provider-key")?.value || "").trim();
   if (!key) {
-    setPlatformLabelError('Enter a valid platform key (letters/numbers).');
+    setSettingsStatus("Enter an API key first.", true);
     return;
   }
-
-  if (!label) {
-    setPlatformLabelError('Enter a display label.');
+  const model = state.settings.providerModels?.[provider.id] || provider.models?.[0]?.id || "";
+  const result = await window.AIBridge
+    .validateProviderKey(provider.id, key, model)
+    .catch(() => ({ ok: false, message: "Validation failed." }));
+  uiState.providerValidation[provider.id] = {
+    status: result?.ok ? "connected" : "invalid",
+    message: String(result?.message || result?.error || "").trim(),
+  };
+  await persistValidationState();
+  if (!result?.ok) {
+    await renderProviderEditor();
+    setSettingsStatus("Invalid key", true);
     return;
   }
+  uiState.providerDraftKeys[provider.id] = key;
+  await window.SessionStorage?.setStoredProviderKey?.(provider.id, key);
+  await renderProviderTabs();
+  await renderProviderEditor();
+  setSettingsStatus("Provider connected");
+};
 
-  setPlatformLabelError('');
-  const next = normalizeSettings(state.settings);
-  next.platformLabels[key] = label;
-  next.enabledPlatforms[key] = next.enabledPlatforms[key] !== false;
-  state.settings = next;
+const setPrimaryProvider = async () => {
+  const next = deepClone(state.settings);
+  next.activeProvider = uiState.providerId;
+  await persistSettings(next);
+  setSettingsStatus("Primary provider updated");
+  await renderProviderEditor();
+};
 
-  if (controls.platformLabelKey) controls.platformLabelKey.value = '';
-  if (controls.platformLabelValue) controls.platformLabelValue.value = '';
+const updateProviderModel = async (modelId = "") => {
+  const next = deepClone(state.settings);
+  next.providerModels[uiState.providerId] = String(modelId || "").trim();
+  await persistSettings(next);
+  setSettingsStatus("Model updated");
+};
 
-  renderPlatformRows();
-  await autoSaveNonAi();
-  flashAutoSaveStatus(`Label saved for ${key}.`, 'ok');
+const requestEmbeddingAction = (modelId = "") => {
+  const current = String(state.settings.embeddingModelId || DEFAULT_SETTINGS.embeddingModelId);
+  if (!modelId || modelId === current) return;
+  uiState.pendingEmbeddingModelId = modelId;
+  byId("pn-embedding-confirm")?.classList.remove("pn-hidden");
+};
+
+const confirmEmbeddingSwitch = async () => {
+  const modelId = uiState.pendingEmbeddingModelId;
+  if (!modelId) return;
+  byId("pn-embedding-confirm")?.classList.add("pn-hidden");
+  const result = await window.AIBridge.switchEmbeddingModel(modelId).catch(() => null);
+  if (!result?.ok) {
+    setSettingsStatus(result?.error || "Model switch failed", true);
+    return;
+  }
+  const next = deepClone(state.settings);
+  next.embeddingModelId = modelId;
+  await persistSettings(next);
+  uiState.pendingEmbeddingModelId = "";
+  await syncAiState();
+  callbacks.onLoadSmartSuggestions?.();
+  setSettingsStatus("Search model updated");
+};
+
+const toggleConfirm = (confirmId, visible) => {
+  byId(confirmId)?.classList.toggle("pn-hidden", !visible);
 };
 
 const exportAllData = async () => {
-  const snapshot = await chrome.storage.local.get(['prompts', 'chatHistory', 'bookmarks', KEYS.SETTINGS_KEY]);
-  const payload = {
-    prompts: Array.isArray(snapshot.prompts) ? snapshot.prompts : [],
-    chatHistory: Array.isArray(snapshot.chatHistory) ? snapshot.chatHistory : [],
-    bookmarks: snapshot.bookmarks && typeof snapshot.bookmarks === 'object' ? snapshot.bookmarks : {},
-    settings: normalizeSettings(snapshot[KEYS.SETTINGS_KEY] || state.settings),
-    exportedAt: new Date().toISOString(),
-    version: chrome.runtime.getManifest()?.version || '0.1.0'
-  };
-
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+  const snapshot = await chrome.storage.local.get(null);
+  const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `promptium_data_${new Date().toISOString().slice(0, 10)}.json`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-  flashAutoSaveStatus('Data export complete.', 'ok');
+  try {
+    await chrome.downloads.download({
+      url,
+      filename: "promptium-export.json",
+      saveAs: true,
+    });
+    setSettingsStatus("Export started");
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
 };
 
 const importAllData = async (file) => {
   if (!file) return;
   const text = await file.text();
   const parsed = JSON.parse(text);
-
-  const updates = {};
-  if (Array.isArray(parsed?.prompts)) updates.prompts = parsed.prompts;
-  if (Array.isArray(parsed?.chatHistory)) updates.chatHistory = parsed.chatHistory;
-  if (parsed?.bookmarks && typeof parsed.bookmarks === 'object') updates.bookmarks = parsed.bookmarks;
-  if (parsed?.settings && typeof parsed.settings === 'object') {
-    const normalized = normalizeSettings(parsed.settings);
-    updates[KEYS.SETTINGS_KEY] = normalized;
-    updates.userContext = String(normalized.userContext || '').trim();
-    state.settings = normalized;
+  if (parsed?.[KEYS.SETTINGS_KEY]) {
+    parsed[KEYS.SETTINGS_KEY] = {
+      ...normalizeSettings(parsed[KEYS.SETTINGS_KEY]),
+      settingsMigratedV2: true,
+    };
   }
-
-  if (!Object.keys(updates).length) {
-    flashAutoSaveStatus('Import file has no valid Promptium data.', 'error');
-    return;
-  }
-
-  await chrome.storage.local.set(updates);
-  renderControls(state.settings);
-  await persistRuntimeAfterSave();
-  await window.HistoryUI?.render?.();
-  await window.TagsUI?.render?.();
-  flashAutoSaveStatus('Data imported.', 'ok');
+  await chrome.storage.local.set(parsed);
+  await readSettings();
+  renderControls();
+  callbacks.onApplyExportDefaults?.(state.settings);
+  setSettingsStatus("Data imported");
 };
 
-const bindInlineDanger = (triggerId, confirmId, action) => {
-  const trigger = byId(triggerId);
-  const confirm = byId(confirmId);
-  if (!trigger || !confirm) return;
+const bindPaneNavigation = () => {
+  byId("pn-settings-root-menu")?.addEventListener("click", (event) => {
+    const button = event.target.closest(".pn-settings-item");
+    if (!button) return;
+    showPane(String(button.dataset.settingsTarget || "ai"));
+    renderControls();
+  });
+  byId("pn-settings-back-btn")?.addEventListener("click", showRootMenu);
+};
 
-  let timeoutId = null;
-  let armed = false;
-
-  const reset = () => {
-    armed = false;
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-      timeoutId = null;
-    }
-    trigger.classList.remove('pn-hidden');
-    trigger.textContent = String(trigger.dataset.defaultLabel || trigger.textContent || 'Cancel').trim();
-    confirm.classList.add('pn-hidden');
-    confirm.disabled = false;
-    confirm.textContent = 'Yes';
-  };
-
-  trigger.dataset.defaultLabel = String(trigger.textContent || '').trim();
-  confirm.textContent = 'Yes';
-
-  trigger.addEventListener('click', () => {
-    if (armed) {
-      reset();
+const bindProviderEvents = () => {
+  document.addEventListener("click", (event) => {
+    const providerButton = event.target.closest("[data-provider-tab]");
+    if (providerButton) {
+      uiState.providerId = normalizeProviderId(providerButton.dataset.providerTab);
+      void renderControls();
       return;
     }
-
-    armed = true;
-    trigger.textContent = 'Cancel';
-    confirm.classList.remove('pn-hidden');
-    if (timeoutId) clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => {
-      reset();
-    }, 5000);
+    const embeddingButton = event.target.closest("[data-embedding-action]");
+    if (embeddingButton) {
+      requestEmbeddingAction(String(embeddingButton.dataset.embeddingAction || ""));
+      return;
+    }
+    if (event.target.id === "pn-provider-test") {
+      void testProviderKey();
+      return;
+    }
+    if (event.target.id === "pn-provider-key-toggle") {
+      uiState.keyVisible = !uiState.keyVisible;
+      void renderProviderEditor();
+      return;
+    }
+    if (event.target.id === "pn-provider-set-primary") {
+      void setPrimaryProvider();
+      return;
+    }
   });
-
-  confirm.addEventListener('click', () => {
-    void (async () => {
-      confirm.disabled = true;
-      await action();
-      reset();
-    })();
+  document.addEventListener("input", (event) => {
+    if (event.target.id === "pn-provider-key") {
+      uiState.providerDraftKeys[uiState.providerId] = String(event.target.value || "");
+    }
+  });
+  document.addEventListener("change", (event) => {
+    const modelInput = event.target.closest('input[name="pn-provider-model"]');
+    if (modelInput) {
+      void updateProviderModel(String(modelInput.value || ""));
+      return;
+    }
+    if (event.target.closest('.pn-settings-pane[data-settings-pane="general"]')) {
+      void saveFromPanel();
+    }
   });
 };
 
-const runSelectedLocalModelAction = async (requestedModelId = '') => {
-  const controls = getControls();
-  const normalizedRequested = String(requestedModelId || '').trim().toLowerCase();
-  const selected = normalizedRequested && Object.prototype.hasOwnProperty.call(localModelStatuses, normalizedRequested)
-    ? {
-      id: normalizedRequested,
-      status: localModelStatuses[normalizedRequested] || { status: 'not_downloaded', progress: 0, backend: 'webgpu', error: '' }
+const bindEmbeddingEvents = () => {
+  document.addEventListener("click", (event) => {
+    if (event.target.id === "pn-embedding-confirm-yes") {
+      void confirmEmbeddingSwitch();
+      return;
     }
-    : selectedModelStatus();
-  const status = String(selected.status?.status || 'not_downloaded').toLowerCase();
-
-  const primaryActionButton = controls.localModelActionBtn;
-  if (!primaryActionButton && !normalizedRequested) return;
-
-  if (primaryActionButton) {
-    primaryActionButton.disabled = true;
-    primaryActionButton.textContent = 'Working...';
-  }
-
-  try {
-    if (status === 'downloading') {
-      await window.AIBridge.cancelLocalModelDownload(selected.id);
-    } else if (status === 'cached' || status === 'ready') {
-      const cleared = await window.AIBridge.clearLocalModelCache(selected.id);
-      if (!cleared?.ok) {
-        flashAutoSaveStatus(cleared?.error || 'Failed to clear cached model data.', 'error');
-      }
-    } else {
-      await window.AIBridge.downloadLocalModel(selected.id);
+    if (event.target.id === "pn-embedding-confirm-no") {
+      uiState.pendingEmbeddingModelId = "";
+      byId("pn-embedding-confirm")?.classList.add("pn-hidden");
     }
-  } catch (_error) {
-    flashAutoSaveStatus('Model action failed. Retry.', 'error');
-  } finally {
-    if (primaryActionButton) {
-      primaryActionButton.disabled = false;
+  });
+  chrome.runtime.onMessage.addListener((message) => {
+    const type = String(message?.type || "").trim();
+    if (!["AI_EMBEDDING_STATUS", "AI_EMBEDDING_REINDEX_PROGRESS"].includes(type)) {
+      return;
     }
-    const refreshed = await window.AIBridge.getLocalModelStatus();
-    if (refreshed?.modelId && Object.prototype.hasOwnProperty.call(localModelStatuses, refreshed.modelId)) {
-      localModelStatuses[refreshed.modelId] = {
-        ...localModelStatuses[refreshed.modelId],
-        ...refreshed
-      };
-    }
-    renderLocalModelStatus();
-    await refreshAiControlCenter();
-    void syncSaveState();
-  }
+    void syncAiState();
+  });
 };
 
-const setSelectedLocalModel = (modelId = '') => {
-  const controls = getControls();
-  const normalized = String(modelId || '').trim().toLowerCase();
-  if (!Object.prototype.hasOwnProperty.call(LOCAL_MODEL_META, normalized)) return;
-  if (controls.localModelSmollm2) controls.localModelSmollm2.checked = normalized === 'smollm2_1_7b';
-  if (controls.localModelPhi35) controls.localModelPhi35.checked = normalized === 'phi35_mini';
-  if (controls.localModelQwen3) controls.localModelQwen3.checked = normalized === 'qwen3_0_6b';
-  state.settings.localModelId = normalized;
-  renderLocalModelStatus();
-  void refreshAiRoutingNote();
-  void refreshAiControlCenter({ includeProvider: false });
-  void syncSaveState();
-};
-
-const formatShortcutFromEvent = (event) => {
-  const parts = [];
-  if (event.altKey) parts.push('Alt');
-  if (event.ctrlKey) parts.push('Ctrl');
-  if (event.metaKey) parts.push('Meta');
-  if (event.shiftKey) parts.push('Shift');
-
-  const key = String(event.key || '').trim();
-  if (!key || ['alt', 'control', 'shift', 'meta'].includes(key.toLowerCase())) {
-    return parts.join('+');
-  }
-
-  if (key.length === 1) {
-    parts.push(key.toUpperCase());
-  } else {
-    parts.push(key.charAt(0).toUpperCase() + key.slice(1));
-  }
-  return parts.join('+');
+const bindDataEvents = () => {
+  document.addEventListener("click", async (event) => {
+    if (event.target.id === "pn-export-all-data") {
+      void exportAllData();
+      return;
+    }
+    if (event.target.id === "pn-clear-prompts") {
+      toggleConfirm("pn-confirm-clear-prompts", true);
+      return;
+    }
+    if (event.target.id === "pn-clear-history") {
+      toggleConfirm("pn-confirm-clear-history", true);
+      return;
+    }
+    if (event.target.id === "pn-reset-all-settings") {
+      toggleConfirm("pn-confirm-reset-settings", true);
+      return;
+    }
+    if (event.target.id === "pn-confirm-clear-prompts") {
+      await chrome.storage.local.set({ prompts: [] });
+      toggleConfirm("pn-confirm-clear-prompts", false);
+      setSettingsStatus("Prompts cleared");
+      return;
+    }
+    if (event.target.id === "pn-confirm-clear-history") {
+      await chrome.storage.local.set({ chatHistory: [] });
+      toggleConfirm("pn-confirm-clear-history", false);
+      setSettingsStatus("History cleared");
+      return;
+    }
+    if (event.target.id === "pn-confirm-reset-settings") {
+      await persistSettings({ ...deepClone(DEFAULT_SETTINGS), settingsMigratedV2: true });
+      toggleConfirm("pn-confirm-reset-settings", false);
+      renderControls();
+      setSettingsStatus("Settings reset");
+    }
+  });
+  document.addEventListener("change", (event) => {
+    if (event.target.id !== "pn-import-all-data") return;
+    const file = event.target.files?.[0];
+    void importAllData(file);
+    event.target.value = "";
+  });
 };
 
 const bindEvents = () => {
-  getControls().providerKeyToggle?.addEventListener('click', () => {
-    const keyInput = getControls().providerKey;
-    if (keyInput) keyInput.type = keyInput.type === 'password' ? 'text' : 'password';
-  });
+  if (uiState.bound) return;
+  uiState.bound = true;
+  bindPaneNavigation();
+  bindProviderEvents();
+  bindEmbeddingEvents();
+  bindDataEvents();
+};
 
-  getControls().providerSetPrimary?.addEventListener('click', async () => {
-    const provider = await getEditingProvider();
-    if (!provider) return;
-    state.settings.activeProvider = provider.id;
-    await save();
-    await renderProviderEditor();
-    await refreshAiRoutingNote();
-    await refreshAiControlCenter();
-    flashAutoSaveStatus('Primary provider updated.', 'ok');
-    await syncSaveState();
-  });
+const load = async () => {
+  await loadRuntimeRegistry();
+  await loadValidationState();
+  await readSettings();
+  ensurePaneMarkup();
+  renderControls();
+  await syncAiState();
+};
 
-  getControls().providerTest?.addEventListener('click', async () => {
-    const btn = getControls().providerTest;
-    const provider = await getEditingProvider();
-    if (!btn) return;
-    if (!provider) return;
-
-    const key = String(getControls().providerKey?.value || '').trim();
-    providerUiState.providerKeys[provider.id] = key;
-
-    if (!key) {
-      providerUiState.providerValidation[provider.id] = { state: 'invalid', message: 'missing key' };
-      setProviderValidationStatus('invalid', 'missing key');
-      await persistProviderValidationState();
-      await refreshAiControlCenter();
-      return;
-    }
-
-    setProviderValidationStatus('checking');
-    btn.disabled = true;
-    try {
-      const selectedModel = String(state.settings?.providerModels?.[provider.id] || provider.models?.find((entry) => entry.default)?.id || '').trim();
-      const res = await window.AIBridge.validateProviderKey(provider.id, key, selectedModel);
-      if (res?.ok === true) {
-        providerUiState.providerValidation[provider.id] = { state: 'connected', message: 'connected' };
-        setProviderValidationStatus('connected');
-      } else {
-        const category = String(res?.category || '').trim().toLowerCase();
-        const message = category === 'invalid_key'
-          ? 'invalid key'
-          : category === 'rate_limited'
-            ? 'rate limited'
-            : category === 'network_error'
-              ? 'network error'
-              : 'provider error';
-        providerUiState.providerValidation[provider.id] = { state: 'invalid', message };
-        setProviderValidationStatus('invalid', message);
-      }
-      await persistProviderValidationState();
-    } catch (_error) {
-      providerUiState.providerValidation[provider.id] = { state: 'invalid', message: 'network error' };
-      setProviderValidationStatus('invalid', 'network error');
-      await persistProviderValidationState();
-    } finally {
-      btn.disabled = false;
-      await refreshAiControlCenter();
-    }
-  });
-
-  byId('pn-ai-retry-btn')?.addEventListener('click', () => {
-    void ensureSemanticSearchReady({ force: true });
-  });
-
-  byId('pn-ai-setup-action-btn')?.addEventListener('click', () => {
-    void ensureSemanticSearchReady({ force: true });
-  });
-
-  byId('pn-local-model-action-btn')?.addEventListener('click', () => {
-    void runSelectedLocalModelAction();
-  });
-
-  byId('pn-local-model-library')?.addEventListener('click', (event) => {
-    const selectButton = event.target?.closest?.('[data-local-model-select]');
-    if (selectButton) {
-      const modelId = String(selectButton.getAttribute('data-local-model-select') || '').trim().toLowerCase();
-      if (modelId) setSelectedLocalModel(modelId);
-      return;
-    }
-
-    const actionButton = event.target?.closest?.('[data-local-model-action]');
-    if (!actionButton) return;
-    const modelId = String(actionButton.getAttribute('data-local-model-action') || '').trim().toLowerCase();
-    if (!modelId) return;
-    void runSelectedLocalModelAction(modelId);
-  });
-
-  byId('save-settings-btn')?.addEventListener('click', () => {
-    void saveFromPanel();
-  });
-
-  byId('reset-settings-btn')?.addEventListener('click', () => {
-    void resetDraft();
-  });
-
-  byId('pn-add-custom-platform')?.addEventListener('click', () => {
-    void addCustomPlatform();
-  });
-
-  byId('pn-add-platform-label')?.addEventListener('click', () => {
-    void addPlatformLabel();
-  });
-
-  byId('setting-platform-label-key')?.addEventListener('input', () => {
-    setPlatformLabelError('');
-  });
-
-  byId('setting-platform-label-value')?.addEventListener('input', () => {
-    setPlatformLabelError('');
-  });
-
-  byId('pn-add-custom-platform-smart')?.addEventListener('click', () => {
-    void addCustomPlatformSmart();
-  });
-
-  byId('pn-add-custom-platform-html')?.addEventListener('click', () => {
-    void addCustomPlatformHtml();
-  });
-
-  byId('pn-custom-platforms')?.addEventListener('click', (event) => {
-    const trigger = event.target.closest('[data-custom-delete]');
-    if (!trigger) return;
-    const id = String(trigger.dataset.customDelete || '');
-    if (!id) return;
-    state.settings.customPlatforms = (state.settings.customPlatforms || []).filter((entry) => entry.id !== id);
-    renderCustomPlatforms();
-    void autoSaveNonAi();
-  });
-
-  byId('pn-export-all-data')?.addEventListener('click', () => {
-    void exportAllData();
-  });
-
-  byId('pn-import-all-data')?.addEventListener('change', (event) => {
-    const file = event.target?.files?.[0] || null;
-    if (!file) return;
-    void importAllData(file);
-    event.target.value = '';
-  });
-
-  bindInlineDanger('pn-clear-prompts', 'pn-confirm-clear-prompts', async () => {
-    await chrome.storage.local.set({ prompts: [] });
-    await window.PromptsUI?.render?.(window.PromptsUI.getSearchValue());
-    await window.TagsUI?.render?.();
-    flashAutoSaveStatus('All prompts cleared.', 'ok');
-  });
-
-  bindInlineDanger('pn-clear-history', 'pn-confirm-clear-history', async () => {
-    await chrome.storage.local.set({ chatHistory: [] });
-    await window.HistoryUI?.render?.();
-    flashAutoSaveStatus('History cleared.', 'ok');
-  });
-
-  bindInlineDanger('pn-reset-all-settings', 'pn-confirm-reset-settings', async () => {
-    state.settings = normalizeSettings({
-      ...DEFAULT_SETTINGS,
-      settingsMigratedV2: true,
-      legacyAutoRewriteOnSave: false
-    });
-    await save();
-    if (window.SessionStorage?.setStoredProviderKey) {
-      await Promise.all([
-        window.SessionStorage.setStoredProviderKey('gemini', ''),
-        window.SessionStorage.setStoredProviderKey('openai', ''),
-        window.SessionStorage.setStoredProviderKey('anthropic', ''),
-        window.SessionStorage.setStoredProviderKey('openrouter', '')
-      ]);
-    } else {
-      await window.SessionStorage.setStoredGeminiKey('');
-    }
-    providerUiState.providerKeys = {};
-    renderControls(state.settings);
-    await persistRuntimeAfterSave();
-    await syncAiState();
-    flashAutoSaveStatus('Settings reset.', 'ok');
-  });
-
-  byId('pn-settings-root-menu')?.addEventListener('click', (event) => {
-    const item = event.target.closest('.pn-settings-item');
-    if (!item) return;
-    const target = item.dataset.settingsTarget;
-    const title = item.querySelector('.pn-settings-item-title')?.textContent || 'Settings';
-    if (target) renderSettingsTab(target, title);
-  });
-
-  byId('pn-settings-back-btn')?.addEventListener('click', () => {
-    renderSettingsTab('');
-  });
-
-  getControls().providerKey?.addEventListener('input', () => {
-    const providerId = String(providerUiState.editingProviderId || 'gemini').trim().toLowerCase();
-    providerUiState.providerKeys[providerId] = String(getControls().providerKey?.value || '').trim();
-    void updateQuickProviderHealth();
-    void syncSaveState();
-  });
-
-  getControls().embeddingModels?.addEventListener('click', async (event) => {
-    const button = event.target?.closest?.('[data-embedding-model]');
-    if (!button) return;
-    const modelId = String(button.getAttribute('data-embedding-model') || '').trim();
-    if (!modelId) return;
-    const downloadingModelId = String(providerUiState.embeddingStatus?.modelId || '').trim();
-    if (String(providerUiState.embeddingStatus?.status || '').toLowerCase() === 'downloading' && downloadingModelId === modelId) {
-      return;
-    }
-    if (modelId === String(state.settings.embeddingModelId || '').trim()) return;
-    providerUiState.embeddingConfirmModelId = modelId;
-    const { embeddings } = await loadModelRegistryRuntime();
-    const model = (embeddings || []).find((entry) => entry.id === modelId);
-    const controls = getControls();
-    if (controls.embeddingConfirm && controls.embeddingConfirmText) {
-      controls.embeddingConfirmText.textContent = `Switch to ${model?.label || modelId}? (${model?.size || ''} download)`;
-      controls.embeddingConfirm.classList.remove('pn-hidden');
-    }
-  });
-
-  getControls().embeddingConfirmNo?.addEventListener('click', () => {
-    providerUiState.embeddingConfirmModelId = '';
-    getControls().embeddingConfirm?.classList.add('pn-hidden');
-  });
-
-  getControls().embeddingConfirmYes?.addEventListener('click', async () => {
-    const targetModelId = String(providerUiState.embeddingConfirmModelId || '').trim();
-    if (!targetModelId) return;
-    getControls().embeddingConfirmYes.disabled = true;
-    try {
-      const switched = await window.AIBridge.switchEmbeddingModel(targetModelId);
-      if (switched?.ok) {
-        state.settings.embeddingModelId = targetModelId;
-        await save();
-        flashAutoSaveStatus('Search updated with new model.', 'ok');
-      } else {
-        flashAutoSaveStatus(switched?.error || 'Model switch failed.', 'error');
-      }
-      providerUiState.embeddingStatus = await window.AIBridge.getEmbeddingStatus().catch(() => providerUiState.embeddingStatus);
-      await renderEmbeddingRows();
-      await refreshAiControlCenter();
-      await syncSaveState();
-    } finally {
-      getControls().embeddingConfirmYes.disabled = false;
-      providerUiState.embeddingConfirmModelId = '';
-      getControls().embeddingConfirm?.classList.add('pn-hidden');
-    }
-  });
-
-  const aiControlIds = [
-    'setting-enable-ai',
-    'setting-ai-backend',
-    'setting-ai-auto-fallback',
-    'setting-gemini-primary',
-    'setting-semantic-search',
-    'setting-auto-suggest',
-    'setting-duplicate-check',
-    'setting-polish-toggle',
-    'setting-local-model-smollm2',
-    'setting-local-model-phi35',
-    'setting-local-model-qwen3',
-    'setting-local-fallback',
-    'setting-prefer-local',
-    'setting-local-feature-polish',
-    'setting-local-feature-autotags',
-    'setting-local-feature-improve',
-    'setting-local-feature-continue',
-    'setting-local-feature-smart-export',
-    'setting-export-format',
-    'setting-export-date',
-    'setting-export-platform',
-    'setting-user-context'
-  ];
-
-  aiControlIds.forEach((id) => {
-    const node = byId(id);
-    if (!node) return;
-    const eventName = id === 'setting-user-context' ? 'input' : 'change';
-    node.addEventListener(eventName, () => {
-      if (id === 'setting-ai-backend') {
-        const controls = getControls();
-        updateLocalModelProgressUI({}, String(controls.aiBackend?.value || 'gemini'));
-      }
-      if (id === 'setting-local-model-smollm2' || id === 'setting-local-model-phi35' || id === 'setting-local-model-qwen3') {
-        renderLocalModelStatus();
-      }
-      if (id === 'setting-gemini-primary') {
-        const controls = getControls();
-        if (controls.preferLocal) {
-          controls.preferLocal.checked = !(controls.geminiPrimary?.checked);
-        }
-      }
-      if (id === 'setting-prefer-local') {
-        const controls = getControls();
-        if (controls.geminiPrimary) {
-          controls.geminiPrimary.checked = !(controls.preferLocal?.checked);
-        }
-      }
-      if (id === 'setting-semantic-search') {
-        updateAiSetupFromEmbeddingStatus(providerUiState.embeddingStatus);
-      }
-      renderLocalModelStatus();
-      void refreshAiRoutingNote();
-      void refreshAiControlCenter({ includeProvider: false });
-      void syncSaveState();
-    });
-  });
-
-  const autoSaveControlIds = [
-    'setting-fab-position',
-    'setting-fab-style',
-    'setting-fab-save',
-    'setting-fab-export',
-    'setting-fab-continue',
-    'setting-fab-library',
-    'setting-tab-prompts',
-    'setting-tab-export',
-    'setting-tab-history',
-    'setting-tab-tags',
-    'setting-density',
-    'setting-export-naming',
-    'setting-auto-save-history',
-    'setting-bookmark-shortcut',
-    'setting-hover-preview',
-    'setting-hover-delay',
-    'setting-continue-mode'
-  ];
-
-  autoSaveControlIds.forEach((id) => {
-    const node = byId(id);
-    if (!node) return;
-    node.addEventListener('change', () => scheduleAutoSaveNonAi(id));
-    node.addEventListener('input', () => scheduleAutoSaveNonAi(id));
-  });
-
-  byId('setting-bookmark-shortcut')?.addEventListener('keydown', (event) => {
-    event.preventDefault();
-    const value = formatShortcutFromEvent(event);
-    if (!value) return;
-    event.currentTarget.value = value;
-    scheduleAutoSaveNonAi('setting-bookmark-shortcut');
-  });
-
-  const onPlatformRowChange = (event) => {
-    if (!(event.target instanceof HTMLInputElement)) return;
-    if (event.target.dataset.platformToggle) {
-      const checkedCount = Array.from(document.querySelectorAll('[data-platform-toggle]'))
-        .filter((input) => input instanceof HTMLInputElement && input.checked)
-        .length;
-      byId('pn-platform-warning')?.classList.toggle('pn-hidden', checkedCount > 0);
-      event.target.closest('.pn-platform-card')?.classList.toggle('is-disabled', !event.target.checked);
-      scheduleAutoSaveNonAi();
-      return;
-    }
-
-    if (event.target.dataset.platformLabel) {
-      scheduleAutoSaveNonAi();
-    }
-  };
-
-  byId('pn-platform-list')?.addEventListener('change', onPlatformRowChange);
-  byId('pn-platform-list')?.addEventListener('input', onPlatformRowChange);
-
-  byId('pn-platform-filter')?.addEventListener('input', () => {
-    renderPlatformRows();
-  });
-
-  const applyPlatformBulkToggle = (nextEnabled) => {
-    const next = normalizeSettings(state.settings);
-    getKnownPlatforms(next).forEach((platform) => {
-      next.enabledPlatforms[platform.key] = Boolean(nextEnabled);
-    });
-    state.settings = next;
-    renderPlatformRows();
-    const checkedCount = Object.values(next.enabledPlatforms || {}).filter(Boolean).length;
-    byId('pn-platform-warning')?.classList.toggle('pn-hidden', checkedCount > 0);
-    scheduleAutoSaveNonAi();
-  };
-
-  byId('pn-platform-enable-all')?.addEventListener('click', () => {
-    applyPlatformBulkToggle(true);
-  });
-
-  byId('pn-platform-disable-all')?.addEventListener('click', () => {
-    applyPlatformBulkToggle(false);
-  });
+const resetDraft = async () => {
+  renderControls();
 };
 
 const setCallbacks = (nextCallbacks = {}) => {
-  callbacks.onApplyExportDefaults = nextCallbacks.onApplyExportDefaults || null;
-  callbacks.onRenderExportPreview = nextCallbacks.onRenderExportPreview || null;
-  callbacks.onLoadSmartSuggestions = nextCallbacks.onLoadSmartSuggestions || null;
+  Object.assign(callbacks, nextCallbacks || {});
 };
 
 window.SettingsAI = {
@@ -2801,6 +920,6 @@ window.SettingsAI = {
   bindEvents,
   setCallbacks,
   applyInterfaceSettings,
-  normalizeSettings
+  normalizeSettings,
 };
 })();

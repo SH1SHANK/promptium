@@ -20,98 +20,27 @@ const KEYS = Object.freeze({
 });
 
 const DEFAULT_SETTINGS = Object.freeze({
-  enableAI: true,
   activeProvider: 'gemini',
   providerModels: {
-    gemini: 'gemini-3.0-flash-preview',
-    openai: 'gpt-5.2-mini',
-    anthropic: 'claude-sonnet-4-5',
-    openrouter: 'openrouter/auto'
+    gemini: 'gemini-2.0-flash',
+    openai: 'gpt-4o-mini',
+    anthropic: 'claude-haiku-4-5-20251001',
+    openrouter: 'meta-llama/llama-3.1-8b-instruct:free'
   },
   embeddingModelId: 'all-minilm-l6-v2',
-  preferLocal: false,
-  useLocalFallback: true,
-  geminiPrimary: true,
-  localModelId: 'smollm2_1_7b',
-  legacyAutoRewriteOnSave: false,
-  settingsMigratedV2: false,
-  localFeatureFlags: {
+  featureFlags: {
     polish: true,
     autoTags: true,
     improvePrompt: true,
-    continueSummary: true,
-    smartExportTitle: false
+    continueSummary: true
   },
-  aiBackend: 'gemini',
-  aiAutoFallback: true,
-  semanticSearch: true,
-  autoSuggestTags: true,
-  duplicateCheck: true,
-  polishWithGemini: true,
-  enabledPlatforms: {
-    chatgpt: true,
-    claude: true,
-    gemini: true,
-    perplexity: true,
-    copilot: true,
-    deepseek: true,
-    qwen: true,
-    mistral: true,
-    kimi: true,
-    moonshot: true,
-    grok: true,
-    huggingchat: true,
-    poe: true,
-    you: true,
-    phind: true,
-    characterai: true,
-    pi: true,
-    metaai: true,
-    amazonq: true,
-    ernie: true,
-    doubao: true,
-    yichat: true,
-    coherecoral: true,
-    groq: true,
-    fireworks: true,
-    together: true
-  },
-  platformLabels: {
-    chatgpt: 'ChatGPT',
-    claude: 'Claude',
-    gemini: 'Gemini',
-    perplexity: 'Perplexity',
-    copilot: 'Copilot',
-    deepseek: 'DeepSeek',
-    qwen: 'Qwen (Tongyi)',
-    mistral: 'Mistral Chat',
-    kimi: 'Kimi',
-    moonshot: 'Moonshot',
-    grok: 'Grok',
-    huggingchat: 'HuggingChat',
-    poe: 'Poe',
-    you: 'You.com Chat',
-    phind: 'Phind',
-    characterai: 'Character.AI',
-    pi: 'Pi',
-    metaai: 'Meta AI',
-    amazonq: 'Amazon Q',
-    ernie: 'ERNIE Bot',
-    doubao: 'Doubao',
-    yichat: 'Yi Chat',
-    coherecoral: 'Cohere Coral',
-    groq: 'Groq Chat',
-    fireworks: 'Fireworks AI Chat',
-    together: 'Together.ai Playground'
-  },
-  customPlatforms: [],
-  fabPosition: 'right',
+  fabPosition: 'bottom-right',
   fabStyle: 'circle',
-  fabActions: {
+  fabButtons: {
     savePrompt: true,
     exportChat: true,
     continueChat: true,
-    promptLibrary: true
+    library: true
   },
   visibleTabs: {
     prompts: true,
@@ -119,18 +48,11 @@ const DEFAULT_SETTINGS = Object.freeze({
     history: true,
     tags: true
   },
-  promptCardDensity: 'comfortable',
+  cardDensity: 'comfortable',
   defaultExportFormat: 'markdown',
-  defaultExportNaming: 'smart',
-  autoSaveExportsToHistory: true,
-  defaultIncludeDate: true,
-  defaultIncludePlatform: true,
-  // Default remains Alt+Shift+B to avoid common browser/browser-input conflicts.
-  bookmarkShortcut: 'Alt+Shift+B',
-  hoverPreviewEnabled: true,
-  hoverPreviewDelay: 400,
-  continueDefaultMode: 'FULL_SUMMARY',
-  userContext: ''
+  autoSaveHistory: true,
+  settingsMigratedV2: false,
+  onboardingComplete: false
 });
 
 const ONBOARDING_CARDS = [
@@ -209,8 +131,8 @@ const state = {
   hasPendingExportUpdate: false,
   exportPrefs: {
     format: DEFAULT_SETTINGS.defaultExportFormat,
-    includeDate: DEFAULT_SETTINGS.defaultIncludeDate,
-    includePlatform: DEFAULT_SETTINGS.defaultIncludePlatform,
+    includeDate: false,
+    includePlatform: false,
     includeMessageNumbers: false,
     contentMode: 'structured',
     fontStyle: 'System',

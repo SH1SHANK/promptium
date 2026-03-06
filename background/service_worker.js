@@ -7,8 +7,6 @@
 
 import {
   routeAIRequest,
-  AI_BACKEND_GEMINI,
-  AI_BACKEND_LOCAL,
 } from "../utils/ai-router.js";
 import {
   PROVIDER_IDS,
@@ -45,30 +43,20 @@ const BRAND_KEYS = {
 const CONTINUATION_WORD_LIMIT = 300;
 const CONTINUATION_LONG_THRESHOLD = 20;
 const CONTEXT_MENU_SAVE_ID = "promptium-save-selection";
-const LOCAL_MODEL_TASK_TIMEOUT_MS = 120000;
-const LOCAL_IDLE_RELEASE_MS = 5 * 60 * 1000;
-const OFFSCREEN_LOCAL_TARGET = "promptium-offscreen-local-ai";
-const OFFSCREEN_LOCAL_URL = "offscreen/local-model-worker.html";
 const EMBEDDING_META_FALLBACK = Object.freeze({
   activeModelId: String(getDefaultEmbeddingModel()?.id || "all-minilm-l6-v2"),
   downloadedModelIds: [],
   status: "not_downloaded",
   progress: 0,
-  backend: "webgpu",
+  backend: "service_worker",
   error: "",
   searchMode: "keyword",
-});
-const LOCAL_MODEL_LABELS = Object.freeze({
-  smollm2_1_7b: "SmolLM2",
-  phi35_mini: "Phi-3.5-mini",
-  qwen3_0_6b: "Qwen3",
 });
 const PROVIDER_LABELS = Object.freeze({
   gemini: "Gemini",
   openai: "OpenAI",
   anthropic: "Claude",
   openrouter: "OpenRouter",
-  local: "Local model",
 });
 const ALL_PROVIDER_IDS = Object.freeze([
   PROVIDER_IDS.GEMINI,
@@ -86,19 +74,11 @@ const EMBEDDING_REINDEX_FALLBACK = Object.freeze({
   startedAt: 0,
   completedAt: 0,
 });
-
-const LOCAL_MODEL = {
-  modelId: "smollm2_1_7b",
-  status: "not_downloaded",
-  progress: 0,
-  backend: "webgpu",
-  error: "",
-  cpuMode: false,
-};
-
-let offscreenLocalReady = false;
-let offscreenLocalInitPromise = null;
-let localIdleReleaseTimer = null;
+let _embeddingPipeline = null;
+let _embeddingPipelinePromise = null;
+let _embeddingStatus = EMBEDDING_META_FALLBACK.status;
+let _embeddingProgress = 0;
+let _embeddingError = "";
 
 const normalizeProviderId = (providerId = "") => {
   const normalized = String(providerId || "")
@@ -349,484 +329,214 @@ const parseClarityFromText = (rawText, sourceText = "") => {
 };
 
 const getAiRuntimeSettings = async () => {
-  try {
-    const snapshot = await chrome.storage.local.get([BRAND_KEYS.settingsKey]);
-    const settings = snapshot?.[BRAND_KEYS.settingsKey] || {};
+  const DEFAULT_RUNTIME_SETTINGS = Object.freeze({
+    activeProvider: PROVIDER_IDS.GEMINI,
+    providerModels: normalizeProviderModels({}),
+    embeddingModelId: EMBEDDING_META_FALLBACK.activeModelId,
+    featureFlags: {
+      polish: true,
+      autoTags: true,
+      improvePrompt: true,
+      continueSummary: true,
+    },
+    fabPosition: "bottom-right",
+    fabStyle: "circle",
+    fabButtons: {
+      savePrompt: true,
+      exportChat: true,
+      continueChat: true,
+      library: true,
+    },
+    visibleTabs: {
+      prompts: true,
+      export: true,
+      history: true,
+      tags: true,
+    },
+    cardDensity: "comfortable",
+    defaultExportFormat: "markdown",
+    autoSaveHistory: true,
+    settingsMigratedV2: false,
+    onboardingComplete: false,
+  });
 
-    const legacyBackend = String(settings?.aiBackend || AI_BACKEND_GEMINI)
-      .trim()
-      .toLowerCase();
-    const preferLocal =
-      typeof settings?.preferLocal === "boolean"
-        ? settings.preferLocal
-        : legacyBackend === AI_BACKEND_LOCAL;
+  const asObject = (value) =>
+    value && typeof value === "object" ? value : {};
 
-    const useLocalFallback =
-      typeof settings?.useLocalFallback === "boolean"
-        ? settings.useLocalFallback
-        : settings?.aiAutoFallback !== false;
-
-    const localFeatureFlags =
-      settings?.localFeatureFlags &&
-      typeof settings.localFeatureFlags === "object"
-        ? settings.localFeatureFlags
-        : {
-            polish: true,
-            autoTags: true,
-            improvePrompt: true,
-            continueSummary: true,
-            smartExportTitle: false,
-          };
-
-    const localModelId = String(settings?.localModelId || "smollm2_1_7b")
-      .trim()
-      .toLowerCase();
-    const activeProvider = normalizeProviderId(
-      settings?.activeProvider || AI_BACKEND_GEMINI,
-    );
-    const providerModels = normalizeProviderModels(
-      settings?.providerModels || {},
-    );
-    const embeddingModelId = String(
-      getEmbeddingModelById(String(settings?.embeddingModelId || "").trim())
-        ?.id ||
-        getDefaultEmbeddingModel()?.id ||
-        EMBEDDING_META_FALLBACK.activeModelId,
-    );
-    const hasLegacySignals =
-      Object.prototype.hasOwnProperty.call(settings, "aiBackend") ||
-      Object.prototype.hasOwnProperty.call(settings, "aiAutoFallback") ||
-      Object.prototype.hasOwnProperty.call(settings, "polishWithGemini");
-    const legacyAutoRewriteOnSave =
-      typeof settings?.legacyAutoRewriteOnSave === "boolean"
-        ? settings.legacyAutoRewriteOnSave
-        : settings?.settingsMigratedV2
-          ? false
-          : hasLegacySignals;
-
+  const normalizeFeatureFlags = (value = {}) => {
+    const source = asObject(value);
+    const legacySource = asObject(source["local" + "FeatureFlags"]);
     return {
-      enableAI: settings?.enableAI !== false,
-      preferLocal,
-      useLocalFallback,
-      activeProvider,
-      providerModels,
-      embeddingModelId,
-      localModelId: localModelId || "smollm2_1_7b",
-      localFeatureFlags,
-      legacyAutoRewriteOnSave,
+      polish: source.polish !== false && legacySource.polish !== false,
+      autoTags: source.autoTags !== false && legacySource.autoTags !== false,
+      improvePrompt:
+        source.improvePrompt !== false && legacySource.improvePrompt !== false,
+      continueSummary:
+        source.continueSummary !== false &&
+        legacySource.continueSummary !== false,
     };
-  } catch (_error) {
-    return {
-      enableAI: true,
-      preferLocal: false,
-      useLocalFallback: true,
-      activeProvider: AI_BACKEND_GEMINI,
-      providerModels: normalizeProviderModels({}),
-      embeddingModelId: EMBEDDING_META_FALLBACK.activeModelId,
-      localModelId: "smollm2_1_7b",
-      localFeatureFlags: {
-        polish: true,
-        autoTags: true,
-        improvePrompt: true,
-        continueSummary: true,
-        smartExportTitle: false,
-      },
-      legacyAutoRewriteOnSave: false,
-    };
-  }
-};
-
-const clearLocalIdleReleaseTimer = () => {
-  if (!localIdleReleaseTimer) return;
-  clearTimeout(localIdleReleaseTimer);
-  localIdleReleaseTimer = null;
-};
-
-const scheduleLocalIdleRelease = () => {
-  clearLocalIdleReleaseTimer();
-  localIdleReleaseTimer = setTimeout(() => {
-    void (async () => {
-      try {
-        const settings = await getOffscreenSettingsPayload();
-        await chrome.runtime.sendMessage({
-          target: OFFSCREEN_LOCAL_TARGET,
-          type: "AI_LOCAL_MODEL_RELEASE_IDLE",
-          settings,
-          payload: { modelId: LOCAL_MODEL.modelId },
-        });
-      } catch (_error) {
-        // ignore relay failure
-      }
-
-      try {
-        await chrome.offscreen?.closeDocument?.();
-      } catch (_error) {
-        // ignore if already closed
-      }
-
-      offscreenLocalReady = false;
-      if (LOCAL_MODEL.status === "ready" || LOCAL_MODEL.status === "loading") {
-        LOCAL_MODEL.status = "cached";
-      }
-      LOCAL_MODEL.progress = LOCAL_MODEL.status === "not_downloaded" ? 0 : 100;
-      broadcast({
-        type: "AI_LOCAL_MODEL_STATUS",
-        modelId: LOCAL_MODEL.modelId,
-        status: LOCAL_MODEL.status,
-        backend: LOCAL_MODEL.backend,
-        progress: LOCAL_MODEL.progress,
-        error: LOCAL_MODEL.error || "",
-        cpuMode: LOCAL_MODEL.cpuMode,
-      });
-    })();
-  }, LOCAL_IDLE_RELEASE_MS);
-};
-
-const updateLocalStatusFromEvent = (message = {}) => {
-  const status = String(message?.status || "")
-    .trim()
-    .toLowerCase();
-  const backend = String(message?.backend || "")
-    .trim()
-    .toLowerCase();
-  const modelId = String(message?.modelId || "")
-    .trim()
-    .toLowerCase();
-  const progressRaw = Number(message?.progress);
-  const progress = Number.isFinite(progressRaw)
-    ? Math.max(0, Math.min(100, Math.round(progressRaw)))
-    : null;
-  const error = String(message?.error || "").trim();
-  const cpuMode = Boolean(message?.cpuMode) || backend === "wasm";
-
-  if (status) LOCAL_MODEL.status = status;
-  if (backend) LOCAL_MODEL.backend = backend;
-  if (modelId) LOCAL_MODEL.modelId = modelId;
-  if (Number.isFinite(progress)) LOCAL_MODEL.progress = progress;
-  if (Object.prototype.hasOwnProperty.call(message || {}, "error")) {
-    LOCAL_MODEL.error = error;
-  } else if (status && status !== "error") {
-    LOCAL_MODEL.error = "";
-  }
-  LOCAL_MODEL.cpuMode = cpuMode;
-
-  if (
-    status === "ready" ||
-    status === "loading" ||
-    status === "cached" ||
-    status === "downloading"
-  ) {
-    scheduleLocalIdleRelease();
-  }
-
-  const payload = {
-    modelId: LOCAL_MODEL.modelId,
-    modelLabel: LOCAL_MODEL_LABELS[LOCAL_MODEL.modelId] || LOCAL_MODEL.modelId,
-    status: LOCAL_MODEL.status,
-    progress: LOCAL_MODEL.progress,
-    backend: LOCAL_MODEL.backend,
-    error: LOCAL_MODEL.error || "",
-    cpuMode: LOCAL_MODEL.cpuMode,
   };
 
-  broadcast({
-    type: "AI_LOCAL_MODEL_STATUS",
-    ...payload,
-  });
-  broadcast({
-    type: "AI_LOCAL_STATUS_BROADCAST",
-    ...payload,
-  });
-};
-
-const ensureOffscreenLocalHost = async () => {
-  if (offscreenLocalReady) {
-    return true;
-  }
-
-  if (offscreenLocalInitPromise) {
-    return offscreenLocalInitPromise;
-  }
-
-  offscreenLocalInitPromise = (async () => {
-    if (!chrome.offscreen?.createDocument || !chrome.runtime?.getContexts) {
-      throw new Error("Offscreen API unavailable for local model host.");
-    }
-
-    const absoluteUrl = chrome.runtime.getURL(OFFSCREEN_LOCAL_URL);
-    const existing = await chrome.runtime.getContexts({
-      contextTypes: ["OFFSCREEN_DOCUMENT"],
-      documentUrls: [absoluteUrl],
-    });
-
-    if (!existing.length) {
-      try {
-        await chrome.offscreen.createDocument({
-          url: OFFSCREEN_LOCAL_URL,
-          reasons: ["WORKERS"],
-          justification:
-            "Run local model inference in a Web Worker without blocking UI.",
-        });
-      } catch (_error) {
-        await chrome.offscreen.createDocument({
-          url: OFFSCREEN_LOCAL_URL,
-          reasons: ["DOM_PARSER"],
-          justification:
-            "Run local model inference in a Web Worker without blocking UI.",
-        });
-      }
-    }
-
-    offscreenLocalReady = true;
-    return true;
-  })();
-
-  try {
-    return await offscreenLocalInitPromise;
-  } finally {
-    offscreenLocalInitPromise = null;
-  }
-};
-
-/**
- * Returns true when an error was caused by the Chrome message channel being torn
- * down before the offscreen document could call sendResponse.  This happens when
- * the MV3 service worker is suspended by Chrome mid-await during long-running
- * tasks (e.g. the first-run embedding-model download).  The offscreen document
- * is still running and the operation will often complete — the SW just loses the
- * response handle.
- */
-const isMessageChannelClosedError = (err) =>
-  String(err?.message || "")
-    .toLowerCase()
-    .includes("message channel closed");
-
-const getOffscreenSettingsPayload = async () => {
-  const runtime = await getAiRuntimeSettings();
-  return {
-    localModelId: String(runtime?.localModelId || "smollm2_1_7b")
-      .trim()
-      .toLowerCase(),
-    embeddingModelId: String(
-      runtime?.embeddingModelId || EMBEDDING_META_FALLBACK.activeModelId,
-    ).trim(),
-    preferLocal: Boolean(runtime?.preferLocal),
+  const normalizeFabPosition = (value = "") => {
+    const raw = String(value || "").trim().toLowerCase();
+    return raw === "left" || raw === "bottom-left"
+      ? "bottom-left"
+      : "bottom-right";
   };
-};
 
-const runLocalTaskViaOffscreen = async (
-  type,
-  task = "",
-  payload = {},
-  timeoutMs = LOCAL_MODEL_TASK_TIMEOUT_MS,
-) => {
-  await ensureOffscreenLocalHost();
-  const settings = await getOffscreenSettingsPayload();
+  const normalizeFabButtons = (value = {}) => {
+    const source = asObject(value);
+    const legacy = asObject(source.fabActions);
+    return {
+      savePrompt: source.savePrompt !== false && legacy.savePrompt !== false,
+      exportChat: source.exportChat !== false && legacy.exportChat !== false,
+      continueChat:
+        source.continueChat !== false && legacy.continueChat !== false,
+      library:
+        source.library !== false && legacy.promptLibrary !== false,
+    };
+  };
 
-  const requestPromise = chrome.runtime
-    .sendMessage({
-      target: OFFSCREEN_LOCAL_TARGET,
-      type,
-      task,
-      settings,
-      payload,
-    })
-    .catch((err) => {
-      // Annotate channel-closed errors so callers can distinguish them from real failures.
-      if (isMessageChannelClosedError(err)) {
-        const annotated = new Error(err.message);
-        annotated.isChannelClosed = true;
-        throw annotated;
-      }
-      throw err;
-    });
+  const normalizeVisibleTabs = (value = {}) => {
+    const source = asObject(value);
+    return {
+      prompts: source.prompts !== false,
+      export: source.export !== false,
+      history: source.history !== false,
+      tags: source.tags !== false,
+    };
+  };
 
-  const timeoutPromise = new Promise((_, reject) => {
-    setTimeout(
-      () => reject(new Error("Local model request timed out.")),
-      timeoutMs,
-    );
-  });
+  const normalizeRuntimeSettings = (value = {}) => {
+    const source = asObject(value);
+    const legacyBackend = String(source.aiBackend || "").trim().toLowerCase();
+    const requestedProvider =
+      legacyBackend && legacyBackend !== "local"
+        ? legacyBackend
+        : source.activeProvider;
 
-  const response = await Promise.race([requestPromise, timeoutPromise]);
-  if (!response?.ok) {
-    throw new Error(String(response?.error || "Local model request failed."));
-  }
-  return response?.result || {};
-};
+    return {
+      ...DEFAULT_RUNTIME_SETTINGS,
+      activeProvider: normalizeProviderId(requestedProvider),
+      providerModels: normalizeProviderModels(source.providerModels || {}),
+      embeddingModelId: String(
+        getEmbeddingModelById(source.embeddingModelId)?.id ||
+          DEFAULT_RUNTIME_SETTINGS.embeddingModelId,
+      ),
+      featureFlags: normalizeFeatureFlags(source.featureFlags || source),
+      fabPosition: normalizeFabPosition(source.fabPosition),
+      fabStyle:
+        String(source.fabStyle || DEFAULT_RUNTIME_SETTINGS.fabStyle)
+          .trim()
+          .toLowerCase() || DEFAULT_RUNTIME_SETTINGS.fabStyle,
+      fabButtons: normalizeFabButtons(source.fabButtons || source),
+      visibleTabs: normalizeVisibleTabs(source.visibleTabs),
+      cardDensity:
+        String(
+          source.cardDensity ||
+            source.promptCardDensity ||
+            DEFAULT_RUNTIME_SETTINGS.cardDensity,
+        )
+          .trim()
+          .toLowerCase() === "compact"
+          ? "compact"
+          : "comfortable",
+      defaultExportFormat:
+        String(
+          source.defaultExportFormat ||
+            DEFAULT_RUNTIME_SETTINGS.defaultExportFormat,
+        )
+          .trim()
+          .toLowerCase() || DEFAULT_RUNTIME_SETTINGS.defaultExportFormat,
+      autoSaveHistory:
+        source.autoSaveHistory ?? source.autoSaveExportsToHistory ?? true,
+      settingsMigratedV2: source.settingsMigratedV2 === true,
+      onboardingComplete: source.onboardingComplete === true,
+    };
+  };
 
-const runLocalWorkerTask = async (
-  type,
-  task = "",
-  payload = {},
-  timeoutMs = LOCAL_MODEL_TASK_TIMEOUT_MS,
-) => {
-  LOCAL_MODEL.modelId = String(
-    payload?.modelId || LOCAL_MODEL.modelId || "smollm2_1_7b",
-  ).toLowerCase();
-  scheduleLocalIdleRelease();
-  return runLocalTaskViaOffscreen(type, task, payload, timeoutMs);
-};
-
-const initLocalModel = async () => {
-  try {
-    const runtime = await getAiRuntimeSettings();
-    const modelId = String(
-      runtime?.localModelId || LOCAL_MODEL.modelId || "smollm2_1_7b",
-    ).toLowerCase();
-    LOCAL_MODEL.modelId = modelId;
-    const result = await runLocalWorkerTask(
-      "AI_LOCAL_MODEL_INIT",
-      "",
-      { modelId },
-      180000,
-    );
-    LOCAL_MODEL.status = String(result?.status || "ready");
-    if (result?.backend) {
-      LOCAL_MODEL.backend = String(result.backend);
-    }
-    LOCAL_MODEL.cpuMode =
-      Boolean(result?.cpuMode) || LOCAL_MODEL.backend === "wasm";
-    LOCAL_MODEL.progress = LOCAL_MODEL.status === "not_downloaded" ? 0 : 100;
-    scheduleLocalIdleRelease();
-    return { ok: true, ...result };
-  } catch (error) {
-    LOCAL_MODEL.status = "error";
-    LOCAL_MODEL.error = String(
-      error?.message || "Local model initialization failed.",
-    );
-    return { ok: false, error: LOCAL_MODEL.error };
-  }
-};
-
-const runLocalTextTask = async (task, payload) => {
-  const runtime = await getAiRuntimeSettings();
-  const modelId = String(
-    runtime?.localModelId || LOCAL_MODEL.modelId || "smollm2_1_7b",
-  ).toLowerCase();
-  LOCAL_MODEL.modelId = modelId;
-
-  if (LOCAL_MODEL.status === "not_downloaded") {
-    const cacheSnapshot = await chrome.storage.local
-      .get(["localModelCacheIndex"])
-      .catch(() => ({}));
-    const index =
-      cacheSnapshot?.localModelCacheIndex &&
-      typeof cacheSnapshot.localModelCacheIndex === "object"
-        ? cacheSnapshot.localModelCacheIndex
-        : {};
-    const entry = index?.[modelId] || {};
-    const hasCachedArtifacts =
-      (Array.isArray(entry?.urlPatterns) && entry.urlPatterns.length > 0) ||
-      (Array.isArray(entry?.cacheNames) && entry.cacheNames.length > 0);
-    if (!hasCachedArtifacts) {
-      throw new Error(
-        "Local model not downloaded. Download it in Settings first.",
+  const persistRuntimeSettings = async (settings) => {
+    try {
+      await chrome.storage.local.set({ [BRAND_KEYS.settingsKey]: settings });
+    } catch (error) {
+      console.warn(
+        "[Promptium][ServiceWorker] Failed to persist settings.",
+        error,
       );
     }
-    LOCAL_MODEL.status = "cached";
-    LOCAL_MODEL.progress = 100;
-  }
+  };
 
-  const init = await initLocalModel();
-  if (!init.ok) {
-    throw new Error(init.error || "Local model unavailable.");
-  }
-  const result = await runLocalWorkerTask(
-    "RUN_LOCAL_TASK",
-    task,
-    { ...(payload || {}), modelId },
-    LOCAL_MODEL_TASK_TIMEOUT_MS,
-  );
-  scheduleLocalIdleRelease();
-  return result;
-};
-
-const getLocalStatusPayload = () => ({
-  modelId: LOCAL_MODEL.modelId,
-  modelLabel: LOCAL_MODEL_LABELS[LOCAL_MODEL.modelId] || LOCAL_MODEL.modelId,
-  status: LOCAL_MODEL.status,
-  progress: LOCAL_MODEL.progress,
-  backend: LOCAL_MODEL.backend,
-  error: LOCAL_MODEL.error || "",
-  cpuMode: LOCAL_MODEL.cpuMode,
-});
-
-const downloadLocalModel = async (modelId = "") => {
-  const resolved = String(modelId || LOCAL_MODEL.modelId || "smollm2_1_7b")
-    .trim()
-    .toLowerCase();
-  LOCAL_MODEL.modelId = resolved || "smollm2_1_7b";
-  const result = await runLocalWorkerTask(
-    "AI_LOCAL_MODEL_DOWNLOAD",
-    "",
-    { modelId: LOCAL_MODEL.modelId },
-    240000,
-  );
-  updateLocalStatusFromEvent(result || {});
-  scheduleLocalIdleRelease();
-  return { ok: true, ...getLocalStatusPayload() };
-};
-
-const cancelLocalModelDownload = async (modelId = "") => {
-  const resolved = String(modelId || LOCAL_MODEL.modelId || "smollm2_1_7b")
-    .trim()
-    .toLowerCase();
-  LOCAL_MODEL.modelId = resolved || "smollm2_1_7b";
-  const result = await runLocalWorkerTask(
-    "AI_LOCAL_MODEL_CANCEL_DOWNLOAD",
-    "",
-    { modelId: LOCAL_MODEL.modelId },
-    45000,
-  );
-  updateLocalStatusFromEvent(result || {});
-  scheduleLocalIdleRelease();
-  return { ok: true, ...getLocalStatusPayload() };
-};
-
-const clearLocalModelCache = async (modelId = "") => {
-  const resolved = String(modelId || LOCAL_MODEL.modelId || "smollm2_1_7b")
-    .trim()
-    .toLowerCase();
-  LOCAL_MODEL.modelId = resolved || "smollm2_1_7b";
   try {
-    const result = await runLocalWorkerTask(
-      "AI_LOCAL_MODEL_REMOVE_CACHE",
-      "",
-      { modelId: LOCAL_MODEL.modelId },
-      120000,
-    );
-    updateLocalStatusFromEvent(result || {});
-    scheduleLocalIdleRelease();
-    return {
-      ok: Boolean(result?.ok),
-      deletedRequests: Number(result?.deletedRequests || 0),
-      error: String(result?.error || "").trim() || undefined,
-      ...getLocalStatusPayload(),
-    };
+    const snapshot = await chrome.storage.local.get([BRAND_KEYS.settingsKey]);
+    const rawSettings = asObject(snapshot?.[BRAND_KEYS.settingsKey]);
+    const normalized = normalizeRuntimeSettings(rawSettings);
+    if (!normalized.settingsMigratedV2) {
+      const migrated = {
+        ...normalized,
+        settingsMigratedV2: true,
+      };
+      await persistRuntimeSettings(migrated);
+      return migrated;
+    }
+    return normalized;
   } catch (error) {
-    LOCAL_MODEL.status = "error";
-    LOCAL_MODEL.error = String(
-      error?.message || "Failed to clear cached model data.",
+    console.warn(
+      "[Promptium][ServiceWorker] Failed to read settings. Using defaults.",
+      error,
     );
-    broadcast({
-      type: "AI_LOCAL_STATUS_BROADCAST",
-      ...getLocalStatusPayload(),
-    });
     return {
-      ok: false,
-      deletedRequests: 0,
-      error: LOCAL_MODEL.error,
-      ...getLocalStatusPayload(),
+      ...DEFAULT_RUNTIME_SETTINGS,
+      settingsMigratedV2: true,
     };
   }
+};
+
+const getProviderApiKey = async (providerId = PROVIDER_IDS.GEMINI) => {
+  const sessionKey = String((await getProviderKey(providerId)) || "").trim();
+  if (sessionKey) {
+    return sessionKey;
+  }
+
+  const storageKey = getProviderKeyStorageKey(providerId);
+  if (!storageKey) {
+    return "";
+  }
+
+  const localSnapshot = await chrome.storage.local
+    .get([storageKey])
+    .catch((error) => {
+      console.warn(
+        "[Promptium][ServiceWorker] Failed to read legacy provider key.",
+        providerId,
+        error,
+      );
+      return {};
+    });
+  const localKey = String(localSnapshot?.[storageKey] || "").trim();
+  if (!localKey) {
+    return "";
+  }
+
+  await chrome.storage.session.set({ [storageKey]: localKey }).catch((error) => {
+    console.warn(
+      "[Promptium][ServiceWorker] Failed to move provider key to session storage.",
+      providerId,
+      error,
+    );
+  });
+  await chrome.storage.local.remove([storageKey]).catch((error) => {
+    console.warn(
+      "[Promptium][ServiceWorker] Failed to clear legacy provider key.",
+      providerId,
+      error,
+    );
+  });
+  return localKey;
 };
 
 const runWithConfiguredBackend = async ({
   feature = "",
   cloudTask,
-  geminiTask,
-  localTask,
   forceProvider = "",
   forceGemini = false,
   geminiApiKey = "",
@@ -834,107 +544,48 @@ const runWithConfiguredBackend = async ({
   noGeminiMessage = "Gemini API key is not configured.",
 }) => {
   const runtime = await getAiRuntimeSettings();
-  const providerModels = normalizeProviderModels(runtime.providerModels || {});
-  const resolvedForceProvider =
-    forceProvider || (forceGemini ? PROVIDER_IDS.GEMINI : "");
-  const cloudTasks = {};
+  const explicitProvider = normalizeProviderId(
+    forceGemini ? PROVIDER_IDS.GEMINI : forceProvider,
+  );
+  const providerKeys = {};
 
   for (const providerId of ALL_PROVIDER_IDS) {
-    const explicit = providerId === PROVIDER_IDS.GEMINI ? geminiApiKey : "";
-    const apiKey = explicit || (await getProviderApiKey(providerId));
-    if (!apiKey) continue;
-
-    const modelId = String(
-      providerModels?.[providerId] ||
-        getProviderDefaultModel(providerId)?.id ||
-        "",
-    ).trim();
-    if (!modelId) continue;
-
-    if (typeof cloudTask === "function") {
-      cloudTasks[providerId] = async () => {
-        const cloudResult = await cloudTask({
-          providerId,
-          apiKey,
-          modelId,
-          runtime,
-        });
-        return { ok: true, ...(cloudResult || {}) };
-      };
-      continue;
-    }
-
-    if (
-      providerId === PROVIDER_IDS.GEMINI &&
-      typeof geminiTask === "function"
-    ) {
-      cloudTasks[providerId] = async () => {
-        const geminiResult = await geminiTask(apiKey);
-        return { ok: true, ...(geminiResult || {}) };
-      };
-    }
+    providerKeys[providerId] =
+      providerId === PROVIDER_IDS.GEMINI && geminiApiKey
+        ? String(geminiApiKey).trim()
+        : await getProviderApiKey(providerId);
   }
 
   const routed = await routeAIRequest({
     feature,
     settings: runtime,
-    cloudTasks,
-    activeProvider: runtime.activeProvider,
-    forceProvider: resolvedForceProvider,
-    hasGeminiKey: Boolean(cloudTasks[PROVIDER_IDS.GEMINI]),
-    forceGemini: forceGemini || resolvedForceProvider === PROVIDER_IDS.GEMINI,
-    localTask:
-      typeof localTask === "function"
-        ? async () => {
-            const localResult = await localTask();
-            return {
-              ok: true,
-              ...localResult,
-            };
-          }
-        : null,
-    geminiTask: null,
+    forceProvider: forceProvider || (forceGemini ? PROVIDER_IDS.GEMINI : ""),
+    hasProviderKey: async (providerId) => Boolean(providerKeys[providerId]),
+    task: async ({ providerId, modelId }) => {
+      const apiKey = String(providerKeys[providerId] || "").trim();
+      if (!apiKey || typeof cloudTask !== "function") {
+        return { ok: false, error: "no_provider_available" };
+      }
+      const result = await cloudTask({
+        providerId,
+        apiKey,
+        modelId,
+        runtime,
+      });
+      return { ok: true, ...(result || {}) };
+    },
   });
 
   if (!routed?.ok) {
-    const fallbackMessage = forceGemini ? noGeminiMessage : noCloudMessage;
+    const fallbackMessage =
+      explicitProvider === PROVIDER_IDS.GEMINI && (forceGemini || forceProvider)
+        ? noGeminiMessage
+        : noCloudMessage;
     throw new Error(String(routed?.error || fallbackMessage));
   }
 
-  return {
-    backend:
-      String(routed.backend || "")
-        .trim()
-        .toLowerCase() || (forceGemini ? AI_BACKEND_GEMINI : AI_BACKEND_LOCAL),
-    advisory: String(routed?.advisory || "").trim() || undefined,
-    ...routed,
-  };
+  return routed;
 };
-
-const getProviderApiKey = async (providerId = PROVIDER_IDS.GEMINI) => {
-  const storageKey = getProviderKeyStorageKey(providerId);
-  if (!storageKey) return "";
-
-  const sessionSnapshot = await chrome.storage.session
-    .get([storageKey])
-    .catch(() => ({}));
-  const sessionKey = String(sessionSnapshot?.[storageKey] || "").trim();
-  if (sessionKey) return sessionKey;
-
-  const localSnapshot = await chrome.storage.local
-    .get([storageKey])
-    .catch(() => ({}));
-  const localKey = String(localSnapshot?.[storageKey] || "").trim();
-  if (localKey) {
-    await chrome.storage.session
-      .set({ [storageKey]: localKey })
-      .catch(() => {});
-    await chrome.storage.local.remove([storageKey]).catch(() => {});
-  }
-  return localKey;
-};
-
-const getGeminiApiKey = async () => getProviderApiKey(PROVIDER_IDS.GEMINI);
 
 const mapValidationResultToLegacy = (result = {}) => {
   if (result?.ok) return { ok: true };
@@ -1116,18 +767,29 @@ const isSemanticSearchReady = async () => {
 };
 
 const requestEmbeddingVector = async (modelId = "", text = "") => {
-  const response = await runLocalTaskViaOffscreen(
-    "AI_EMBEDDING_EMBED_TEXT",
-    "",
-    {
-      modelId,
-      text: String(text || ""),
-    },
-    120000,
-  );
-  return Array.isArray(response?.vector)
-    ? response.vector.map((entry) => Number(entry) || 0)
-    : [];
+  const source = String(text || "").trim();
+  if (!source) {
+    return [];
+  }
+
+  const pipeline = await getEmbeddingPipeline(modelId);
+  if (!pipeline) {
+    return [];
+  }
+
+  try {
+    const output = await pipeline(source, {
+      pooling: "mean",
+      normalize: true,
+    });
+    return extractEmbeddingVector(output);
+  } catch (error) {
+    console.warn(
+      "[Promptium][ServiceWorker] Failed to embed text.",
+      error,
+    );
+    return [];
+  }
 };
 
 const rebuildCache = async (modelId = "") => {
@@ -1142,32 +804,49 @@ const rebuildCache = async (modelId = "") => {
     return { ok: true, done: 0, total: 0, modelId: resolvedModelId };
   }
 
-  const texts = prompts.map((prompt) => buildPromptEmbeddingInput(prompt));
-  const batchResult = await runLocalTaskViaOffscreen(
-    "AI_EMBEDDING_BATCH_EMBED",
-    "",
-    {
-      modelId: resolvedModelId,
-      texts,
-      ratePerSecond: 10,
-    },
-    300000,
-  );
-
-  const vectors = Array.isArray(batchResult?.vectors)
-    ? batchResult.vectors
-    : [];
   const byPromptId = {};
-  prompts.forEach((prompt, index) => {
+  const total = prompts.length;
+
+  for (let index = 0; index < prompts.length; index += 1) {
+    const prompt = prompts[index];
     const promptId = String(prompt?.id || "").trim();
-    if (!promptId) return;
-    byPromptId[promptId] = sanitizeVector(vectors[index]);
-  });
+    if (!promptId) {
+      continue;
+    }
+    byPromptId[promptId] = sanitizeVector(
+      await requestEmbeddingVector(
+        resolvedModelId,
+        buildPromptEmbeddingInput(prompt),
+      ),
+    );
+    const progress = Math.round(((index + 1) / total) * 100);
+    await writeEmbeddingReindexState({
+      running: true,
+      done: index + 1,
+      total,
+      progress,
+      modelId: resolvedModelId,
+      error: "",
+      startedAt: Date.now(),
+      completedAt: 0,
+    });
+    broadcast({
+      type: "AI_EMBEDDING_REINDEX_PROGRESS",
+      running: true,
+      done: index + 1,
+      total,
+      progress,
+      modelId: resolvedModelId,
+      error: "",
+      startedAt: Date.now(),
+      completedAt: 0,
+    });
+  }
   await writeEmbeddingCache({ modelId: resolvedModelId, vectors: byPromptId });
   return {
     ok: true,
-    done: prompts.length,
-    total: prompts.length,
+    done: total,
+    total,
     modelId: resolvedModelId,
   };
 };
@@ -1268,53 +947,166 @@ const updateSearchModeFromMeta = async (meta = {}) => {
   }
 };
 
-const updateEmbeddingMetaFromWorkerEvent = async (message = {}) => {
-  const modelId = String(message?.modelId || "").trim();
+const extractEmbeddingVector = (output) => {
+  if (Array.isArray(output)) {
+    return sanitizeVector(output.flat(Infinity));
+  }
+  if (output?.data) {
+    return sanitizeVector(Array.from(output.data));
+  }
+  if (typeof output?.tolist === "function") {
+    return sanitizeVector(output.tolist().flat(Infinity));
+  }
+  return [];
+};
+
+const broadcastEmbeddingStatus = async (
+  status = _embeddingStatus,
+  progress = _embeddingProgress,
+  modelId = "",
+) => {
   const current = await readEmbeddingMeta();
+  const selected = getEmbeddingModelById(modelId || current.activeModelId);
+  const targetModelId = String(
+    selected?.id || current.activeModelId || EMBEDDING_META_FALLBACK.activeModelId,
+  );
   const downloaded = new Set(current.downloadedModelIds || []);
-  const status = String(message?.status || current.status || "")
-    .trim()
-    .toLowerCase();
-  if (
-    ["cached", "ready", "loading", "downloading"].includes(status) &&
-    modelId
-  ) {
-    downloaded.add(modelId);
+  if (status === "ready") {
+    downloaded.add(targetModelId);
   }
   const next = await writeEmbeddingMeta({
     ...current,
-    activeModelId: String(
-      message?.activeModelId ||
-        current.activeModelId ||
-        modelId ||
-        current.activeModelId,
-    ),
-    status: status || current.status,
-    progress: Number.isFinite(Number(message?.progress))
-      ? Number(message.progress)
-      : current.progress,
-    backend: String(message?.backend || current.backend || "webgpu"),
-    error: String(message?.error || "").trim(),
+    activeModelId: targetModelId,
+    status,
+    progress,
+    backend: "service_worker",
+    error: _embeddingError,
     downloadedModelIds: Array.from(downloaded),
-    searchMode: current.searchMode,
+    searchMode: status === "ready" ? current.searchMode : "keyword",
   });
   await updateSearchModeFromMeta(next);
+  broadcast({
+    type: "AI_EMBEDDING_STATUS",
+    ...next,
+    modelId: targetModelId,
+    activeModelId: next.activeModelId,
+  });
   return next;
 };
 
-const downloadEmbeddingModel = async (
-  modelId = "",
-  { silent = false } = {},
-) => {
+const getEmbeddingPipeline = async (modelId = "") => {
+  const selected = getEmbeddingModelById(modelId) || getDefaultEmbeddingModel();
+  const targetModelId = String(
+    selected?.id || EMBEDDING_META_FALLBACK.activeModelId,
+  );
+
+  if (_embeddingPipeline && (await readEmbeddingMeta()).activeModelId === targetModelId) {
+    return _embeddingPipeline;
+  }
+  if (_embeddingPipelinePromise) {
+    return _embeddingPipelinePromise;
+  }
+
+  _embeddingPipelinePromise = (async () => {
+    _embeddingStatus = "downloading";
+    _embeddingProgress = 0;
+    _embeddingError = "";
+    await broadcastEmbeddingStatus("downloading", 0, targetModelId);
+
+    try {
+      const { pipeline, env } = await import("../libs/transformers.min.js");
+      env.allowLocalModels = false;
+      env.useBrowserCache = true;
+      env.allowRemoteModels = true;
+
+      _embeddingPipeline = await pipeline(
+        "feature-extraction",
+        selected.modelId,
+        {
+          quantized: true,
+          progress_callback: (event) => {
+            if (event?.status === "downloading" && Number(event?.total) > 0) {
+              _embeddingProgress = Math.max(
+                0,
+                Math.min(
+                  100,
+                  Math.round((Number(event.loaded || 0) / Number(event.total)) * 100),
+                ),
+              );
+              void broadcastEmbeddingStatus(
+                "downloading",
+                _embeddingProgress,
+                targetModelId,
+              );
+            }
+          },
+        },
+      );
+      _embeddingStatus = "ready";
+      _embeddingProgress = 100;
+      await broadcastEmbeddingStatus("ready", 100, targetModelId);
+      return _embeddingPipeline;
+    } catch (error) {
+      _embeddingPipeline = null;
+      _embeddingStatus = "error";
+      _embeddingProgress = 0;
+      _embeddingError = String(
+        error?.message || "Failed to load embedding model.",
+      );
+      await broadcastEmbeddingStatus("error", 0, targetModelId);
+      console.warn(
+        "[Promptium][ServiceWorker] Embedding pipeline failed.",
+        error,
+      );
+      return null;
+    } finally {
+      _embeddingPipelinePromise = null;
+    }
+  })();
+
+  return _embeddingPipelinePromise;
+};
+
+const clearEmbeddingModelCaches = async (modelId = "") => {
+  const selected = getEmbeddingModelById(modelId);
+  if (!selected || typeof caches === "undefined") {
+    return;
+  }
+
+  const patterns = [
+    encodeURIComponent(String(selected.modelId || "")),
+    String(selected.modelId || ""),
+    String(selected.id || ""),
+  ].filter(Boolean);
+  const cacheNames = await caches.keys();
+
+  for (const cacheName of cacheNames) {
+    const cache = await caches.open(cacheName);
+    const requests = await cache.keys();
+    let removed = false;
+    for (const request of requests) {
+      const url = String(request?.url || "");
+      if (!patterns.some((pattern) => url.includes(pattern))) {
+        continue;
+      }
+      await cache.delete(request);
+      removed = true;
+    }
+    if (removed && !(await cache.keys()).length) {
+      await caches.delete(cacheName);
+    }
+  }
+};
+
+const downloadEmbeddingModel = async (modelId = "", { silent = false } = {}) => {
   const selected = getEmbeddingModelById(modelId) || getDefaultEmbeddingModel();
   const targetModelId = String(
     selected?.id || EMBEDDING_META_FALLBACK.activeModelId,
   );
   const current = await readEmbeddingMeta();
-  const downloaded = new Set(current.downloadedModelIds || []);
   if (
-    downloaded.has(targetModelId) &&
-    ["cached", "ready", "loading"].includes(current.status)
+    current.activeModelId === targetModelId &&
+    ["ready", "downloading"].includes(current.status)
   ) {
     return {
       ok: true,
@@ -1324,39 +1116,19 @@ const downloadEmbeddingModel = async (
     };
   }
 
-  const pending = await writeEmbeddingMeta({
-    ...current,
-    status: "downloading",
-    progress: 0,
-    error: "",
-    activeModelId: current.activeModelId || targetModelId,
-    downloadedModelIds: Array.from(downloaded),
-  });
-  if (!silent) {
-    broadcast({
-      type: "AI_EMBEDDING_STATUS",
-      ...pending,
-      modelId: targetModelId,
-      activeModelId: pending.activeModelId,
-    });
+  _embeddingPipeline = null;
+  _embeddingPipelinePromise = null;
+  const pipeline = await getEmbeddingPipeline(targetModelId);
+  if (!pipeline) {
+    return {
+      ok: false,
+      error: _embeddingError || "Download failed.",
+      ...(await getEmbeddingStatusPayload()),
+    };
   }
 
-  const result = await runLocalTaskViaOffscreen(
-    "AI_EMBEDDING_DOWNLOAD",
-    "",
-    { modelId: targetModelId },
-    300000,
-  );
-  const finalized = await updateEmbeddingMetaFromWorkerEvent({
-    modelId: targetModelId,
-    activeModelId: pending.activeModelId,
-    status: String(result?.status || "cached"),
-    progress: Number(result?.progress || 100),
-    backend: String(result?.backend || pending.backend || "webgpu"),
-    error: "",
-  });
-
-  return { ok: true, ...finalized, modelId: targetModelId };
+  const meta = await readEmbeddingMeta();
+  return { ok: true, ...meta, modelId: targetModelId };
 };
 
 const runEmbeddingReindex = async (modelId = "") => {
@@ -1468,12 +1240,12 @@ const switchEmbeddingModel = async (modelId = "") => {
   }
 
   if (previousModelId && previousModelId !== targetModelId) {
-    await runLocalTaskViaOffscreen(
-      "AI_EMBEDDING_REMOVE_CACHE",
-      "",
-      { modelId: previousModelId },
-      180000,
-    ).catch(() => null);
+    await clearEmbeddingModelCaches(previousModelId).catch((error) => {
+      console.warn(
+        "[Promptium][ServiceWorker] Failed to clear old embedding cache.",
+        error,
+      );
+    });
     const meta = await readEmbeddingMeta();
     const nextDownloaded = (meta.downloadedModelIds || []).filter(
       (entry) => entry !== previousModelId,
@@ -1568,14 +1340,17 @@ const callProviderTextTask = async ({
   systemPrompt = "",
   userPrompt = "",
 } = {}) => {
-  const text = await callProvider({
-    providerId,
-    modelId,
-    apiKey,
-    systemPrompt: String(systemPrompt || "").trim(),
-    prompt: String(userPrompt || "").trim(),
-    extensionId: chrome.runtime?.id || "",
-  });
+  const text = await callProvider(
+    String(systemPrompt || "").trim(),
+    String(userPrompt || "").trim(),
+    {
+      providerId,
+      apiKey,
+      providerModels: {
+        [normalizeProviderId(providerId)]: String(modelId || "").trim(),
+      },
+    },
+  );
   return String(text || "").trim();
 };
 
@@ -1621,7 +1396,6 @@ async function suggestTags(promptText) {
           modelId,
           promptText: source,
         }),
-      localTask: () => runLocalTextTask("tags", { text: source }),
       noCloudMessage: "No cloud API key found in Settings.",
     });
 
@@ -1771,7 +1545,6 @@ async function getSmartSuggestions(conversationText) {
           systemPrompt,
           userPrompt: userMessage,
         }).then((text) => ({ text })),
-      localTask: null,
       noCloudMessage: "No cloud API key found in Settings.",
     });
 
@@ -1929,52 +1702,12 @@ async function buildContinuationHandoffViaCloud(
   }
 }
 
-async function buildContinuationHandoffViaLocal(
-  messages,
-  mode = "FULL_SUMMARY",
-  userNote = "",
-) {
-  const safeMessages = Array.isArray(messages) ? messages : [];
-  if (!safeMessages.length) {
-    return { ok: false, error: "No messages to summarize." };
-  }
-
-  try {
-    const result = await runLocalTextTask("continue_summary", {
-      messages: safeMessages,
-      mode,
-      userNote,
-    });
-    const text = limitWords(
-      String(result?.text || "").trim(),
-      CONTINUATION_WORD_LIMIT,
-    );
-    if (!text) {
-      return {
-        ok: false,
-        error: "Local model returned empty continuation context.",
-      };
-    }
-    return {
-      ok: true,
-      text,
-      backend: AI_BACKEND_LOCAL,
-      advisory: result?.cpuMode ? "Running on CPU — may be slower" : undefined,
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      error: String(error?.message || "Failed to summarize locally."),
-    };
-  }
-}
-
 async function buildContinuationHandoff(
   messages,
   mode = "FULL_SUMMARY",
   userNote = "",
   explicitKey = "",
-  forceLocal = false,
+  _forceLocal = false,
 ) {
   const safeMessages = Array.isArray(messages) ? messages : [];
   if (!safeMessages.length) {
@@ -1993,34 +1726,8 @@ async function buildContinuationHandoff(
   const longAdvisory = longConversation
     ? hasActiveKey
       ? `For best results, ${activeLabel} will be used for this long conversation.`
-      : "Long conversations may be lower quality with local AI. Add a cloud API key in Settings for better summaries."
+      : "Long conversations work best with a configured provider key in Settings."
     : "";
-
-  if (forceLocal) {
-    const localResult = await buildContinuationHandoffViaLocal(
-      safeMessages,
-      mode,
-      userNote,
-    );
-    if (!localResult?.ok) {
-      return {
-        ok: false,
-        error: String(
-          localResult?.error ||
-            "Failed to generate continuation handoff locally.",
-        ),
-      };
-    }
-    return {
-      ok: true,
-      text: limitWords(
-        String(localResult?.text || "").trim(),
-        CONTINUATION_WORD_LIMIT,
-      ),
-      backend: AI_BACKEND_LOCAL,
-      advisory: String(localResult?.advisory || "").trim() || undefined,
-    };
-  }
 
   try {
     const result = await runWithConfiguredBackend({
@@ -2033,8 +1740,6 @@ async function buildContinuationHandoff(
           apiKey,
           modelId,
         }),
-      localTask: () =>
-        buildContinuationHandoffViaLocal(safeMessages, mode, userNote),
       noCloudMessage: "No cloud API key found in Settings.",
     });
 
@@ -2044,10 +1749,7 @@ async function buildContinuationHandoff(
         String(result?.text || "").trim(),
         CONTINUATION_WORD_LIMIT,
       ),
-      backend:
-        String(result?.backend || "")
-          .trim()
-          .toLowerCase() || AI_BACKEND_LOCAL,
+      backend: String(result?.backend || "").trim().toLowerCase() || undefined,
       advisory:
         String(result?.advisory || longAdvisory || "").trim() || undefined,
     };
@@ -2138,7 +1840,6 @@ const improvePrompt = async (text, tags = [], style = "general") => {
           tags,
           style,
         }),
-      localTask: () => runLocalTextTask("improve", { text, tags, style }),
       noCloudMessage: "No cloud API key found in Settings.",
     });
     return {
@@ -2163,7 +1864,7 @@ const generatePromptTitle = async (text) => {
 
   try {
     const result = await runWithConfiguredBackend({
-      feature: "smartExportTitle",
+      feature: "",
       cloudTask: ({ providerId, apiKey, modelId }) =>
         generatePromptTitleViaCloudStrict({
           providerId,
@@ -2171,7 +1872,6 @@ const generatePromptTitle = async (text) => {
           modelId,
           text: source,
         }),
-      localTask: () => runLocalTextTask("title", { text: source }),
       noCloudMessage: "No cloud API key found in Settings.",
     });
 
@@ -2208,7 +1908,6 @@ const paraphrasePrompt = async (text) => {
           modelId,
           text: source,
         }),
-      localTask: () => runLocalTextTask("paraphrase", { text: source }),
       noCloudMessage: "No cloud API key found in Settings.",
     });
     const rewritten = String(result?.text || "").trim();
@@ -2249,7 +1948,6 @@ const scorePromptClarity = async (text) => {
           modelId,
           text: source,
         }),
-      localTask: () => runLocalTextTask("clarity", { text: source }),
       noCloudMessage: "No cloud API key found in Settings.",
     });
     return {
@@ -2281,28 +1979,10 @@ const preparePromptForSave = async ({
   const normalizedTags = Array.isArray(tags)
     ? tags.map((tag) => String(tag || "").trim()).filter(Boolean)
     : [];
-
-  if (runtime?.legacyAutoRewriteOnSave === false) {
-    const initialTitle = String(title || "").trim();
-    return {
-      ok: true,
-      prompt: {
-        title: initialTitle || deriveFallbackTitle(originalText),
-        text: originalText,
-        tags: normalizedTags,
-        category: category ? String(category).trim() : null,
-        clarityScore: null,
-        clarityExplanation: "",
-      },
-      backend: {
-        paraphrase: null,
-        title: initialTitle ? "provided" : "fallback",
-        clarity: null,
-      },
-    };
-  }
-
-  const paraphrased = await paraphrasePrompt(originalText);
+  const shouldPolish = runtime?.featureFlags?.polish !== false;
+  const paraphrased = shouldPolish
+    ? await paraphrasePrompt(originalText)
+    : { ok: false, text: originalText, backend: null };
   const finalText =
     clampText(paraphrased?.ok ? paraphrased?.text : originalText, 5200) ||
     originalText;
@@ -2339,27 +2019,48 @@ const preparePromptForSave = async ({
 };
 
 // ─── AI Message Handler ──────────────────────────────────────────────────────
+const handleRoutedTask = async (message = {}) => {
+  const task = String(message?.task || "").trim().toLowerCase();
+  switch (task) {
+    case "paraphrase":
+      return paraphrasePrompt(message?.text || "");
+    case "improve":
+      return improvePrompt(
+        message?.text || "",
+        message?.tags || [],
+        message?.style || "general",
+      );
+    case "title":
+      return generatePromptTitle(message?.text || "");
+    case "clarity":
+      return scorePromptClarity(message?.text || "");
+    case "tags":
+      return suggestTags(message?.text || "");
+    case "continue_summary":
+      return buildContinuationHandoff(
+        message?.messages || [],
+        message?.mode,
+        message?.userNote || "",
+        message?.key || "",
+      );
+    default:
+      return {
+        ok: false,
+        error: `Unsupported routed task: ${task || "unknown"}`,
+      };
+  }
+};
 
 const handleAIMessage = async (message, sendResponse) => {
   try {
     switch (message.type) {
+      // Initialize AI state and kick off non-blocking embedding bootstrap.
       case "AI_INIT":
         if (AI.status === "idle") {
           AI.status = "ready";
           broadcast({ type: "AI_STATUS", status: "ready" });
         }
-
-        // Force model installation check on init UI layer if it hasn't bootstrapped
-        void (async () => {
-          const metaCheck = await readEmbeddingMeta();
-          if (
-            !metaCheck.downloadedModelIds?.length ||
-            metaCheck.status === "error"
-          ) {
-            await bootstrapEmbeddingOnInstall();
-          }
-        })();
-
+        void bootstrapEmbeddingOnInstall();
         await updateSearchModeFromMeta(await readEmbeddingMeta());
         sendResponse({
           status: AI.status,
@@ -2367,222 +2068,154 @@ const handleAIMessage = async (message, sendResponse) => {
         });
         return true;
 
-      case "AI_SEARCH":
-        {
-          const semantic = await semanticSearch(message.query);
-          const mode = semantic ? "semantic" : "keyword";
-          sendResponse({ results: semantic, mode });
-        }
+      // Run semantic search when vectors are available.
+      case "AI_SEARCH": {
+        const semantic = await semanticSearch(message.query);
+        sendResponse({ results: semantic, mode: semantic ? "semantic" : "keyword" });
         return true;
+      }
 
-      case "AI_PROVIDER_VALIDATE_KEY":
-        {
-          const providerId = normalizeProviderId(
-            message?.providerId || PROVIDER_IDS.GEMINI,
-          );
-          const key = String(message?.key || "").trim();
-          const modelId = String(
-            message?.modelId || getProviderDefaultModel(providerId)?.id || "",
-          ).trim();
-          const validation = await validateProviderKey({
+      // Validate a provider key against the selected provider/model pair.
+      case "AI_PROVIDER_VALIDATE_KEY": {
+        const providerId = normalizeProviderId(
+          message?.providerId || PROVIDER_IDS.GEMINI,
+        );
+        const key = String(message?.key || "").trim();
+        const modelId = String(
+          message?.modelId || getProviderDefaultModel(providerId)?.id || "",
+        ).trim();
+        sendResponse(
+          await validateProviderKey({
             providerId,
             apiKey: key,
             modelId,
-          });
-          sendResponse(validation);
-        }
+          }),
+        );
         return true;
+      }
 
+      // Return the current embedding status payload.
       case "AI_EMBEDDING_STATUS_CHECK":
         sendResponse(await getEmbeddingStatusPayload());
         return true;
 
-      case "AI_EMBEDDING_DOWNLOAD":
-        {
-          const modelId = String(
-            message?.payload?.modelId || message?.modelId || "",
-          ).trim();
-          const result = await downloadEmbeddingModel(modelId);
-          sendResponse(result);
-        }
+      // Download the selected embedding model in the service worker.
+      case "AI_EMBEDDING_DOWNLOAD": {
+        const modelId = String(
+          message?.payload?.modelId || message?.modelId || "",
+        ).trim();
+        sendResponse(await downloadEmbeddingModel(modelId));
         return true;
+      }
 
-      case "AI_EMBEDDING_SWITCH":
-        {
-          const modelId = String(
-            message?.payload?.modelId || message?.modelId || "",
-          ).trim();
-          const result = await switchEmbeddingModel(modelId);
-          sendResponse(result);
-        }
+      // Switch the active embedding model and reindex prompts.
+      case "AI_EMBEDDING_SWITCH": {
+        const modelId = String(
+          message?.payload?.modelId || message?.modelId || "",
+        ).trim();
+        sendResponse(await switchEmbeddingModel(modelId));
         return true;
+      }
 
+      // Return the current embedding reindex job state.
       case "AI_EMBEDDING_REINDEX_STATUS":
         sendResponse(await readEmbeddingReindexState());
         return true;
 
-      case "AI_EMBEDDING_REINDEX_START":
-        {
-          const modelId = String(
-            message?.payload?.modelId || message?.modelId || "",
-          ).trim();
-          const result = await runEmbeddingReindex(
+      // Start a fresh embedding reindex.
+      case "AI_EMBEDDING_REINDEX_START": {
+        const modelId = String(
+          message?.payload?.modelId || message?.modelId || "",
+        ).trim();
+        sendResponse(
+          await runEmbeddingReindex(
             modelId || (await readEmbeddingMeta()).activeModelId,
-          );
-          sendResponse(result);
-        }
+          ),
+        );
         return true;
+      }
 
+      // Suggest tags for a prompt.
       case "AI_SUGGEST_TAGS":
         sendResponse(await suggestTags(message.text));
         return true;
 
+      // Check for duplicate prompts.
       case "AI_CHECK_DUPLICATE":
         sendResponse({
           match: await checkDuplicate(message.text, message.excludeId),
         });
         return true;
 
+      // Suggest relevant saved prompts for the current conversation.
       case "AI_SMART_SUGGESTIONS":
         sendResponse({
           ids: await getSmartSuggestions(message.conversationText),
         });
         return true;
 
+      // Add a prompt embedding to the semantic cache.
       case "AI_CACHE_ADD":
         await addToCache(message.prompt);
         sendResponse({ ok: true });
         return true;
 
+      // Remove a prompt embedding from the semantic cache.
       case "AI_CACHE_REMOVE":
         await removeFromCache(message.promptId);
         sendResponse({ ok: true });
         return true;
 
+      // Improve prompt text via provider fallback.
       case "AI_IMPROVE_PROMPT":
-        improvePrompt(message.text, message.tags, message.style).then(
-          (result) => sendResponse(result),
+        sendResponse(
+          await improvePrompt(message.text, message.tags, message.style),
         );
         return true;
 
+      // Generate a concise prompt title.
       case "AI_GENERATE_PROMPT_TITLE":
-        generatePromptTitle(message.text).then((result) =>
-          sendResponse(result),
-        );
+        sendResponse(await generatePromptTitle(message.text));
         return true;
 
+      // Polish prompt text before save.
       case "AI_PARAPHRASE_PROMPT":
-        paraphrasePrompt(message.text).then((result) => sendResponse(result));
+        sendResponse(await paraphrasePrompt(message.text));
         return true;
 
+      // Score prompt clarity.
       case "AI_SCORE_CLARITY":
-        scorePromptClarity(message.text).then((result) => sendResponse(result));
+        sendResponse(await scorePromptClarity(message.text));
         return true;
 
+      // Prepare prompt save metadata.
       case "AI_PREPARE_PROMPT_SAVE":
-        preparePromptForSave(message.payload || {}).then((result) =>
-          sendResponse(result),
+        sendResponse(await preparePromptForSave(message.payload || {}));
+        return true;
+
+      // Summarize a conversation for handoff.
+      case "AI_CONTINUE_SUMMARY":
+        sendResponse(
+          await buildContinuationHandoff(
+            message.messages,
+            message.mode,
+            message.userNote,
+            message.key,
+            message.forceLocal === true,
+          ),
         );
         return true;
 
-      case "AI_LOCAL_MODEL_INIT":
-        initLocalModel().then((result) => sendResponse(result));
+      // Route generic AI tasks through the shared task dispatcher.
+      case "AI_ROUTE_TASK":
+        sendResponse(await handleRoutedTask(message));
         return true;
 
-      case "AI_LOCAL_MODEL_DOWNLOAD":
-        downloadLocalModel(
-          message?.payload?.modelId || message?.modelId || "",
-        ).then((result) => sendResponse(result));
-        return true;
-
-      case "AI_LOCAL_MODEL_CANCEL_DOWNLOAD":
-        cancelLocalModelDownload(
-          message?.payload?.modelId || message?.modelId || "",
-        ).then((result) => sendResponse(result));
-        return true;
-
-      case "AI_LOCAL_MODEL_REMOVE_CACHE":
-        clearLocalModelCache(
-          message?.payload?.modelId || message?.modelId || "",
-        ).then((result) => sendResponse(result));
-        return true;
-
-      case "AI_LOCAL_MODEL_STATUS":
-        sendResponse(getLocalStatusPayload());
-        return true;
-
-      case "AI_LOCAL_MODEL_PROGRESS":
-      case "AI_LOCAL_STATUS_BROADCAST":
-        sendResponse({ ok: true });
-        return true;
-
-      case "AI_CONTINUE_SUMMARY":
-        buildContinuationHandoff(
-          message.messages,
-          message.mode,
-          message.userNote,
-          message.key,
-          message.forceLocal === true,
-        ).then((result) => sendResponse(result));
-        return true;
-
-      case "AI_ROUTE_TASK": {
-        const task = String(message?.task || "")
-          .trim()
-          .toLowerCase();
-        if (task === "paraphrase") {
-          paraphrasePrompt(message?.text || "").then((result) =>
-            sendResponse(result),
-          );
-          return true;
-        }
-        if (task === "improve") {
-          improvePrompt(
-            message?.text || "",
-            message?.tags || [],
-            message?.style || "general",
-          ).then((result) => sendResponse(result));
-          return true;
-        }
-        if (task === "title") {
-          generatePromptTitle(message?.text || "").then((result) =>
-            sendResponse(result),
-          );
-          return true;
-        }
-        if (task === "clarity") {
-          scorePromptClarity(message?.text || "").then((result) =>
-            sendResponse(result),
-          );
-          return true;
-        }
-        if (task === "tags") {
-          suggestTags(message?.text || "").then((result) =>
-            sendResponse(result),
-          );
-          return true;
-        }
-        if (task === "continue_summary") {
-          buildContinuationHandoff(
-            message?.messages || [],
-            message?.mode,
-            message?.userNote || "",
-            message?.key || "",
-          ).then((result) => sendResponse(result));
-          return true;
-        }
-        sendResponse({
-          ok: false,
-          error: `Unsupported routed task: ${task || "unknown"}`,
-        });
-        return true;
-      }
-
+      // Return overall AI runtime status for the UI.
       case "AI_STATUS_CHECK":
         await updateSearchModeFromMeta(await readEmbeddingMeta());
         sendResponse({
           status: AI.status,
-          localModel: getLocalStatusPayload(),
           embedding: await getEmbeddingStatusPayload(),
         });
         return true;
@@ -2590,8 +2223,11 @@ const handleAIMessage = async (message, sendResponse) => {
       default:
         return false;
     }
-  } catch (err) {
-    sendResponse({ error: err.message });
+  } catch (error) {
+    sendResponse({
+      ok: false,
+      error: String(error?.message || "AI request failed."),
+    });
     return true;
   }
 };
@@ -2671,18 +2307,7 @@ const bootstrapEmbeddingOnInstall = async () => {
   const defaultModelId = String(
     getDefaultEmbeddingModel()?.id || EMBEDDING_META_FALLBACK.activeModelId,
   );
-  try {
-    await downloadEmbeddingModel(defaultModelId, { silent: true });
-  } catch (err) {
-    if (err?.isChannelClosed) {
-      console.warn(
-        "[Promptium][ServiceWorker] Embedding bootstrap: message channel closed while SW was suspended. Download continues in offscreen.",
-        err.message,
-      );
-      return;
-    }
-    throw err;
-  }
+  await downloadEmbeddingModel(defaultModelId, { silent: true });
   const refreshed = await readEmbeddingMeta();
   await updateSearchModeFromMeta(refreshed);
   broadcast({
@@ -2800,91 +2425,25 @@ const handleOpenContinuationPanel = async (sender) => {
     if (!opened.ok) {
       return { ok: false, error: opened.error };
     }
-    setTimeout(() => {
-      void chrome.runtime
-        .sendMessage({ action: "showContinuation" })
-        .catch(() => {});
-    }, 360);
+    await chrome.runtime.sendMessage({ action: "showContinuation" }).catch((error) => {
+      console.warn("[Promptium][ServiceWorker] Failed to notify continuation view.", error);
+    });
     return { ok: true };
   }
 
   try {
     await chrome.sidePanel.open({ tabId, windowId });
-    setTimeout(() => {
-      void chrome.runtime
-        .sendMessage({ action: "showContinuation" })
-        .catch(() => {});
-    }, 360);
+    await chrome.runtime.sendMessage({ action: "showContinuation" }).catch((error) => {
+      console.warn("[Promptium][ServiceWorker] Failed to notify continuation view.", error);
+    });
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error?.message || "Failed to open side panel." };
   }
 };
 
-const isOffscreenLocalEvent = (message) => {
-  const type = String(message?.type || "").trim();
-  return type === "AI_LOCAL_MODEL_PROGRESS" || type === "AI_LOCAL_MODEL_STATUS";
-};
-
-const isOffscreenEmbeddingEvent = (message) => {
-  const type = String(message?.type || "").trim();
-  return (
-    type === "AI_EMBEDDING_STATUS" ||
-    type === "AI_EMBEDDING_PROGRESS" ||
-    type === "AI_EMBEDDING_REINDEX_PROGRESS"
-  );
-};
-
-const isOffscreenLocalSender = (sender) =>
-  String(sender?.url || "").includes(`/${OFFSCREEN_LOCAL_URL}`);
-
 /** Routes runtime messages and keeps channel open for async response delivery. */
 const onRuntimeMessage = (message, sender, sendResponse) => {
-  if (message?.target === OFFSCREEN_LOCAL_TARGET) {
-    return false;
-  }
-
-  if (isOffscreenLocalSender(sender) && isOffscreenLocalEvent(message)) {
-    updateLocalStatusFromEvent(message);
-    return false;
-  }
-
-  if (isOffscreenLocalSender(sender) && isOffscreenEmbeddingEvent(message)) {
-    void (async () => {
-      const type = String(message?.type || "").trim();
-      if (type === "AI_EMBEDDING_REINDEX_PROGRESS") {
-        const running =
-          Number(message?.done || 0) < Number(message?.total || 0);
-        const updated = await writeEmbeddingReindexState({
-          ...(await readEmbeddingReindexState()),
-          running,
-          done: Number(message?.done || 0),
-          total: Number(message?.total || 0),
-          progress: Number(message?.progress || 0),
-          modelId: String(
-            message?.modelId || (await readEmbeddingMeta()).activeModelId,
-          ),
-          error: "",
-          completedAt: running ? 0 : Date.now(),
-        });
-        broadcast({ type: "AI_EMBEDDING_REINDEX_PROGRESS", ...updated });
-        return;
-      }
-
-      const meta = await updateEmbeddingMetaFromWorkerEvent(message);
-      broadcast({
-        type:
-          type === "AI_EMBEDDING_PROGRESS"
-            ? "AI_EMBEDDING_PROGRESS"
-            : "AI_EMBEDDING_STATUS",
-        ...meta,
-        modelId: String(message?.modelId || meta.activeModelId),
-        activeModelId: meta.activeModelId,
-      });
-    })();
-    return false;
-  }
-
   let sidePanelPromise = null;
 
   if (message?.action === "OPEN_SIDEPANEL") {
@@ -2899,14 +2458,7 @@ const onRuntimeMessage = (message, sender, sendResponse) => {
 
   void (async () => {
     let responded = false;
-    const mappedType = (() => {
-      const raw = String(message?.type || message?.action || "").trim();
-      if (!raw) return "";
-      if (raw === "localModel:status") return "AI_LOCAL_MODEL_STATUS";
-      if (raw === "localModel:load") return "AI_LOCAL_MODEL_INIT";
-      if (raw === "localModel:paraphrase") return "AI_PARAPHRASE_PROMPT";
-      return raw;
-    })();
+    const mappedType = String(message?.type || message?.action || "").trim();
     const routedMessage = mappedType
       ? { ...message, type: mappedType }
       : message;
@@ -2950,19 +2502,9 @@ const onRuntimeMessage = (message, sender, sendResponse) => {
           return;
         }
 
-        // Give side panel time to mount, then tell it to navigate to export
-        setTimeout(async () => {
-          try {
-            await chrome.runtime.sendMessage({ action: "showExport" });
-          } catch (_) {
-            // Retry once after another 400ms
-            setTimeout(async () => {
-              try {
-                await chrome.runtime.sendMessage({ action: "showExport" });
-              } catch (_) {}
-            }, 400);
-          }
-        }, 400);
+        await chrome.runtime.sendMessage({ action: "showExport" }).catch((error) => {
+          console.warn("[Promptium][ServiceWorker] Failed to notify export view.", error);
+        });
 
         respond({ ok: true });
         return;

@@ -22,13 +22,13 @@ const FAB_CLOSE_BASE_MS = 170;
 let fabMenuCloseTimer = null;
 const SETTINGS_KEY = 'promptiumSettings';
 const DEFAULT_FAB_SETTINGS = Object.freeze({
-  fabPosition: 'right',
+  fabPosition: 'bottom-right',
   fabStyle: 'circle',
-  fabActions: {
+  fabButtons: {
     savePrompt: true,
     exportChat: true,
     continueChat: true,
-    promptLibrary: true
+    library: true
   }
 });
 
@@ -113,13 +113,24 @@ const refreshFabActionAvailability = async (root, platform) => {
 
 const normalizeFabSettings = (value) => {
   const source = value && typeof value === 'object' ? value : {};
-  const incomingActions = source.fabActions && typeof source.fabActions === 'object' ? source.fabActions : {};
+  const incomingButtons = source.fabButtons && typeof source.fabButtons === 'object'
+    ? source.fabButtons
+    : source.fabActions && typeof source.fabActions === 'object'
+      ? {
+          savePrompt: source.fabActions.savePrompt,
+          exportChat: source.fabActions.exportChat,
+          continueChat: source.fabActions.continueChat,
+          library: source.fabActions.promptLibrary
+        }
+      : {};
   return {
-    fabPosition: source.fabPosition === 'left' ? 'left' : 'right',
+    fabPosition: source.fabPosition === 'bottom-left' || source.fabPosition === 'left'
+      ? 'bottom-left'
+      : 'bottom-right',
     fabStyle: ['circle', 'pill', 'icon-only'].includes(String(source.fabStyle || '')) ? source.fabStyle : 'circle',
-    fabActions: {
-      ...DEFAULT_FAB_SETTINGS.fabActions,
-      ...incomingActions
+    fabButtons: {
+      ...DEFAULT_FAB_SETTINGS.fabButtons,
+      ...incomingButtons
     }
   };
 };
@@ -136,17 +147,17 @@ const loadFabSettings = async () => {
 const applyFabSettings = (root, settings) => {
   if (!root) return;
   const normalized = normalizeFabSettings(settings);
-  root.classList.toggle('pn-fab-left', normalized.fabPosition === 'left');
-  root.classList.toggle('pn-fab-right', normalized.fabPosition !== 'left');
+  root.classList.toggle('pn-fab-left', normalized.fabPosition === 'bottom-left');
+  root.classList.toggle('pn-fab-right', normalized.fabPosition !== 'bottom-left');
   root.classList.toggle('pn-fab-style-circle', normalized.fabStyle === 'circle');
   root.classList.toggle('pn-fab-style-pill', normalized.fabStyle === 'pill');
   root.classList.toggle('pn-fab-style-icon-only', normalized.fabStyle === 'icon-only');
 
   const actionMap = {
-    'save-prompt': normalized.fabActions.savePrompt !== false,
-    export: normalized.fabActions.exportChat !== false,
-    'continue-chat': normalized.fabActions.continueChat !== false,
-    library: normalized.fabActions.promptLibrary !== false
+    'save-prompt': normalized.fabButtons.savePrompt !== false,
+    export: normalized.fabButtons.exportChat !== false,
+    'continue-chat': normalized.fabButtons.continueChat !== false,
+    library: normalized.fabButtons.library !== false
   };
 
   root.querySelectorAll('.pn-fab-action').forEach((button) => {

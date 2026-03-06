@@ -55,13 +55,10 @@
   };
 
   const getHoverDelay = () => {
-    const raw = Number(state.settings?.hoverPreviewDelay);
-    if (!Number.isFinite(raw)) return 400;
-    return Math.min(800, Math.max(200, raw));
+    return 400;
   };
 
-  const hoverPreviewEnabled = () =>
-    state.settings?.hoverPreviewEnabled !== false;
+  const hoverPreviewEnabled = () => true;
 
   const ensureHoverTooltip = () => {
     if (hoverTooltipNode && hoverTooltipNode.isConnected) {
@@ -912,36 +909,16 @@
 
   const getSearchValue = () => String(getSearchInput()?.value || "");
 
-  const formatLocalStatus = (rawStatus = "") => {
-    const normalized = String(rawStatus || "")
-      .trim()
-      .toLowerCase();
-    if (!normalized || normalized === "not_downloaded") return "not downloaded";
-    if (["ready", "downloaded", "loaded"].includes(normalized)) return "ready";
-    if (["downloading", "loading", "initializing"].includes(normalized))
-      return "preparing";
-    if (normalized === "error") return "error";
-    return normalized.replace(/_/g, " ");
-  };
-
   const renderModelFeedback = (payload = {}) => {
     const wrap = document.getElementById("pn-model-feedback");
     const textNode = document.getElementById("pn-model-feedback-text");
     if (!wrap || !textNode) return;
 
     const enabled = payload?.enabled !== false;
-    const preferLocal = payload?.preferLocal === true;
     const semanticPhase = String(payload?.semanticPhase || "idle")
       .trim()
       .toLowerCase();
-    const cloudModelLabel = String(
-      payload?.cloudModelLabel || payload?.cloudModelId || "",
-    ).trim();
     const providerLabel = String(payload?.providerLabel || "Cloud").trim();
-    const localModelLabel = String(
-      payload?.localModelLabel || "Local model",
-    ).trim();
-    const localStatus = formatLocalStatus(payload?.localModelStatus || "");
 
     if (!enabled) {
       textNode.textContent = "AI Off";
@@ -965,16 +942,13 @@
       return text.length > max ? `${text.slice(0, max - 1)}…` : text;
     };
 
-    const line = preferLocal
-      ? `Local · ${semanticCopy}`
-      : `${trimLabel(providerLabel, 10) || "Cloud"} · ${semanticCopy}`;
+    const line = `${trimLabel(providerLabel, 10) || "Cloud"} · ${semanticCopy}`;
 
     textNode.textContent = line;
     wrap.dataset.tone =
       semanticPhase === "error"
         ? "error"
-        : semanticPhase === "busy" ||
-            (preferLocal && localStatus === "preparing")
+        : semanticPhase === "busy"
           ? "busy"
           : semanticPhase === "ready"
             ? "ready"

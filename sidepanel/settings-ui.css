@@ -1,0 +1,898 @@
+/* ==========================================================================
+   File: sidepanel/settings-ui.css
+   Purpose: Complete settings panel styles for Promptium sidepanel redesign.
+   Namespace: .pn-settings-* to avoid collision with existing styles.
+   Reuses all existing CSS variables from popup.css and settings-overhaul.css.
+   ========================================================================== */
+
+/* ── Settings-specific tokens ───────────────────────────────────────────── */
+:root {
+  --settings-section-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --settings-toggle-dur: 200ms;
+  --settings-expand-dur: 220ms;
+  --settings-section-dur: 200ms;
+  --settings-confirm-dur: 150ms;
+}
+
+/* ── Settings container reset ───────────────────────────────────────────── */
+.pn-settings-container {
+  display: grid;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* ── Section nav strip: compact horizontal icon+label bar ───────────────── */
+.pn-settings-nav {
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.pn-settings-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.pn-settings-nav-btn {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition:
+    color var(--settings-section-dur) var(--settings-section-ease),
+    background var(--settings-section-dur) var(--settings-section-ease),
+    border-color var(--settings-section-dur) var(--settings-section-ease);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pn-settings-nav-btn svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: opacity var(--settings-section-dur) var(--settings-section-ease);
+}
+
+.pn-settings-nav-btn:hover {
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.pn-settings-nav-btn:hover svg {
+  opacity: 0.8;
+}
+
+.pn-settings-nav-btn.is-active {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--accent-glow) 42%, var(--bg-elevated));
+  border-color: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.pn-settings-nav-btn.is-active svg {
+  opacity: 1;
+  color: var(--accent);
+}
+
+/* ── Section panels ─────────────────────────────────────────────────────── */
+.pn-settings-panels {
+  position: relative;
+  min-height: 200px;
+}
+
+.pn-settings-panel {
+  display: none;
+  animation: pnSettingsFadeIn var(--settings-section-dur) var(--settings-section-ease) both;
+}
+
+.pn-settings-panel.is-active {
+  display: grid;
+  gap: 10px;
+}
+
+@keyframes pnSettingsFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Section card ───────────────────────────────────────────────────────── */
+.pn-settings-section {
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 14px;
+  background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
+  display: grid;
+  gap: 10px;
+}
+
+.pn-settings-section-title {
+  margin: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.pn-settings-section-desc {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+/* ── Provider card ──────────────────────────────────────────────────────── */
+.pn-settings-provider-list {
+  display: grid;
+  gap: 6px;
+}
+
+.pn-settings-provider {
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-surface) 88%, transparent);
+  overflow: hidden;
+  transition: border-color 0.18s ease;
+}
+
+.pn-settings-provider:hover {
+  border-color: var(--border-default);
+}
+
+.pn-settings-provider.is-primary {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border-default));
+}
+
+.pn-settings-provider-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  min-height: 44px;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.pn-settings-provider-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  flex-shrink: 0;
+  border: 1px solid var(--border-default);
+  background: color-mix(in srgb, var(--accent-glow) 50%, var(--bg-surface));
+}
+
+.pn-settings-provider-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.pn-settings-provider-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pn-settings-provider-badge {
+  display: inline-flex;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pn-settings-provider-badge--primary {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--accent);
+}
+
+.pn-settings-provider-badge--dormant {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+}
+
+.pn-settings-provider-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.pn-settings-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background-color 0.4s ease;
+}
+
+.pn-settings-status-dot--connected {
+  background: var(--success);
+}
+
+.pn-settings-status-dot--invalid {
+  background: var(--danger);
+}
+
+.pn-settings-status-dot--idle {
+  background: var(--text-muted);
+}
+
+.pn-settings-status-dot--testing {
+  background: var(--warning);
+  animation: pnPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pnPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+.pn-settings-provider-chevron {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: transform var(--settings-expand-dur) var(--settings-section-ease);
+}
+
+.pn-settings-provider.is-expanded .pn-settings-provider-chevron {
+  transform: rotate(180deg);
+}
+
+.pn-settings-provider-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height var(--settings-expand-dur) var(--settings-section-ease);
+}
+
+.pn-settings-provider.is-expanded .pn-settings-provider-body {
+  max-height: 600px;
+}
+
+.pn-settings-provider-body-inner {
+  padding: 0 12px 12px;
+  display: grid;
+  gap: 8px;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition:
+    opacity 180ms ease 40ms,
+    transform 180ms ease 40ms;
+}
+
+.pn-settings-provider.is-expanded .pn-settings-provider-body-inner {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* API key row */
+.pn-settings-key-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border-default);
+  border-radius: 9px;
+  background: var(--bg-surface);
+  padding: 3px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pn-settings-key-row:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.pn-settings-key-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 8px;
+  outline: none;
+}
+
+.pn-settings-key-input::placeholder {
+  color: var(--text-muted);
+}
+
+.pn-settings-key-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.pn-settings-key-btn:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-primary);
+}
+
+/* Provider controls row */
+.pn-settings-provider-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pn-settings-provider-link {
+  font-size: 11px;
+  color: var(--accent-dim);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.pn-settings-provider-link:hover {
+  color: var(--accent);
+}
+
+.pn-settings-primary-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.pn-settings-primary-btn:hover {
+  background: var(--accent-glow);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--text-primary);
+}
+
+.pn-settings-primary-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.pn-settings-primary-btn.is-primary {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  cursor: default;
+}
+
+/* Model select within provider */
+.pn-settings-model-select {
+  width: 100%;
+  border: 1px solid var(--border-default);
+  border-radius: 9px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+  padding: 7px 10px;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23596178' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pn-settings-model-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.pn-settings-model-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ── Toggle switch component ────────────────────────────────────────────── */
+.pn-settings-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 20px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pn-settings-toggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.pn-settings-toggle-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-default);
+  transition:
+    background var(--settings-toggle-dur) var(--settings-section-ease),
+    border-color var(--settings-toggle-dur) var(--settings-section-ease);
+}
+
+.pn-settings-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  transition:
+    transform var(--settings-toggle-dur) var(--settings-section-ease),
+    background var(--settings-toggle-dur) var(--settings-section-ease);
+  will-change: transform;
+}
+
+.pn-settings-toggle input:checked ~ .pn-settings-toggle-track {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+.pn-settings-toggle input:checked ~ .pn-settings-toggle-thumb {
+  transform: translateX(16px);
+  background: var(--accent);
+}
+
+.pn-settings-toggle input:focus-visible ~ .pn-settings-toggle-track {
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+/* ── Toggle row ─────────────────────────────────────────────────────────── */
+.pn-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  transition: background 0.15s ease;
+}
+
+.pn-settings-row:hover {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.pn-settings-row-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pn-settings-row-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.pn-settings-row-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+/* ── Embedding model rows ───────────────────────────────────────────────── */
+.pn-settings-embed-list {
+  display: grid;
+  gap: 6px;
+}
+
+.pn-settings-embed-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  transition: border-color 0.18s ease, background 0.15s ease;
+  min-height: 40px;
+}
+
+.pn-settings-embed-row:hover {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.pn-settings-embed-row.is-active {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border-default));
+  background: color-mix(in srgb, var(--accent-glow) 30%, rgba(255, 255, 255, 0.02));
+}
+
+.pn-settings-embed-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--text-muted);
+  transition: background-color 0.4s ease;
+}
+
+.pn-settings-embed-row.is-active .pn-settings-embed-dot {
+  background: var(--accent);
+}
+
+.pn-settings-embed-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.pn-settings-embed-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.pn-settings-embed-meta {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.pn-settings-embed-action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 3px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.pn-settings-embed-action:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+}
+
+.pn-settings-embed-action.is-active-label {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+  cursor: default;
+  pointer-events: none;
+}
+
+/* ── Progress bar inline ────────────────────────────────────────────────── */
+.pn-settings-progress-wrap {
+  display: grid;
+  gap: 4px;
+  padding: 8px 0 0;
+}
+
+.pn-settings-progress-wrap.pn-hidden {
+  display: none;
+}
+
+.pn-settings-progress-bar {
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.pn-settings-progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  transition: width 0.3s ease;
+  width: 0;
+}
+
+.pn-settings-progress-text {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* ── Confirm embed switch ───────────────────────────────────────────────── */
+.pn-settings-confirm-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--border-default));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--warning) 8%, transparent);
+  animation: pnSettingsFadeIn 180ms ease both;
+}
+
+.pn-settings-confirm-bar.pn-hidden {
+  display: none;
+}
+
+.pn-settings-confirm-text {
+  font-size: 11px;
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+.pn-settings-confirm-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ── Interface controls ─────────────────────────────────────────────────── */
+.pn-settings-select-field {
+  display: grid;
+  gap: 5px;
+}
+
+.pn-settings-select-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.pn-settings-select {
+  width: 100%;
+  border: 1px solid var(--border-default);
+  border-radius: 9px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+  padding: 7px 10px;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23596178' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pn-settings-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+/* ── Data / danger zone ─────────────────────────────────────────────────── */
+.pn-settings-data-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pn-settings-data-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.pn-settings-data-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--accent-dim);
+}
+
+.pn-settings-data-btn svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.pn-settings-import-label {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.pn-settings-import-label:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--accent-dim);
+}
+
+.pn-settings-import-label input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+/* Danger buttons */
+.pn-settings-danger-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border-default));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background var(--settings-confirm-dur) ease,
+    border-color var(--settings-confirm-dur) ease,
+    color var(--settings-confirm-dur) ease;
+}
+
+.pn-settings-danger-btn:hover {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 50%, var(--border-default));
+}
+
+.pn-settings-danger-btn.is-confirming {
+  background: color-mix(in srgb, var(--danger) 22%, transparent);
+  border-color: var(--danger);
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.pn-settings-danger-row {
+  display: grid;
+  gap: 4px;
+}
+
+/* ── Version display ────────────────────────────────────────────────────── */
+.pn-settings-version {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 8px 0 4px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+}
+
+/* ── Status toast ───────────────────────────────────────────────────────── */
+.pn-settings-status {
+  text-align: center;
+  font-size: 11px;
+  padding: 6px 10px;
+  color: var(--text-secondary);
+  border-radius: 8px;
+  transition: opacity 0.2s ease;
+  min-height: 0;
+}
+
+.pn-settings-status.pn-hidden {
+  display: none;
+}
+
+.pn-settings-status.is-ok {
+  color: var(--success);
+}
+
+.pn-settings-status.is-error {
+  color: var(--danger);
+}

@@ -68,38 +68,6 @@ const AIBridge = {
     });
   },
 
-  async initLocalModel() {
-    return this._send({ type: 'AI_LOCAL_MODEL_INIT' });
-  },
-
-  async getLocalModelStatus() {
-    return this._send({ type: 'AI_LOCAL_MODEL_STATUS' });
-  },
-
-  async localModelStatus() {
-    return this._send({ action: 'localModel:status' });
-  },
-
-  async localModelLoad(modelId = '') {
-    return this._send({ action: 'localModel:load', payload: { modelId } });
-  },
-
-  async localModelParaphrase(text) {
-    return this._send({ action: 'localModel:paraphrase', text });
-  },
-
-  async downloadLocalModel(modelId = '') {
-    return this._send({ type: 'AI_LOCAL_MODEL_DOWNLOAD', payload: { modelId } });
-  },
-
-  async cancelLocalModelDownload(modelId = '') {
-    return this._send({ type: 'AI_LOCAL_MODEL_CANCEL_DOWNLOAD', payload: { modelId } });
-  },
-
-  async clearLocalModelCache(modelId = '') {
-    return this._send({ type: 'AI_LOCAL_MODEL_REMOVE_CACHE', payload: { modelId } });
-  },
-
   async getEmbeddingStatus() {
     return this._send({ type: 'AI_EMBEDDING_STATUS_CHECK' });
   },

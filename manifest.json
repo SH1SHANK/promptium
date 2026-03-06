@@ -30,8 +30,7 @@
     "scripting",
     "downloads",
     "sidePanel",
-    "contextMenus",
-    "offscreen"
+    "contextMenus"
   ],
   "commands": {
     "open-side-panel": {
@@ -160,9 +159,7 @@
       "resources": [
         "libs/jspdf.min.js",
         "libs/transformers.min.js",
-        "models/*",
-        "offscreen/local-model-worker.html",
-        "offscreen/local-model-worker.js"
+        "models/*"
       ],
       "matches": [
         "https://chatgpt.com/*",

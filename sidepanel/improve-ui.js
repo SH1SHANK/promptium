@@ -228,10 +228,8 @@ const open = async (promptId, originalText, tags = [], options = {}) => {
     anthropic: 'Claude',
     openrouter: 'OpenRouter'
   };
-  const prefersLocal = state.settings?.preferLocal === true || String(state.settings?.aiBackend || '').toLowerCase() === 'local';
   const cloudLabel = providerLabels[String(state.settings?.activeProvider || 'gemini').toLowerCase()] || 'Cloud AI';
-  const preferredBackend = prefersLocal ? 'Local Model' : cloudLabel;
-  setRuntimeNote(`Running with ${preferredBackend}…`);
+  setRuntimeNote(`Running with ${cloudLabel}…`);
 
   const style = document.getElementById('pn-improve-modal-style')?.value || 'general';
   try {
