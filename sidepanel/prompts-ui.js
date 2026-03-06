@@ -21,7 +21,11 @@
   let hoverAnchor = null;
   let templateFilterHome = null;
   let templateFilterHomeNext = null;
-  
+  const semanticUiState = {
+    mode: "idle",
+    reason: "",
+  };
+
   const PAGE_SIZE = 25;
   const currentRenderState = {
     prompts: [],
@@ -30,7 +34,7 @@
     nextIndex: 0,
     observer: null,
     container: null,
-    sentinel: null
+    sentinel: null,
   };
 
   const loadNextPromptPage = async () => {
@@ -44,7 +48,7 @@
     const endIndex = Math.min(s.nextIndex + PAGE_SIZE, s.prompts.length);
     for (let i = s.nextIndex; i < endIndex; i++) {
       s.container.appendChild(
-        await createPromptCard(s.prompts[i], s.filter, s.supported)
+        await createPromptCard(s.prompts[i], s.filter, s.supported),
       );
     }
     s.nextIndex = endIndex;
@@ -52,11 +56,14 @@
     if (endIndex < s.prompts.length) {
       s.container.appendChild(s.sentinel);
       if (!s.observer) {
-        s.observer = new IntersectionObserver((entries) => {
-          if (entries[0].isIntersecting) {
-            void loadNextPromptPage();
-          }
-        }, { rootMargin: "250px" });
+        s.observer = new IntersectionObserver(
+          (entries) => {
+            if (entries[0].isIntersecting) {
+              void loadNextPromptPage();
+            }
+          },
+          { rootMargin: "250px" },
+        );
       }
       s.observer.observe(s.sentinel);
     }
@@ -234,15 +241,17 @@
     let textQuery = normalized;
     const tagMatch = normalized.match(/#[^\s]+/g);
     if (tagMatch) {
-      hashTags.push(...tagMatch.map(t => t.slice(1))); // Remove the '#'
-      textQuery = normalized.replace(/#[^\s]+/g, '').trim();
+      hashTags.push(...tagMatch.map((t) => t.slice(1))); // Remove the '#'
+      textQuery = normalized.replace(/#[^\s]+/g, "").trim();
     }
 
     return prompts.filter((prompt) => {
-      const promptTags = (prompt.tags || []).map(t => t.toLowerCase());
-      
+      const promptTags = (prompt.tags || []).map((t) => t.toLowerCase());
+
       if (hashTags.length > 0) {
-        const hasAllTags = hashTags.every(ht => promptTags.some(pt => pt.includes(ht)));
+        const hasAllTags = hashTags.every((ht) =>
+          promptTags.some((pt) => pt.includes(ht)),
+        );
         if (!hasAllTags) return false;
         if (!textQuery) return true;
       }
@@ -253,7 +262,7 @@
       const textMatch = normalizePromptText(prompt.text)
         .toLowerCase()
         .includes(textQuery);
-      
+
       if (!hashTags.length) {
         const tagsMatch = promptTags.join(" ").includes(textQuery);
         return titleMatch || textMatch || tagsMatch;
@@ -268,22 +277,51 @@
 
     if (!normalized) {
       state.semanticResults = null;
+      semanticUiState.mode = "idle";
+      semanticUiState.reason = "";
+      refreshSearchModeBadge();
       return prompts;
     }
 
     const keywordResults = await sidepanelKeywordFilter(normalized, prompts);
-
-    if (
+    const semanticEligible =
       state.aiReady &&
       state.settings?.enableAI &&
-      state.settings?.semanticSearch
-    ) {
+      state.settings?.semanticSearch;
+
+    if (semanticEligible) {
       try {
         const response = await window.AIBridge.search(normalized);
+        const mode = String(response?.mode || "keyword")
+          .trim()
+          .toLowerCase();
         if (response?.results) {
           state.semanticResults = new Map(
             response.results.map((r) => [r.id, r]),
           );
+
+          semanticUiState.mode = mode === "semantic" ? "semantic" : "keyword";
+          semanticUiState.reason = "";
+
+          if (semanticUiState.mode === "keyword") {
+            const status = await window.AIBridge.getEmbeddingStatus().catch(
+              () => null,
+            );
+            const embeddingStatus = String(status?.status || "")
+              .trim()
+              .toLowerCase();
+            const reindexRunning = Boolean(status?.reindex?.running);
+
+            if (embeddingStatus === "downloading") {
+              semanticUiState.reason = "AI model downloading...";
+            } else if (reindexRunning) {
+              semanticUiState.reason = "AI indexing...";
+            } else if (embeddingStatus && embeddingStatus !== "ready") {
+              semanticUiState.reason = "AI search not ready";
+            }
+          }
+
+          refreshSearchModeBadge();
 
           const promptMap = new Map(prompts.map((p) => [p.id, p]));
           const seen = new Set();
@@ -310,6 +348,9 @@
     }
 
     state.semanticResults = null;
+    semanticUiState.mode = semanticEligible ? "keyword" : "idle";
+    semanticUiState.reason = "";
+    refreshSearchModeBadge();
     return keywordResults;
   };
 
@@ -793,7 +834,7 @@
     if (!container) {
       return;
     }
-    
+
     // Show skeleton loading state
     container.innerHTML = "";
     container.classList.add("pn-prompts-layout");
@@ -903,7 +944,7 @@
       currentRenderState.supported = tabContext.supported;
       currentRenderState.nextIndex = 0;
       currentRenderState.container = libraryList;
-      
+
       if (!currentRenderState.sentinel) {
         currentRenderState.sentinel = document.createElement("div");
         currentRenderState.sentinel.className = "pn-scroll-sentinel";
@@ -992,8 +1033,36 @@
 
   const getSearchInput = () => document.getElementById("prompt-search");
   const getSearchWrap = () => document.getElementById("search-wrap");
+  const getSearchModeBadge = () =>
+    document.getElementById("pn-search-mode-badge");
 
   const getSearchValue = () => String(getSearchInput()?.value || "");
+
+  const refreshSearchModeBadge = () => {
+    const badge = getSearchModeBadge();
+    const query = String(getSearchValue() || "").trim();
+    if (!badge) return;
+
+    if (!query || semanticUiState.mode === "idle") {
+      badge.classList.add("pn-hidden");
+      badge.removeAttribute("data-tone");
+      return;
+    }
+
+    if (semanticUiState.mode === "semantic") {
+      badge.textContent = "Semantic search";
+      badge.dataset.tone = "semantic";
+      badge.classList.remove("pn-hidden");
+      return;
+    }
+
+    const reason = String(semanticUiState.reason || "").trim();
+    badge.textContent = reason
+      ? `Keyword search active (${reason})`
+      : "Keyword search";
+    badge.dataset.tone = reason ? "busy" : "keyword";
+    badge.classList.remove("pn-hidden");
+  };
 
   const renderModelFeedback = (payload = {}) => {
     const wrap = document.getElementById("pn-model-feedback");
@@ -1049,6 +1118,9 @@
     if (!String(searchInput.value || "").trim()) return;
     searchInput.value = "";
     clearBtn?.classList.add("pn-hidden");
+    semanticUiState.mode = "idle";
+    semanticUiState.reason = "";
+    refreshSearchModeBadge();
     void render("");
   };
 

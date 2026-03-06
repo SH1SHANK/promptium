@@ -9,8 +9,9 @@
   --pn-border-default: rgba(255, 255, 255, 0.12);
   --pn-border-accent: rgba(54, 214, 195, 0.44);
   --pn-accent: #36d6c3;
+  --pn-accent-rgb: 54, 214, 195;
   --pn-accent-strong: #14b8a6;
-  --pn-accent-glow: rgba(54, 214, 195, 0.16);
+  --pn-accent-glow: rgba(var(--pn-accent-rgb), 0.16);
   --pn-text-primary: #f0f0f4;
   --pn-text-secondary: #9ca3b5;
   --pn-danger: #f87171;
@@ -26,13 +27,17 @@
   padding: 7px 10px;
   min-height: 32px;
   cursor: pointer;
-  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
-  font-family: -apple-system, 'Segoe UI', sans-serif;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+  font-family: -apple-system, "Segoe UI", sans-serif;
 }
 
 .pn-btn:hover {
   border-color: var(--pn-accent);
-  background: rgba(54, 214, 195, 0.12);
+  background: rgba(var(--pn-accent-rgb), 0.12);
   box-shadow: 0 0 10px var(--pn-accent-glow);
 }
 
@@ -74,7 +79,7 @@
   border-left: 3px solid var(--pn-accent);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
   animation: pn-toast-in 180ms ease-out;
-  font-family: -apple-system, 'Segoe UI', sans-serif;
+  font-family: -apple-system, "Segoe UI", sans-serif;
   font-size: 12px;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -95,7 +100,7 @@
 .pn-toast-undo-btn {
   border: 1px solid var(--pn-border-accent);
   border-radius: 7px;
-  background: rgba(54, 214, 195, 0.12);
+  background: rgba(var(--pn-accent-rgb), 0.12);
   color: var(--pn-text-primary);
   font-size: 11px;
   font-weight: 600;
@@ -104,7 +109,7 @@
 }
 
 .pn-toast-undo-btn:hover {
-  background: rgba(54, 214, 195, 0.2);
+  background: rgba(var(--pn-accent-rgb), 0.2);
 }
 
 .pn-toast-undo-btn:focus-visible {
@@ -142,8 +147,10 @@
   border-radius: 14px;
   background: var(--pn-bg-elevated);
   border: 1px solid var(--pn-border-default);
-  box-shadow: 0 28px 56px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--pn-border-subtle);
-  font-family: -apple-system, 'Segoe UI', sans-serif;
+  box-shadow:
+    0 28px 56px rgba(0, 0, 0, 0.5),
+    0 0 0 1px var(--pn-border-subtle);
+  font-family: -apple-system, "Segoe UI", sans-serif;
 }
 
 .pn-save-modal__title {
@@ -216,7 +223,10 @@
   line-height: 1;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .pn-bookmark-host:hover > .pn-bookmark-icon,
@@ -241,4 +251,21 @@
   outline: 1px solid rgba(251, 191, 36, 0.28) !important;
   outline-offset: 2px;
   border-radius: 8px;
+}
+
+@keyframes pn-flash-bg {
+  0% {
+    background-color: transparent;
+  }
+  20% {
+    background-color: rgba(54, 214, 195, 0.25);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.pn-injected-flash {
+  animation: pn-flash-bg 600ms ease-out !important;
+  border-radius: 4px;
 }

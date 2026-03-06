@@ -34,6 +34,8 @@ const injectIntoReactTextarea = async (textarea, text) => {
   }
 
   await dispatchInput(textarea);
+  textarea.classList.add('pn-injected-flash');
+  setTimeout(() => textarea.classList.remove('pn-injected-flash'), 600);
   return true;
 };
 
@@ -48,6 +50,8 @@ const injectIntoEditable = async (editable, text) => {
   document.execCommand('selectAll');
   document.execCommand('insertText', false, text);
   await dispatchInput(editable);
+  editable.classList.add('pn-injected-flash');
+  setTimeout(() => editable.classList.remove('pn-injected-flash'), 600);
   return true;
 };
 
@@ -60,6 +64,8 @@ const injectIntoPlainTextarea = async (textarea, text) => {
   textarea.focus();
   textarea.value = text;
   await dispatchInput(textarea);
+  textarea.classList.add('pn-injected-flash');
+  setTimeout(() => textarea.classList.remove('pn-injected-flash'), 600);
   return true;
 };
 
@@ -96,6 +102,8 @@ const inject = async (text, platform = null) => {
          document.execCommand('selectAll');
          document.execCommand('insertText', false, text);
          await dispatchInput(input);
+         input.classList.add('pn-injected-flash');
+         setTimeout(() => input.classList.remove('pn-injected-flash'), 600);
          return true;
       }
       return injectIntoEditable(input, text);

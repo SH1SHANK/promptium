@@ -46,7 +46,8 @@
 
     const value = String(input.value || "");
     const max = Number(input.getAttribute("maxlength") || 0);
-    counter.textContent = max > 0 ? `${value.length}/${max}` : String(value.length);
+    counter.textContent =
+      max > 0 ? `${value.length}/${max}` : String(value.length);
   };
 
   const autoGrowTextarea = (textareaId) => {
@@ -90,30 +91,34 @@
   const showError = (id, message) => {
     const node = byIdSafe(id);
     if (!node) return;
-    
+
     // Clear previously injected actions
-    const existingBtn = node.querySelector('.pn-settings-redirect');
+    const existingBtn = node.querySelector(".pn-settings-redirect");
     if (existingBtn) existingBtn.remove();
 
     const normalized = String(message || "").trim();
-    const isApiKeyError = /api\s*key|settings/i.test(normalized) && /missing|invalid|not\s*found|not\s*configured/i.test(normalized);
-    
-    node.textContent = isApiKeyError ? "Cloud API key not configured. " : normalized;
+    const isApiKeyError =
+      /api\s*key|settings/i.test(normalized) &&
+      /missing|invalid|not\s*found|not\s*configured/i.test(normalized);
+
+    node.textContent = isApiKeyError
+      ? "Cloud API key not configured. "
+      : normalized;
 
     if (isApiKeyError) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'pn-settings-redirect';
-      btn.textContent = 'Go to Settings';
-      btn.style.marginLeft = '6px';
-      btn.style.textDecoration = 'underline';
-      btn.style.background = 'none';
-      btn.style.border = 'none';
-      btn.style.color = 'currentColor';
-      btn.style.cursor = 'pointer';
-      btn.style.padding = '0';
-      btn.style.fontWeight = '600';
-      btn.addEventListener('click', () => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "pn-settings-redirect";
+      btn.textContent = "Go to Settings";
+      btn.style.marginLeft = "6px";
+      btn.style.textDecoration = "underline";
+      btn.style.background = "none";
+      btn.style.border = "none";
+      btn.style.color = "currentColor";
+      btn.style.cursor = "pointer";
+      btn.style.padding = "0";
+      btn.style.fontWeight = "600";
+      btn.addEventListener("click", () => {
         close();
         void openSettingsAiModels();
       });
@@ -229,7 +234,9 @@
       .trim()
       .toLowerCase();
     const key = window.SessionStorage.getStoredProviderKey
-      ? await window.SessionStorage.getStoredProviderKey(activeProvider).catch(() => "")
+      ? await window.SessionStorage.getStoredProviderKey(activeProvider).catch(
+          () => "",
+        )
       : await window.SessionStorage.getStoredGeminiKey().catch(() => "");
     if (String(key || "").trim()) {
       return { text: `✦ AI via ${activeProvider}`, mode: "cloud" };
@@ -279,7 +286,9 @@
     resetPlainForm();
     resetTemplateForm();
 
-    const modalTitle = document.querySelector("#add-modal .pn-modal-title, #add-modal h2");
+    const modalTitle = document.querySelector(
+      "#add-modal .pn-modal-title, #add-modal h2",
+    );
     if (modalTitle) modalTitle.textContent = "Add Prompt";
 
     const saveBtn = byIdSafe("save-new-prompt");
@@ -300,7 +309,9 @@
           await updateAiStatusStrips();
           return;
         }
-      } catch (_) { /* clipboard access denied — fall through to selector */ }
+      } catch (_) {
+        /* clipboard access denied — fall through to selector */
+      }
     }
 
     setMode(MODE_SELECTOR);
@@ -314,7 +325,9 @@
     resetPlainForm();
     resetTemplateForm();
 
-    const modalTitle = document.querySelector("#add-modal .pn-modal-title, #add-modal h2");
+    const modalTitle = document.querySelector(
+      "#add-modal .pn-modal-title, #add-modal h2",
+    );
     if (modalTitle) modalTitle.textContent = "Edit Prompt";
 
     const hasVars = window.TemplateParser?.parse
@@ -439,6 +452,53 @@
     setTimeout(() => hideError(id), ms);
   };
 
+  const mapAiUiError = (rawMessage = "", feature = "") => {
+    const normalized = String(rawMessage || "")
+      .trim()
+      .toLowerCase();
+    if (!normalized) {
+      return "AI request failed. Try again.";
+    }
+
+    if (normalized === "no_provider_available") {
+      return `AI ${feature || "feature"} unavailable. Add a provider API key in Settings.`;
+    }
+    if (normalized === "feature_disabled") {
+      return `AI ${feature || "feature"} is disabled in Settings.`;
+    }
+    if (
+      /invalid api key|provider api key is missing|no cloud api key|missing provider key/.test(
+        normalized,
+      )
+    ) {
+      return "Cloud API key not configured. Go to Settings to enable AI.";
+    }
+    if (
+      /timed out|network request failed|provider network error|network/.test(
+        normalized,
+      )
+    ) {
+      return "Network issue while contacting AI provider. Please retry.";
+    }
+    return String(rawMessage || "AI request failed.").trim();
+  };
+
+  const getActiveImproveErrorNodeId = () =>
+    activeMode === MODE_TEMPLATE
+      ? "pn-template-polish-error"
+      : "pn-polish-error";
+
+  const showImproveInlineError = (message, options = {}) => {
+    const mapped = mapAiUiError(message, "improve");
+    const nodeId = options?.targetId || getActiveImproveErrorNodeId();
+    showError(nodeId, mapped);
+  };
+
+  const clearImproveInlineErrors = () => {
+    hideError("pn-polish-error");
+    hideError("pn-template-polish-error");
+  };
+
   const runPolish = async ({ isTemplate = false } = {}) => {
     const textId = isTemplate ? "pn-template-text" : "prompt-text";
     const errorId = isTemplate ? "pn-template-polish-error" : "pn-polish-error";
@@ -509,7 +569,10 @@
         }
       }
     } catch (error) {
-      const msg = String(error?.message || "Polish failed — try again");
+      const msg = mapAiUiError(
+        String(error?.message || "Polish failed — try again"),
+        "polish",
+      );
       showTemporaryError(errorId, msg, 6000);
     } finally {
       button.disabled = false;
@@ -620,17 +683,22 @@
 
     node.classList.remove("pn-card-saved-pulse", "pn-card-duplicate-pulse");
     void node.offsetWidth;
-    node.classList.add(mode === "duplicate" ? "pn-card-duplicate-pulse" : "pn-card-saved-pulse");
+    node.classList.add(
+      mode === "duplicate" ? "pn-card-duplicate-pulse" : "pn-card-saved-pulse",
+    );
 
     if (highlightTimer) {
       clearTimeout(highlightTimer);
       highlightTimer = null;
     }
 
-    highlightTimer = setTimeout(() => {
-      highlightTimer = null;
-      node.classList.remove("pn-card-saved-pulse", "pn-card-duplicate-pulse");
-    }, mode === "duplicate" ? 2000 : 650);
+    highlightTimer = setTimeout(
+      () => {
+        highlightTimer = null;
+        node.classList.remove("pn-card-saved-pulse", "pn-card-duplicate-pulse");
+      },
+      mode === "duplicate" ? 2000 : 650,
+    );
   };
 
   const scrollPromptIntoView = async (promptId, options = {}) => {
@@ -640,7 +708,10 @@
       const node = document.querySelector(`[data-prompt-id="${promptId}"]`);
       if (!(node instanceof HTMLElement)) return;
       node.scrollIntoView({ behavior: "smooth", block: "center" });
-      highlightPromptCard(promptId, options.mode === "duplicate" ? "duplicate" : "saved");
+      highlightPromptCard(
+        promptId,
+        options.mode === "duplicate" ? "duplicate" : "saved",
+      );
     }, 80);
   };
 
@@ -803,12 +874,12 @@
     const saveBtn = byIdSafe("save-new-prompt");
     if (saveBtn) {
       saveBtn.disabled = true;
-      saveBtn.classList.add('pn-btn--loading');
+      saveBtn.classList.add("pn-btn--loading");
     }
-    
+
     // Pulse animation on the fields while loading
-    byIdSafe("prompt-title")?.classList.add('pn-shimmer');
-    byIdSafe("prompt-text")?.classList.add('pn-shimmer');
+    byIdSafe("prompt-title")?.classList.add("pn-shimmer");
+    byIdSafe("prompt-text")?.classList.add("pn-shimmer");
 
     try {
       const tagsHidden = byIdSafe("prompt-tags");
@@ -852,10 +923,10 @@
     } finally {
       if (saveBtn) {
         saveBtn.disabled = false;
-        saveBtn.classList.remove('pn-btn--loading');
+        saveBtn.classList.remove("pn-btn--loading");
       }
-      byIdSafe("prompt-title")?.classList.remove('pn-shimmer');
-      byIdSafe("prompt-text")?.classList.remove('pn-shimmer');
+      byIdSafe("prompt-title")?.classList.remove("pn-shimmer");
+      byIdSafe("prompt-text")?.classList.remove("pn-shimmer");
     }
   };
 
@@ -866,11 +937,11 @@
     const saveBtn = byIdSafe("pn-template-save");
     if (saveBtn) {
       saveBtn.disabled = true;
-      saveBtn.classList.add('pn-btn--loading');
+      saveBtn.classList.add("pn-btn--loading");
     }
-    
-    byIdSafe("pn-template-title")?.classList.add('pn-shimmer');
-    byIdSafe("pn-template-text")?.classList.add('pn-shimmer');
+
+    byIdSafe("pn-template-title")?.classList.add("pn-shimmer");
+    byIdSafe("pn-template-text")?.classList.add("pn-shimmer");
 
     try {
       const userTags = parseTags(byIdSafe("pn-template-tags")?.value || "");
@@ -906,10 +977,10 @@
     } finally {
       if (saveBtn) {
         saveBtn.disabled = false;
-        saveBtn.classList.remove('pn-btn--loading');
+        saveBtn.classList.remove("pn-btn--loading");
       }
-      byIdSafe("pn-template-title")?.classList.remove('pn-shimmer');
-      byIdSafe("pn-template-text")?.classList.remove('pn-shimmer');
+      byIdSafe("pn-template-title")?.classList.remove("pn-shimmer");
+      byIdSafe("pn-template-text")?.classList.remove("pn-shimmer");
     }
   };
 
@@ -1105,6 +1176,8 @@
       void persistPrompt(payload);
     },
     prefillSuggestedTags: () => Promise.resolve(),
+    showImproveInlineError,
+    clearImproveInlineErrors,
     bindEvents,
     setCallbacks,
     setMode,
