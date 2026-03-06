@@ -90,8 +90,37 @@
   const showError = (id, message) => {
     const node = byIdSafe(id);
     if (!node) return;
-    node.textContent = String(message || "").trim();
-    node.classList.toggle("pn-hidden", !node.textContent);
+    
+    // Clear previously injected actions
+    const existingBtn = node.querySelector('.pn-settings-redirect');
+    if (existingBtn) existingBtn.remove();
+
+    const normalized = String(message || "").trim();
+    const isApiKeyError = /api\s*key|settings/i.test(normalized) && /missing|invalid|not\s*found|not\s*configured/i.test(normalized);
+    
+    node.textContent = isApiKeyError ? "Cloud API key not configured. " : normalized;
+
+    if (isApiKeyError) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pn-settings-redirect';
+      btn.textContent = 'Go to Settings';
+      btn.style.marginLeft = '6px';
+      btn.style.textDecoration = 'underline';
+      btn.style.background = 'none';
+      btn.style.border = 'none';
+      btn.style.color = 'currentColor';
+      btn.style.cursor = 'pointer';
+      btn.style.padding = '0';
+      btn.style.fontWeight = '600';
+      btn.addEventListener('click', () => {
+        close();
+        void openSettingsAiModels();
+      });
+      node.appendChild(btn);
+    }
+
+    node.classList.toggle("pn-hidden", !node.textContent && !isApiKeyError);
   };
 
   const setMode = (mode) => {
@@ -479,8 +508,9 @@
           textarea.classList.remove("pn-focus-invalid");
         }
       }
-    } catch (_error) {
-      showTemporaryError(errorId, "Polish failed — try again", 4000);
+    } catch (error) {
+      const msg = String(error?.message || "Polish failed — try again");
+      showTemporaryError(errorId, msg, 6000);
     } finally {
       button.disabled = false;
       button.textContent = "✦ Polish";
@@ -770,79 +800,117 @@
     const validation = validatePlain();
     if (!validation.valid) return;
 
-    const tagsHidden = byIdSafe("prompt-tags");
-    const tagInput = byIdSafe("prompt-tags-input");
-    if (tagInput && String(tagInput.value || "").trim()) {
-      addTagBadge(tagInput.value);
-      tagInput.value = "";
+    const saveBtn = byIdSafe("save-new-prompt");
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.classList.add('pn-btn--loading');
     }
-    syncBadgesToHidden();
+    
+    // Pulse animation on the fields while loading
+    byIdSafe("prompt-title")?.classList.add('pn-shimmer');
+    byIdSafe("prompt-text")?.classList.add('pn-shimmer');
 
-    const userTags = parseTags(tagsHidden?.value || "");
-    const duplicate = await findDuplicate({
-      title: validation.title,
-      text: validation.text,
-    });
-    if (duplicate?.duplicate && duplicate?.match) {
-      showDuplicateWarning({
-        payload: {
-          title: validation.title,
-          text: validation.text,
-          tags: userTags,
-          category: null,
-        },
-        match: duplicate.match,
+    try {
+      const tagsHidden = byIdSafe("prompt-tags");
+      const tagInput = byIdSafe("prompt-tags-input");
+      if (tagInput && String(tagInput.value || "").trim()) {
+        addTagBadge(tagInput.value);
+        tagInput.value = "";
+      }
+      syncBadgesToHidden();
+
+      const userTags = parseTags(tagsHidden?.value || "");
+      const duplicate = await findDuplicate({
+        title: validation.title,
+        text: validation.text,
       });
-      return;
-    }
+      if (duplicate?.duplicate && duplicate?.match) {
+        showDuplicateWarning({
+          payload: {
+            title: validation.title,
+            text: validation.text,
+            tags: userTags,
+            category: null,
+          },
+          match: duplicate.match,
+        });
+        return;
+      }
 
-    const tags = await maybeAutoSuggestTags({
-      text: validation.text,
-      tags: userTags,
-      isTemplate: false,
-    });
-    await persistPrompt({
-      title: validation.title,
-      text: validation.text,
-      tags,
-      category: null,
-    });
+      const tags = await maybeAutoSuggestTags({
+        text: validation.text,
+        tags: userTags,
+        isTemplate: false,
+      });
+
+      await persistPrompt({
+        title: validation.title,
+        text: validation.text,
+        tags,
+        category: null,
+      });
+    } finally {
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.classList.remove('pn-btn--loading');
+      }
+      byIdSafe("prompt-title")?.classList.remove('pn-shimmer');
+      byIdSafe("prompt-text")?.classList.remove('pn-shimmer');
+    }
   };
 
   const saveTemplateFromModal = async () => {
     const validation = validateTemplate();
     if (!validation.valid) return;
 
-    const userTags = parseTags(byIdSafe("pn-template-tags")?.value || "");
-    const duplicate = await findDuplicate({
-      title: validation.title,
-      text: validation.text,
-    });
-    if (duplicate?.duplicate && duplicate?.match) {
-      showDuplicateWarning({
-        payload: {
-          title: validation.title,
-          text: validation.text,
-          tags: userTags,
-          category: null,
-        },
-        match: duplicate.match,
-      });
-      return;
+    const saveBtn = byIdSafe("pn-template-save");
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.classList.add('pn-btn--loading');
     }
+    
+    byIdSafe("pn-template-title")?.classList.add('pn-shimmer');
+    byIdSafe("pn-template-text")?.classList.add('pn-shimmer');
 
-    const tags = await maybeAutoSuggestTags({
-      text: validation.text,
-      tags: userTags,
-      isTemplate: true,
-    });
+    try {
+      const userTags = parseTags(byIdSafe("pn-template-tags")?.value || "");
+      const duplicate = await findDuplicate({
+        title: validation.title,
+        text: validation.text,
+      });
+      if (duplicate?.duplicate && duplicate?.match) {
+        showDuplicateWarning({
+          payload: {
+            title: validation.title,
+            text: validation.text,
+            tags: userTags,
+            category: null,
+          },
+          match: duplicate.match,
+        });
+        return;
+      }
 
-    await persistPrompt({
-      title: validation.title,
-      text: validation.text,
-      tags,
-      category: null,
-    });
+      const tags = await maybeAutoSuggestTags({
+        text: validation.text,
+        tags: userTags,
+        isTemplate: true,
+      });
+
+      await persistPrompt({
+        title: validation.title,
+        text: validation.text,
+        tags,
+        category: null,
+      });
+    } finally {
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.classList.remove('pn-btn--loading');
+      }
+      byIdSafe("pn-template-title")?.classList.remove('pn-shimmer');
+      byIdSafe("pn-template-text")?.classList.remove('pn-shimmer');
+    }
   };
 
   const bindVariableToolbar = () => {

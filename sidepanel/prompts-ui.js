@@ -230,18 +230,36 @@
       return prompts;
     }
 
+    const hashTags = [];
+    let textQuery = normalized;
+    const tagMatch = normalized.match(/#[^\s]+/g);
+    if (tagMatch) {
+      hashTags.push(...tagMatch.map(t => t.slice(1))); // Remove the '#'
+      textQuery = normalized.replace(/#[^\s]+/g, '').trim();
+    }
+
     return prompts.filter((prompt) => {
+      const promptTags = (prompt.tags || []).map(t => t.toLowerCase());
+      
+      if (hashTags.length > 0) {
+        const hasAllTags = hashTags.every(ht => promptTags.some(pt => pt.includes(ht)));
+        if (!hasAllTags) return false;
+        if (!textQuery) return true;
+      }
+
       const titleMatch = String(prompt.title || "")
         .toLowerCase()
-        .includes(normalized);
+        .includes(textQuery);
       const textMatch = normalizePromptText(prompt.text)
         .toLowerCase()
-        .includes(normalized);
-      const tagsMatch = (prompt.tags || [])
-        .join(" ")
-        .toLowerCase()
-        .includes(normalized);
-      return titleMatch || textMatch || tagsMatch;
+        .includes(textQuery);
+      
+      if (!hashTags.length) {
+        const tagsMatch = promptTags.join(" ").includes(textQuery);
+        return titleMatch || textMatch || tagsMatch;
+      }
+
+      return titleMatch || textMatch;
     });
   };
 

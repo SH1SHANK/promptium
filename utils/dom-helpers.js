@@ -84,20 +84,35 @@ const createEmptyState = (messageOrConfig, maybeOptions = {}) => {
   const stateNode = document.createElement('div');
   stateNode.className = 'pn-empty-state';
   const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  icon.setAttribute('viewBox', '0 0 24 24');
+  icon.setAttribute('viewBox', '0 0 64 64');
   icon.setAttribute('fill', 'none');
-  icon.setAttribute('stroke-width', '1.6');
-  icon.setAttribute('stroke-linecap', 'round');
-  icon.setAttribute('stroke-linejoin', 'round');
+  icon.setAttribute('class', 'pn-empty-state__illustration');
   icon.setAttribute('aria-hidden', 'true');
 
-  const pathTop = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  pathTop.setAttribute('d', 'M4 6.5h16v11H4z');
-  const pathMid = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  pathMid.setAttribute('d', 'M8 10h8');
-  const pathBottom = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  pathBottom.setAttribute('d', 'M8 13h5');
-  icon.append(pathTop, pathMid, pathBottom);
+  const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  circle.setAttribute('cx', '32');
+  circle.setAttribute('cy', '32');
+  circle.setAttribute('r', '30');
+  circle.setAttribute('fill', 'var(--surface-sunken, #F3F4F6)');
+  
+  const path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path1.setAttribute('d', 'M20 22h24v24H20z');
+  path1.setAttribute('fill', 'var(--surface, #FFFFFF)');
+  path1.setAttribute('stroke', 'var(--border, #E5E7EB)');
+  path1.setAttribute('stroke-width', '2');
+  path1.setAttribute('stroke-linejoin', 'round');
+  
+  const path2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path2.setAttribute('d', 'M26 28h12M26 34h8');
+  path2.setAttribute('stroke', 'var(--text-muted, #9CA3AF)');
+  path2.setAttribute('stroke-width', '2');
+  path2.setAttribute('stroke-linecap', 'round');
+
+  const spark = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  spark.setAttribute('d', 'M46 16l2 4 4 2-4 2-2 4-2-4-4-2 4-2 2-4z');
+  spark.setAttribute('fill', 'var(--primary, #3B82F6)');
+
+  icon.append(circle, path1, path2, spark);
   stateNode.appendChild(icon);
 
   if (title) {
@@ -108,6 +123,7 @@ const createEmptyState = (messageOrConfig, maybeOptions = {}) => {
   }
 
   const messageNode = document.createElement('p');
+  messageNode.className = 'pn-empty-state__message';
   messageNode.textContent = message;
   stateNode.appendChild(messageNode);
 

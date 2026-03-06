@@ -897,37 +897,47 @@ body.pn-popup::-webkit-scrollbar-thumb:hover {
 
 .pn-empty-state {
   border: 1px dashed var(--border-default);
-  border-radius: 10px;
-  padding: 36px 20px;
+  border-radius: 12px;
+  padding: 40px 24px;
   text-align: center;
   color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.02);
-  transition:
-    border-color 0.2s ease,
-    background 0.2s ease;
+  background: color-mix(in srgb, var(--surface-sunken) 40%, transparent);
+  transition: border-color 0.2s ease, background 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 .pn-empty-state:hover {
-  border-color: rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.04);
+  border-color: color-mix(in srgb, var(--border-default) 80%, var(--text-primary));
+  background: color-mix(in srgb, var(--surface-sunken) 60%, transparent);
 }
 
-.pn-empty-state svg {
-  width: 28px;
-  height: 28px;
-  margin-bottom: 12px;
-  stroke: var(--text-muted);
+.pn-empty-state svg.pn-empty-state__illustration {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 16px;
 }
 
 .pn-empty-state__title {
-  margin: 0 0 4px;
+  margin: 0 0 6px;
   color: var(--text-primary);
   font-size: 14px;
   font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.pn-empty-state__message {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  max-width: 240px;
 }
 
 .pn-empty-state__action {
-  margin-top: 12px;
+  margin-top: 16px;
 }
 
 .pn-export-status-controls {

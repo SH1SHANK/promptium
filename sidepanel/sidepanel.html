@@ -362,9 +362,14 @@
           </div>
           <div id="tag-list" class="pn-tag-list">
             <div id="pn-tags-empty" class="pn-empty-state">
-              <div class="pn-empty-icon">🏷️</div>
-              <p>No tags yet</p>
-              <span>Add tags when saving prompts.</span>
+              <svg viewBox="0 0 64 64" fill="none" class="pn-empty-state__illustration" aria-hidden="true">
+                <circle cx="32" cy="32" r="30" fill="var(--surface-sunken, #F3F4F6)"></circle>
+                <path d="M20 22h24v24H20z" fill="var(--surface, #FFFFFF)" stroke="var(--border, #E5E7EB)" stroke-width="2" stroke-linejoin="round"></path>
+                <path d="M26 28h12M26 34h8" stroke="var(--text-muted, #9CA3AF)" stroke-width="2" stroke-linecap="round"></path>
+                <path d="M46 16l2 4 4 2-4 2-2 4-2-4-4-2 4-2 2-4z" fill="var(--primary, #3B82F6)"></path>
+              </svg>
+              <p class="pn-empty-state__title">No tags yet</p>
+              <p class="pn-empty-state__message">Add tags when saving prompts to organize your library.</p>
               <button id="pn-tags-empty-add" type="button" class="pn-btn pn-btn--primary pn-empty-state__action">Add your first prompt</button>
             </div>
           </div>
