@@ -74,11 +74,12 @@ const EMBEDDING_REINDEX_FALLBACK = Object.freeze({
   startedAt: 0,
   completedAt: 0,
 });
-let _embeddingPipeline = null;
-let _embeddingPipelinePromise = null;
 let _embeddingStatus = EMBEDDING_META_FALLBACK.status;
 let _embeddingProgress = 0;
 let _embeddingError = "";
+const OFFSCREEN_EMBEDDING_URL = "offscreen/embedding.html";
+const OFFSCREEN_EMBEDDING_REASON = "WORKERS";
+let _offscreenEnsurePromise = null;
 
 const normalizeProviderId = (providerId = "") => {
   const normalized = String(providerId || "")
@@ -209,6 +210,71 @@ const writeEmbeddingReindexState = async (nextValue = {}) => {
     .set({ [BRAND_KEYS.embeddingReindexState]: merged })
     .catch(() => {});
   return merged;
+};
+
+const hasOffscreenDocument = async () => {
+  if (!chrome.runtime?.getContexts) {
+    return false;
+  }
+  const contexts = await chrome.runtime
+    .getContexts({
+      contextTypes: ["OFFSCREEN_DOCUMENT"],
+      documentUrls: [chrome.runtime.getURL(OFFSCREEN_EMBEDDING_URL)],
+    })
+    .catch(() => []);
+  return Array.isArray(contexts) && contexts.length > 0;
+};
+
+const ensureOffscreenDocument = async () => {
+  if (!chrome.offscreen?.createDocument) {
+    throw new Error("offscreen_api_unavailable");
+  }
+  if (await hasOffscreenDocument()) {
+    return true;
+  }
+  if (_offscreenEnsurePromise) {
+    return _offscreenEnsurePromise;
+  }
+
+  _offscreenEnsurePromise = (async () => {
+    await chrome.offscreen
+      .createDocument({
+        url: OFFSCREEN_EMBEDDING_URL,
+        reasons: [OFFSCREEN_EMBEDDING_REASON],
+        justification:
+          "Run embedding model inference outside the service worker lifecycle.",
+      })
+      .catch((error) => {
+        const message = String(error?.message || "").toLowerCase();
+        if (message.includes("already exists") || message.includes("single offscreen")) {
+          return;
+        }
+        throw error;
+      });
+    return true;
+  })();
+
+  try {
+    return await _offscreenEnsurePromise;
+  } finally {
+    _offscreenEnsurePromise = null;
+  }
+};
+
+const sendOffscreenEmbeddingMessage = async (action, payload = {}) => {
+  await ensureOffscreenDocument();
+  const response = await chrome.runtime
+    .sendMessage({
+      type: "OFFSCREEN_EMBEDDING",
+      action: String(action || "").trim(),
+      payload,
+    })
+    .catch((error) => ({ ok: false, error: error?.message || "offscreen_send_failed" }));
+
+  if (!response?.ok) {
+    throw new Error(String(response?.error || "offscreen_embedding_failed"));
+  }
+  return response;
 };
 
 /** Redacts obvious secret-like and PII patterns before external API calls. */
@@ -771,18 +837,12 @@ const requestEmbeddingVector = async (modelId = "", text = "") => {
   if (!source) {
     return [];
   }
-
-  const pipeline = await getEmbeddingPipeline(modelId);
-  if (!pipeline) {
-    return [];
-  }
-
   try {
-    const output = await pipeline(source, {
-      pooling: "mean",
-      normalize: true,
+    const response = await sendOffscreenEmbeddingMessage("EMBED", {
+      modelId,
+      text: source,
     });
-    return extractEmbeddingVector(output);
+    return sanitizeVector(response?.vector || []);
   } catch (error) {
     console.warn(
       "[Promptium][ServiceWorker] Failed to embed text.",
@@ -994,79 +1054,6 @@ const broadcastEmbeddingStatus = async (
   return next;
 };
 
-const getEmbeddingPipeline = async (modelId = "") => {
-  const selected = getEmbeddingModelById(modelId) || getDefaultEmbeddingModel();
-  const targetModelId = String(
-    selected?.id || EMBEDDING_META_FALLBACK.activeModelId,
-  );
-
-  if (_embeddingPipeline && (await readEmbeddingMeta()).activeModelId === targetModelId) {
-    return _embeddingPipeline;
-  }
-  if (_embeddingPipelinePromise) {
-    return _embeddingPipelinePromise;
-  }
-
-  _embeddingPipelinePromise = (async () => {
-    _embeddingStatus = "downloading";
-    _embeddingProgress = 0;
-    _embeddingError = "";
-    await broadcastEmbeddingStatus("downloading", 0, targetModelId);
-
-    try {
-      const { pipeline, env } = await import("../libs/transformers.min.js");
-      env.allowLocalModels = false;
-      env.useBrowserCache = true;
-      env.allowRemoteModels = true;
-
-      _embeddingPipeline = await pipeline(
-        "feature-extraction",
-        selected.modelId,
-        {
-          quantized: true,
-          progress_callback: (event) => {
-            if (event?.status === "downloading" && Number(event?.total) > 0) {
-              _embeddingProgress = Math.max(
-                0,
-                Math.min(
-                  100,
-                  Math.round((Number(event.loaded || 0) / Number(event.total)) * 100),
-                ),
-              );
-              void broadcastEmbeddingStatus(
-                "downloading",
-                _embeddingProgress,
-                targetModelId,
-              );
-            }
-          },
-        },
-      );
-      _embeddingStatus = "ready";
-      _embeddingProgress = 100;
-      await broadcastEmbeddingStatus("ready", 100, targetModelId);
-      return _embeddingPipeline;
-    } catch (error) {
-      _embeddingPipeline = null;
-      _embeddingStatus = "error";
-      _embeddingProgress = 0;
-      _embeddingError = String(
-        error?.message || "Failed to load embedding model.",
-      );
-      await broadcastEmbeddingStatus("error", 0, targetModelId);
-      console.warn(
-        "[Promptium][ServiceWorker] Embedding pipeline failed.",
-        error,
-      );
-      return null;
-    } finally {
-      _embeddingPipelinePromise = null;
-    }
-  })();
-
-  return _embeddingPipelinePromise;
-};
-
 const clearEmbeddingModelCaches = async (modelId = "") => {
   const selected = getEmbeddingModelById(modelId);
   if (!selected || typeof caches === "undefined") {
@@ -1116,10 +1103,23 @@ const downloadEmbeddingModel = async (modelId = "", { silent = false } = {}) => 
     };
   }
 
-  _embeddingPipeline = null;
-  _embeddingPipelinePromise = null;
-  const pipeline = await getEmbeddingPipeline(targetModelId);
-  if (!pipeline) {
+  _embeddingStatus = "downloading";
+  _embeddingProgress = 0;
+  _embeddingError = "";
+  await broadcastEmbeddingStatus("downloading", 0, targetModelId);
+
+  try {
+    await sendOffscreenEmbeddingMessage("INIT", {
+      modelId: targetModelId,
+    });
+    _embeddingStatus = "ready";
+    _embeddingProgress = 100;
+    await broadcastEmbeddingStatus("ready", 100, targetModelId);
+  } catch (error) {
+    _embeddingStatus = "error";
+    _embeddingProgress = 0;
+    _embeddingError = String(error?.message || "Download failed.");
+    await broadcastEmbeddingStatus("error", 0, targetModelId);
     return {
       ok: false,
       error: _embeddingError || "Download failed.",
@@ -2444,6 +2444,11 @@ const handleOpenContinuationPanel = async (sender) => {
 
 /** Routes runtime messages and keeps channel open for async response delivery. */
 const onRuntimeMessage = (message, sender, sendResponse) => {
+  if (message?.type === "OFFSCREEN_EMBEDDING") {
+    // This request is intended for the offscreen document listener.
+    return false;
+  }
+
   let sidePanelPromise = null;
 
   if (message?.action === "OPEN_SIDEPANEL") {
@@ -2478,6 +2483,21 @@ const onRuntimeMessage = (message, sender, sendResponse) => {
     };
 
     try {
+      if (routedMessage?.type === "OFFSCREEN_EMBEDDING_PROGRESS") {
+        const payload = routedMessage?.payload || {};
+        const modelId = String(payload?.modelId || "").trim();
+        const progress = Math.max(
+          0,
+          Math.min(100, Number(payload?.progress || 0) || 0),
+        );
+        _embeddingStatus = "downloading";
+        _embeddingProgress = progress;
+        _embeddingError = "";
+        await broadcastEmbeddingStatus("downloading", progress, modelId);
+        respond({ ok: true });
+        return;
+      }
+
       // Route AI messages first (type-based) before existing action-based routing
       if (routedMessage?.type?.startsWith("AI_")) {
         const handled = await handleAIMessage(routedMessage, respond);

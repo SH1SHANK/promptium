@@ -30,7 +30,8 @@
     "scripting",
     "downloads",
     "sidePanel",
-    "contextMenus"
+    "contextMenus",
+    "offscreen"
   ],
   "commands": {
     "open-side-panel": {

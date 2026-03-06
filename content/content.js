@@ -12,6 +12,147 @@
   const URL_WATCH_INTERVAL_MS = 1000;
   const INJECTION_UNDO_TTL_MS = 8000;
   const INJECTION_CONFIRMATION_DELAY_MS = 360;
+  const SELECTION_SHADOW_HOST_ID = "pn-selection-shadow-host";
+
+  const INLINE_SELECT_SHADOW_CSS = `
+    :host {
+      position: absolute;
+      top: 10px;
+      left: -6px;
+      z-index: 2147483642;
+      width: 18px;
+      height: 18px;
+      opacity: 0;
+      transform: scale(0.9) translateX(-4px);
+      transition: opacity 0.18s ease, transform 0.18s ease;
+      pointer-events: none;
+    }
+    :host([data-visible="true"]) {
+      opacity: 0.6;
+      transform: scale(1) translateX(0);
+      pointer-events: auto;
+    }
+    :host([data-checked="true"]) {
+      opacity: 1;
+      transform: scale(1) translateX(0);
+      pointer-events: auto;
+    }
+    .pn-inline-select {
+      width: 100%;
+      height: 100%;
+      border-radius: 5px;
+      background: rgba(24, 24, 27, 0.72);
+      border: 1.5px solid rgba(255, 255, 255, 0.16);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-sizing: border-box;
+      user-select: none;
+    }
+    .pn-inline-select:hover {
+      border-color: rgba(45, 212, 191, 0.55);
+    }
+    .pn-inline-select.pn-checked {
+      background: rgba(45, 212, 191, 0.18);
+      border-color: rgba(45, 212, 191, 0.8);
+    }
+    .pn-inline-check {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .pn-inline-mark {
+      width: 9px;
+      height: 9px;
+      border-radius: 3px;
+      border: 1.5px solid rgba(255, 255, 255, 0.55);
+      box-sizing: border-box;
+      transition: background 0.16s ease, border-color 0.16s ease;
+    }
+    .pn-inline-check:checked + .pn-inline-mark {
+      background: #2dd4bf;
+      border-color: #2dd4bf;
+    }
+  `;
+
+  const SELECTION_FAB_SHADOW_CSS = `
+    #pn-selection-fab {
+      position: fixed;
+      left: 50%;
+      bottom: 20px;
+      transform: translateX(-50%);
+      z-index: 2147483643;
+      pointer-events: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(24, 24, 27, 0.95);
+      color: #e4e4e7;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 6px 8px 6px 14px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      font-family: Outfit, Avenir Next, Segoe UI, sans-serif;
+    }
+    #pn-selection-fab.pn-hidden {
+      display: none;
+    }
+    .pn-selection-fab__count {
+      margin: 0;
+      font-size: 12px;
+      font-weight: 500;
+      color: #a1a1aa;
+      white-space: nowrap;
+    }
+    .pn-selection-fab__divider {
+      width: 1px;
+      height: 20px;
+      background: rgba(255, 255, 255, 0.08);
+      flex-shrink: 0;
+    }
+    .pn-selection-fab__btn {
+      border: none;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .pn-selection-fab__btn--primary {
+      background: #14b8a6;
+      color: #fff;
+    }
+    .pn-selection-fab__btn--ghost {
+      background: rgba(255, 255, 255, 0.06);
+      color: #a1a1aa;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .pn-selection-fab__btn--ghost:hover,
+    .pn-selection-fab__btn--primary:hover {
+      filter: brightness(1.08);
+    }
+    .pn-selection-fab__close {
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+      border: none;
+      background: rgba(255, 255, 255, 0.04);
+      color: #71717a;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .pn-selection-fab__close:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #e4e4e7;
+    }
+  `;
 
   const exportSelectionState = {
     platform: null,
@@ -252,7 +393,7 @@
     }
 
     const clone = node.cloneNode(true);
-    clone.querySelectorAll(".pn-inline-select").forEach((injected) => {
+    clone.querySelectorAll(".pn-inline-select, .pn-inline-select-host").forEach((injected) => {
       injected.remove();
     });
 
@@ -338,21 +479,80 @@
     };
   };
 
+  const ensureSelectionShadowRoot = () => {
+    let host = document.getElementById(SELECTION_SHADOW_HOST_ID);
+    if (!(host instanceof HTMLElement)) {
+      host = document.createElement("div");
+      host.id = SELECTION_SHADOW_HOST_ID;
+      host.style.position = "fixed";
+      host.style.inset = "0";
+      host.style.pointerEvents = "none";
+      host.style.zIndex = "2147483641";
+      document.documentElement.appendChild(host);
+    }
+
+    if (!host.shadowRoot) {
+      host.attachShadow({ mode: "open" });
+    }
+
+    return host.shadowRoot;
+  };
+
+  const getSelectionFabNode = () =>
+    ensureSelectionShadowRoot()?.getElementById("pn-selection-fab") || null;
+
+  const getSelectionCountNode = () =>
+    ensureSelectionShadowRoot()?.getElementById("pn-selection-fab-count") ||
+    null;
+
+  const getSelectionControls = () =>
+    Array.from(document.querySelectorAll(".pn-inline-select-host"))
+      .map((host) => {
+        if (!(host instanceof HTMLElement)) return null;
+        const input = host.shadowRoot?.querySelector(".pn-inline-check") || null;
+        const control = host.shadowRoot?.querySelector(".pn-inline-select") || null;
+        const messageId = String(host.dataset.messageId || "").trim();
+        return { host, input, control, messageId };
+      })
+      .filter(Boolean);
+
+  const setControlChecked = (entry, checked) => {
+    if (!entry) return;
+    const bool = Boolean(checked);
+    if (entry.input instanceof HTMLInputElement) {
+      entry.input.checked = bool;
+    }
+    entry.control?.classList.toggle("pn-checked", bool);
+    entry.host?.setAttribute("data-checked", bool ? "true" : "false");
+    entry.host?.setAttribute("data-visible", bool ? "true" : "false");
+  };
+
+  const setAllSelectionControls = (checked) => {
+    getSelectionControls().forEach((entry) => setControlChecked(entry, checked));
+  };
+
   /** Ensures each message gets a single injected checkbox control and syncs checked state. */
   const ensureMessageCheckbox = async (node, messageId) => {
     if (!(node instanceof HTMLElement)) {
       return;
     }
 
-    const existing = node.querySelector(":scope > .pn-inline-select");
-
-    if (existing) {
-      const existingInput = existing.querySelector(".pn-inline-check");
-
-      if (existingInput instanceof HTMLInputElement) {
-        existingInput.checked = exportSelectionState.selectedIds.has(messageId);
-      }
-
+    const existingHost = node.querySelector(":scope > .pn-inline-select-host");
+    if (existingHost instanceof HTMLElement) {
+      existingHost.dataset.messageId = messageId;
+      const existingInput =
+        existingHost.shadowRoot?.querySelector(".pn-inline-check") || null;
+      const existingControl =
+        existingHost.shadowRoot?.querySelector(".pn-inline-select") || null;
+      setControlChecked(
+        {
+          host: existingHost,
+          input: existingInput,
+          control: existingControl,
+          messageId,
+        },
+        exportSelectionState.selectedIds.has(messageId),
+      );
       return;
     }
 
@@ -360,46 +560,67 @@
       node.classList.add("pn-selectable-message--relative");
     }
 
-    const control = document.createElement("label");
-    control.className = "pn-inline-select";
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.className = "pn-inline-check";
-    checkbox.setAttribute("aria-label", "Select message for Promptium export");
-    control.appendChild(checkbox);
+    const host = document.createElement("span");
+    host.className = "pn-inline-select-host";
+    host.dataset.messageId = messageId;
+    host.dataset.visible = "false";
+    host.dataset.checked = "false";
 
-    const mark = document.createElement("span");
-    mark.className = "pn-inline-mark";
-    control.appendChild(mark);
+    const shadowRoot = host.attachShadow({ mode: "open" });
+    shadowRoot.innerHTML = `
+      <style>${INLINE_SELECT_SHADOW_CSS}</style>
+      <label class="pn-inline-select">
+        <input type="checkbox" class="pn-inline-check" aria-label="Select message for Promptium export" />
+        <span class="pn-inline-mark"></span>
+      </label>
+    `;
+
+    const checkbox = shadowRoot.querySelector(".pn-inline-check");
+    const control = shadowRoot.querySelector(".pn-inline-select");
 
     if (checkbox instanceof HTMLInputElement) {
-      checkbox.checked = exportSelectionState.selectedIds.has(messageId);
-      control.classList.toggle("pn-checked", checkbox.checked);
+      setControlChecked(
+        { host, input: checkbox, control, messageId },
+        exportSelectionState.selectedIds.has(messageId),
+      );
 
       checkbox.addEventListener("change", (event) => {
         const target = event.currentTarget;
-
         if (!(target instanceof HTMLInputElement)) {
           return;
         }
 
         if (target.checked) {
           exportSelectionState.selectedIds.add(messageId);
-          control.classList.add("pn-checked");
         } else {
           exportSelectionState.selectedIds.delete(messageId);
-          control.classList.remove("pn-checked");
         }
 
+        setControlChecked(
+          { host, input: checkbox, control, messageId },
+          target.checked,
+        );
         void updateSelectionFab();
       });
     }
 
-    control.addEventListener("click", (event) => {
+    control?.addEventListener("click", (event) => {
       event.stopPropagation();
     });
 
-    node.appendChild(control);
+    node.addEventListener("mouseenter", () => {
+      if (host.dataset.checked !== "true") {
+        host.dataset.visible = "true";
+      }
+    });
+
+    node.addEventListener("mouseleave", () => {
+      if (host.dataset.checked !== "true") {
+        host.dataset.visible = "false";
+      }
+    });
+
+    node.appendChild(host);
   };
 
   /** Builds selected messages in original order for side panel export payloads. */
@@ -481,14 +702,7 @@
       exportSelectionState.messageOrder,
     );
 
-    document.querySelectorAll(".pn-inline-check").forEach((checkbox) => {
-      if (checkbox instanceof HTMLInputElement) {
-        checkbox.checked = true;
-      }
-    });
-    document
-      .querySelectorAll(".pn-inline-select")
-      .forEach((el) => el.classList.add("pn-checked"));
+    setAllSelectionControls(true);
 
     updateSelectionFab().catch(console.error);
     return true;
@@ -508,11 +722,7 @@
       exportSelectionState.messageOrder,
     );
 
-    document.querySelectorAll(".pn-inline-check").forEach((checkbox) => {
-      if (checkbox instanceof HTMLInputElement) {
-        checkbox.checked = true;
-      }
-    });
+    setAllSelectionControls(true);
 
     const response = openSidePanelWithSelection();
     updateSelectionFab().catch(console.error);
@@ -521,9 +731,15 @@
 
   /** Creates the floating selection bar once and wires all action handlers. */
   const ensureSelectionFab = async () => {
-    if (document.getElementById("pn-selection-fab")) {
+    const shadowRoot = ensureSelectionShadowRoot();
+    if (!shadowRoot) return;
+    if (shadowRoot.getElementById("pn-selection-fab")) {
       return;
     }
+
+    const style = document.createElement("style");
+    style.textContent = SELECTION_FAB_SHADOW_CSS;
+    shadowRoot.appendChild(style);
 
     const root = document.createElement("div");
     root.id = "pn-selection-fab";
@@ -596,12 +812,7 @@
         exportSelectionState.selectedIds = new Set(
           exportSelectionState.messageOrder,
         );
-        document.querySelectorAll(".pn-inline-check").forEach((cb) => {
-          if (cb instanceof HTMLInputElement) cb.checked = true;
-        });
-        document
-          .querySelectorAll(".pn-inline-select")
-          .forEach((el) => el.classList.add("pn-checked"));
+        setAllSelectionControls(true);
         void updateSelectionFab();
       });
 
@@ -611,12 +822,7 @@
       ?.addEventListener("click", (event) => {
         event.stopPropagation();
         exportSelectionState.selectedIds.clear();
-        document.querySelectorAll(".pn-inline-check").forEach((cb) => {
-          if (cb instanceof HTMLInputElement) cb.checked = false;
-        });
-        document
-          .querySelectorAll(".pn-inline-select")
-          .forEach((el) => el.classList.remove("pn-checked"));
+        setAllSelectionControls(false);
         void updateSelectionFab();
       });
 
@@ -626,30 +832,23 @@
       ?.addEventListener("click", (event) => {
         event.stopPropagation();
         exportSelectionState.selectedIds.clear();
-        document.querySelectorAll(".pn-inline-check").forEach((cb) => {
-          if (cb instanceof HTMLInputElement) cb.checked = false;
-        });
-        document
-          .querySelectorAll(".pn-inline-select")
-          .forEach((el) => el.classList.remove("pn-checked"));
+        setAllSelectionControls(false);
         root.classList.add("pn-hidden");
       });
 
-    if (document.body) {
-      document.body.appendChild(root);
-      const countNode = root.querySelector("#pn-selection-fab-count");
-      if (countNode) {
-        countNode.setAttribute("role", "status");
-        countNode.setAttribute("aria-live", "polite");
-      }
+    shadowRoot.appendChild(root);
+    const countNode = root.querySelector("#pn-selection-fab-count");
+    if (countNode) {
+      countNode.setAttribute("role", "status");
+      countNode.setAttribute("aria-live", "polite");
     }
   };
 
   /** Syncs floating selection bar visibility and count label with selection state. */
   const updateSelectionFab = async () => {
     await ensureSelectionFab();
-    const root = document.getElementById("pn-selection-fab");
-    const count = document.getElementById("pn-selection-fab-count");
+    const root = getSelectionFabNode();
+    const count = getSelectionCountNode();
 
     if (!root || !count) {
       return;
@@ -668,6 +867,13 @@
         exportSelectionState.selectedIds.delete(id);
       }
     }
+
+    document.querySelectorAll(".pn-inline-select-host").forEach((host) => {
+      if (!(host instanceof HTMLElement)) return;
+      const messageId = String(host.dataset.messageId || "").trim();
+      if (!messageId || currentIds.has(messageId)) return;
+      host.remove();
+    });
   };
 
   /** Collects all known chat message nodes for the current platform in order. */
@@ -713,20 +919,9 @@
     exportSelectionState.messagesById = nextMessagesById;
     await pruneMissingSelections(new Set(nextOrder));
 
-    document.querySelectorAll(".pn-inline-check").forEach((checkbox) => {
-      if (!(checkbox instanceof HTMLInputElement)) {
-        return;
-      }
-
-      const host = checkbox.closest(".pn-inline-select")?.parentElement;
-
-      if (!host?.dataset?.pnMessageId) {
-        return;
-      }
-
-      checkbox.checked = exportSelectionState.selectedIds.has(
-        host.dataset.pnMessageId,
-      );
+    getSelectionControls().forEach((entry) => {
+      if (!entry?.messageId) return;
+      setControlChecked(entry, exportSelectionState.selectedIds.has(entry.messageId));
     });
 
     await updateSelectionFab();
@@ -1114,6 +1309,11 @@
   /** Disconnects observers and timers when the page unloads. */
   const cleanup = async () => {
     clearInjectionUndoState();
+
+    document
+      .querySelectorAll(".pn-inline-select-host")
+      .forEach((host) => host.remove());
+    document.getElementById(SELECTION_SHADOW_HOST_ID)?.remove();
 
     if (exportSelectionState.scanTimer) {
       clearTimeout(exportSelectionState.scanTimer);
