@@ -302,6 +302,14 @@ body.pn-popup::-webkit-scrollbar-thumb:hover {
   gap: 10px;
 }
 
+.pn-workflows-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
 .pn-prompt-card,
 .pn-history-card {
   background: var(--bg-surface);
