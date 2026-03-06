@@ -182,7 +182,7 @@ const render = async () => {
     renameBtn.textContent = '\u270e';
     renameBtn.addEventListener('click', () => {
       void (async () => {
-        const nextValue = window.prompt(`Rename tag "${item.tag}" to:`, item.tag);
+        const nextValue = await (window.PnDialog || window).prompt(`Rename tag "${item.tag}" to:`, item.tag, { title: 'Rename Tag' });
         if (nextValue === null) return;
         const normalized = String(nextValue || '').trim();
         if (!normalized) {
@@ -205,7 +205,10 @@ const render = async () => {
     deleteBtn.textContent = '\u2715';
     deleteBtn.addEventListener('click', () => {
       void (async () => {
-        const confirmed = window.confirm(`Delete tag "${item.tag}" from all prompts?`);
+        const confirmed = await (window.PnDialog || window).confirm(
+          `Delete tag "${item.tag}" from all prompts?`,
+          { title: 'Delete Tag', confirmLabel: 'Delete', danger: true }
+        );
         if (!confirmed) return;
         await deleteTag(item.tag);
         await render();

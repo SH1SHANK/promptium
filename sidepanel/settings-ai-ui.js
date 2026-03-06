@@ -487,107 +487,9 @@ const showRootMenu = () => {
   byId("pn-settings-panes-wrapper")?.classList.add("pn-hidden");
 };
 
-const ensurePaneMarkup = () => {
-  const panes = {
-    ai: `
-      <div class="pn-sv-section">
-        <h4 class="pn-sv-heading">Provider Setup</h4>
-        <div id="pn-provider-tabs" class="pn-provider-tabs"></div>
-        <div class="pn-provider-editor">
-          <div class="pn-sv-api-row">
-            <div class="pn-sv-api-row__icon">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            </div>
-            <input id="pn-provider-key" type="password" class="pn-sv-api-row__input" placeholder="API key" autocomplete="off" />
-            <button id="pn-provider-test" type="button" class="pn-sv-api-row__check">Test</button>
-            <button id="pn-provider-key-toggle" type="button" class="pn-sv-api-row__eye">Show</button>
-          </div>
-          <div class="pn-provider-controls">
-            <a id="pn-provider-docs" href="#" target="_blank" rel="noreferrer" class="pn-sv-api-link">Get API key →</a>
-            <button id="pn-provider-set-primary" class="pn-btn pn-btn--ghost" type="button">Set as primary</button>
-          </div>
-          <p id="pn-provider-status" class="pn-sv-api-hint">Not configured</p>
-          <div id="pn-provider-models" class="pn-provider-models"></div>
-        </div>
-      </div>`,
-    platforms: `
-      <div class="pn-sv-section">
-        <h4 class="pn-sv-heading">Semantic Search Model</h4>
-        <p class="pn-sv-api-hint">Powers intelligent prompt search.</p>
-        <div id="pn-embedding-models" class="pn-embedding-models"></div>
-        <div id="pn-embedding-confirm" class="pn-embedding-confirm pn-hidden">
-          <p id="pn-embedding-confirm-text" class="pn-sv-api-hint">Switch model and re-index prompts?</p>
-          <div class="pn-embedding-confirm-actions">
-            <button id="pn-embedding-confirm-yes" class="pn-btn pn-btn--primary" type="button">Confirm</button>
-            <button id="pn-embedding-confirm-no" class="pn-btn pn-btn--ghost" type="button">Cancel</button>
-          </div>
-        </div>
-        <div id="pn-embedding-reindex-wrap" class="pn-local-model-progress pn-hidden">
-          <progress id="pn-embedding-reindex-progress" max="100" value="0"></progress>
-          <span id="pn-embedding-reindex-text">Re-indexing prompts…</span>
-        </div>
-      </div>`,
-    general: `
-      <div class="pn-sv-section">
-        <h4 class="pn-sv-heading">AI Features</h4>
-        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Polish prompts when saving</span><label class="pn-toggle pn-toggle--sm"><input id="setting-feature-polish" type="checkbox" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Auto-suggest tags</span><label class="pn-toggle pn-toggle--sm"><input id="setting-feature-autotags" type="checkbox" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Improve Prompt</span><label class="pn-toggle pn-toggle--sm"><input id="setting-feature-improve" type="checkbox" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Continue Chat summarisation</span><label class="pn-toggle pn-toggle--sm"><input id="setting-feature-continue" type="checkbox" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-      </div>
-      <div class="pn-sv-section">
-        <h4 class="pn-sv-heading">Interface</h4>
-        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Bottom-right FAB</span><label class="pn-toggle pn-toggle--sm"><input id="setting-fab-position-right" type="radio" name="setting-fab-position" value="bottom-right" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Bottom-left FAB</span><label class="pn-toggle pn-toggle--sm"><input id="setting-fab-position-left" type="radio" name="setting-fab-position" value="bottom-left" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Circle FAB</span><label class="pn-toggle pn-toggle--sm"><input id="setting-fab-style-circle" type="radio" name="setting-fab-style" value="circle" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Pill FAB</span><label class="pn-toggle pn-toggle--sm"><input id="setting-fab-style-pill" type="radio" name="setting-fab-style" value="pill" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Icon-only FAB</span><label class="pn-toggle pn-toggle--sm"><input id="setting-fab-style-icon" type="radio" name="setting-fab-style" value="icon-only" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Comfortable density</span><label class="pn-toggle pn-toggle--sm"><input id="setting-density-comfortable" type="radio" name="setting-density" value="comfortable" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Compact density</span><label class="pn-toggle pn-toggle--sm"><input id="setting-density-compact" type="radio" name="setting-density" value="compact" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Prompts tab</span><label class="pn-toggle pn-toggle--sm"><input id="setting-tab-prompts" type="checkbox" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Export tab</span><label class="pn-toggle pn-toggle--sm"><input id="setting-tab-export" type="checkbox" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">History tab</span><label class="pn-toggle pn-toggle--sm"><input id="setting-tab-history" type="checkbox" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Tags tab</span><label class="pn-toggle pn-toggle--sm"><input id="setting-tab-tags" type="checkbox" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-      </div>
-      <div class="pn-sv-section">
-        <h4 class="pn-sv-heading">Export Defaults</h4>
-        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Markdown</span><label class="pn-toggle pn-toggle--sm"><input id="setting-export-format-markdown" type="radio" name="setting-export-format" value="markdown" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">TXT</span><label class="pn-toggle pn-toggle--sm"><input id="setting-export-format-txt" type="radio" name="setting-export-format" value="txt" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">PDF</span><label class="pn-toggle pn-toggle--sm"><input id="setting-export-format-pdf" type="radio" name="setting-export-format" value="pdf" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Notion</span><label class="pn-toggle pn-toggle--sm"><input id="setting-export-format-notion" type="radio" name="setting-export-format" value="notion" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Obsidian</span><label class="pn-toggle pn-toggle--sm"><input id="setting-export-format-obsidian" type="radio" name="setting-export-format" value="obsidian" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-        <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Auto-save to history</span><label class="pn-toggle pn-toggle--sm"><input id="setting-auto-save-history" type="checkbox" /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-      </div>
-      <p id="settings-status" class="pn-sv-autosave-hint pn-hidden"></p>`,
-    about: `
-      <div class="pn-sv-section">
-        <h4 class="pn-sv-heading">Your Data</h4>
-        <div class="pn-settings-actions">
-          <button id="pn-export-all-data" class="pn-btn pn-btn--ghost" type="button">Export all data →</button>
-          <label class="pn-btn pn-btn--ghost pn-inline-file">Import data →<input id="pn-import-all-data" type="file" accept="application/json" /></label>
-        </div>
-        <div class="pn-settings-danger-row"><button id="pn-clear-prompts" class="pn-btn pn-btn-danger" type="button">Clear all prompts</button><button id="pn-confirm-clear-prompts" class="pn-btn pn-btn--ghost pn-hidden" type="button">Confirm</button></div>
-        <div class="pn-settings-danger-row"><button id="pn-clear-history" class="pn-btn pn-btn-danger" type="button">Clear history</button><button id="pn-confirm-clear-history" class="pn-btn pn-btn--ghost pn-hidden" type="button">Confirm</button></div>
-        <div class="pn-settings-danger-row"><button id="pn-reset-all-settings" class="pn-btn pn-btn-danger" type="button">Reset all settings</button><button id="pn-confirm-reset-settings" class="pn-btn pn-btn--ghost pn-hidden" type="button">Confirm</button></div>
-      </div>
-      <div class="pn-sv-section">
-        <h4 class="pn-sv-heading">About</h4>
-        <p class="pn-sv-api-hint">Version <span id="pn-version-label">0.1.0</span></p>
-        <a href="https://github.com/sh1shank/promptium/releases" target="_blank" rel="noreferrer" class="pn-sv-api-link">View changelog →</a>
-      </div>`,
-  };
 
-  Object.entries(panes).forEach(([paneId, markup]) => {
-    const pane = document.querySelector(`.pn-settings-pane[data-settings-pane="${paneId}"]`);
-    if (pane && pane.dataset.rendered !== "true") {
-      pane.innerHTML = markup;
-      pane.dataset.rendered = "true";
-    }
-  });
-};
 
 const renderControls = () => {
-  ensurePaneMarkup();
   showPane(uiState.pane);
   void renderProviderTabs();
   void renderProviderEditor();
@@ -895,7 +797,6 @@ const load = async () => {
   await loadRuntimeRegistry();
   await loadValidationState();
   await readSettings();
-  ensurePaneMarkup();
   renderControls();
   await syncAiState();
 };

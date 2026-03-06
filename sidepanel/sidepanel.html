@@ -372,502 +372,48 @@
       </section>
 
       <section class="tab-content pn-tab-content" data-tab="settings">
-        <div class="pn-sv">
-          <!-- Hero -->
-          <div class="pn-sv-hero" id="pn-settings-main-hero">
-            <h3 class="pn-sv-hero__title">Settings</h3>
-            <p class="pn-sv-hero__sub">Customize Promptium to work the way you want.</p>
-          </div>
-
-          <div id="pn-settings-root-menu" class="pn-settings-root-menu">
-            <button class="pn-settings-item" data-settings-target="general">
-              <span class="pn-settings-item-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
-              <span class="pn-settings-item-copy">
-                <span class="pn-settings-item-title">Features &amp; Preferences</span>
-                <span class="pn-settings-item-desc">Feature toggles, interface controls, and export defaults</span>
-              </span>
-              <svg class="pn-settings-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-            </button>
-
-            <button class="pn-settings-item" data-settings-target="ai">
-              <span class="pn-settings-item-icon pn-settings-item-icon--ai"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 0 0-4 4v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2h-2V6a4 4 0 0 0-4-4z"/><circle cx="12" cy="15" r="2"/></svg></span>
-              <span class="pn-settings-item-copy">
-                <span class="pn-settings-item-title">AI Providers</span>
-                <span class="pn-settings-item-desc">Configure keys, choose models, and set the primary provider</span>
-              </span>
-              <svg class="pn-settings-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-            </button>
-
-            <button class="pn-settings-item" data-settings-target="platforms">
-              <span class="pn-settings-item-icon pn-settings-item-icon--platforms"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></span>
-              <span class="pn-settings-item-copy">
-                <span class="pn-settings-item-title">Search Model</span>
-                <span class="pn-settings-item-desc">Manage semantic search downloads and re-index progress</span>
-              </span>
-              <svg class="pn-settings-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-            </button>
-
-            <button class="pn-settings-item" data-settings-target="about">
-              <span class="pn-settings-item-icon pn-settings-item-icon--about"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4"/><path d="M14 2v5h5"/><path d="M3 15h6"/><path d="M6 12v6"/></svg></span>
-              <span class="pn-settings-item-copy">
-                <span class="pn-settings-item-title">About &amp; Data</span>
-                <span class="pn-settings-item-desc">Version info, import &amp; export, reset options</span>
-              </span>
-              <svg class="pn-settings-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-            </button>
-          </div>
-
-          <div id="pn-settings-panes-wrapper" class="pn-settings-panes-wrapper pn-hidden">
-            <div class="pn-settings-pane-header">
-              <button id="pn-settings-back-btn" class="pn-settings-back-btn">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-                <span class="pn-settings-back-btn-label">Settings</span>
-              </button>
-              <h3 id="pn-settings-pane-title" class="pn-settings-pane-title">Intelligence & API</h3>
-            </div>
-
-            <div class="pn-settings-pane" data-settings-pane="ai">
-          <div class="pn-ai-control-center">
-            <article class="pn-ai-control-card pn-ai-control-card--setup">
-              <p class="pn-ai-control-card__eyebrow">Initialization</p>
-              <h4 class="pn-ai-control-card__title">Semantic Search Setup</h4>
-              <p id="pn-ai-setup-headline" class="pn-ai-setup-headline">Checking runtime state…</p>
-              <div class="pn-ai-setup-progress-row">
-                <progress id="pn-ai-setup-progress" max="100" value="0"></progress>
-                <span id="pn-ai-setup-percent">0%</span>
+        <div id="pn-settings-ui-root" class="pn-settings-container">
+          <nav id="pn-settings-nav" class="pn-settings-nav" aria-label="Settings sections"></nav>
+          <div class="pn-settings-panels">
+            <div class="pn-settings-panel is-active" data-settings-section="providers">
+              <div class="pn-settings-section">
+                <h4 class="pn-settings-section-title">AI Providers</h4>
+                <p class="pn-settings-section-desc">Configure API keys, choose models, and set your primary provider.</p>
+                <div id="pn-settings-providers-list" class="pn-settings-provider-list"></div>
               </div>
-              <p id="pn-ai-setup-detail" class="pn-ai-setup-detail">Promptium will prepare embeddings so semantic search is ready.</p>
-              <div class="pn-ai-setup-actions">
-                <button id="pn-ai-setup-action-btn" class="pn-btn pn-btn--primary" type="button">Prepare Semantic Search</button>
-                <button id="pn-ai-retry-btn" class="pn-btn pn-btn--ghost pn-hidden" type="button">Retry</button>
-              </div>
-            </article>
-
-            <article class="pn-ai-control-card pn-ai-control-card--health">
-              <p class="pn-ai-control-card__eyebrow">Quick Health</p>
-              <h4 class="pn-ai-control-card__title">Runtime Overview</h4>
-              <ul class="pn-ai-health-list">
-                <li>
-                  <span>Provider</span>
-                  <strong id="pn-quick-provider-status">Checking…</strong>
-                </li>
-                <li>
-                  <span>Search model</span>
-                  <strong id="pn-quick-local-status">Checking…</strong>
-                </li>
-                <li>
-                  <span>Search mode</span>
-                  <strong id="pn-quick-semantic-status">Checking…</strong>
-                </li>
-              </ul>
-            </article>
-          </div>
-
-          <!-- ── Intelligence ─────────────────────────── -->
-          <div class="pn-sv-section">
-            <h4 class="pn-sv-heading">Smart Features</h4>
-
-            <div class="pn-sv-row">
-              <div class="pn-sv-row__copy">
-                <span class="pn-sv-row__label">Smart features</span>
-                <span class="pn-sv-row__desc">Semantic ranking, tag suggestions, and duplicate checks.</span>
-              </div>
-              <label class="pn-toggle">
-                <input id="setting-enable-ai" type="checkbox" checked />
-                <span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span>
-              </label>
             </div>
-
-            <label class="pn-sv-field">
-              <span class="pn-sv-field__label">AI source</span>
-              <select id="setting-ai-backend" class="pn-sv-select">
-                <option value="gemini">Cloud (API key required)</option>
-                <option value="local">Provider fallback order</option>
-              </select>
-            </label>
-
-            <div class="pn-sv-row">
-              <div class="pn-sv-row__copy">
-                <span class="pn-sv-row__label">Automatic provider fallback</span>
-                <span class="pn-sv-row__desc">Skip unavailable providers and try the next configured one.</span>
-              </div>
-              <label class="pn-toggle">
-                <input id="setting-ai-auto-fallback" type="checkbox" checked />
-                <span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span>
-              </label>
-            </div>
-
-            <div id="pn-local-model-progress-wrap" class="pn-local-model-progress pn-hidden" aria-live="polite">
-              <progress id="pn-local-model-progress" max="100" value="0"></progress>
-              <span id="pn-local-model-progress-text">Search model not initialized yet.</span>
-            </div>
-            <p id="pn-ai-routing-note" class="pn-sv-api-hint">Checking backend routing…</p>
-
-            <div class="pn-sv-row">
-              <div class="pn-sv-row__copy">
-                <span class="pn-sv-row__label">Smart Search</span>
-                <span class="pn-sv-row__desc">Find prompts by meaning, not just exact keywords.</span>
-              </div>
-              <label class="pn-toggle">
-                <input id="setting-semantic-search" type="checkbox" checked />
-                <span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span>
-              </label>
-            </div>
-
-            <div class="pn-sv-model-pill" id="pn-model-pill">
-              <span class="pn-sv-model-pill__dot"></span>
-              <span id="ai-progress-text">Initializing…</span>
-            </div>
-          </div>
-
-          <hr class="pn-sv-divider" />
-
-          <!-- ── Prompt Quality ───────────────────────── -->
-          <div class="pn-sv-section">
-            <h4 class="pn-sv-heading">AI Assistance</h4>
-
-            <div class="pn-sv-row">
-              <div class="pn-sv-row__copy">
-                <span class="pn-sv-row__label">Auto-tag suggestions</span>
-                <span class="pn-sv-row__desc">Suggest tags based on prompt content.</span>
-              </div>
-              <label class="pn-toggle">
-                <input id="setting-auto-suggest" type="checkbox" checked />
-                <span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span>
-              </label>
-            </div>
-
-            <div class="pn-sv-row">
-              <div class="pn-sv-row__copy">
-                <span class="pn-sv-row__label">Duplicate detection</span>
-                <span class="pn-sv-row__desc">Warn when saving near-identical prompts.</span>
-              </div>
-              <label class="pn-toggle">
-                <input id="setting-duplicate-check" type="checkbox" checked />
-                <span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span>
-              </label>
-            </div>
-
-            <div class="pn-sv-row">
-              <div class="pn-sv-row__copy">
-                <span class="pn-sv-row__label">AI writing tools</span>
-                <span class="pn-sv-row__desc">Show improve, rewrite, and polish actions on prompts.</span>
-              </div>
-              <label class="pn-toggle">
-                <input id="setting-polish-toggle" type="checkbox" checked />
-                <span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span>
-              </label>
-            </div>
-          </div>
-
-          <hr class="pn-sv-divider" />
-
-          <!-- ── Export ───────────────────────────────── -->
-          <div class="pn-sv-section">
-            <h4 class="pn-sv-heading">Export</h4>
-
-            <label class="pn-sv-field">
-              <span class="pn-sv-field__label">Default format</span>
-              <select id="setting-export-format" class="pn-sv-select">
-                <option value="markdown">Markdown (.md)</option>
-                <option value="txt">Plain Text (.txt)</option>
-                <option value="json">JSON (.json)</option>
-                <option value="pdf">PDF (.pdf)</option>
-                <option value="png">PNG Image (.png)</option>
-                <option value="jpeg">JPEG Image (.jpg)</option>
-                <option value="notion">Notion (.md)</option>
-                <option value="obsidian">Obsidian (.md)</option>
-              </select>
-            </label>
-
-            <div class="pn-sv-row pn-sv-row--compact">
-              <span class="pn-sv-row__label">Include date</span>
-              <label class="pn-toggle pn-toggle--sm">
-                <input id="setting-export-date" type="checkbox" checked />
-                <span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span>
-              </label>
-            </div>
-
-            <div class="pn-sv-row pn-sv-row--compact">
-              <span class="pn-sv-row__label">Include platform</span>
-              <label class="pn-toggle pn-toggle--sm">
-                <input id="setting-export-platform" type="checkbox" checked />
-                <span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span>
-              </label>
-            </div>
-          </div>
-
-          <hr class="pn-sv-divider" />
-
-          <!-- ── Connections ──────────────────────────── -->
-          <div class="pn-sv-section">
-            <h4 class="pn-sv-heading">Cloud Provider</h4>
-            <div id="pn-provider-tabs" class="pn-provider-tabs"></div>
-
-            <div class="pn-provider-editor">
-              <div class="pn-sv-api-row">
-                <div class="pn-sv-api-row__icon">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <div class="pn-settings-panel" data-settings-section="search">
+              <div class="pn-settings-section">
+                <h4 class="pn-settings-section-title">Search Model</h4>
+                <p class="pn-settings-section-desc">Powers semantic prompt search. Choose the embedding model that suits your needs.</p>
+                <div id="pn-settings-embed-list" class="pn-settings-embed-list"></div>
+                <div id="pn-settings-embed-confirm" class="pn-settings-confirm-bar pn-hidden">
+                  <span class="pn-settings-confirm-text">Switch model and re-index all prompts?</span>
+                  <div class="pn-settings-confirm-actions">
+                    <button class="pn-settings-key-btn" type="button" id="pn-sui-embed-confirm-yes">Confirm</button>
+                    <button class="pn-settings-key-btn" type="button" id="pn-sui-embed-confirm-no">Cancel</button>
+                  </div>
                 </div>
-                <input
-                  id="pn-provider-key"
-                  type="password"
-                  class="pn-sv-api-row__input"
-                  placeholder="API key"
-                  autocomplete="off"
-                />
-                <button type="button" id="pn-provider-test" class="pn-sv-api-row__check" title="Test connection">Test</button>
-                <button type="button" id="pn-provider-key-toggle" class="pn-sv-api-row__eye" title="Show or hide key">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                </button>
-              </div>
-              <div class="pn-provider-controls">
-                <a id="pn-provider-docs" href="https://aistudio.google.com/apikey" target="_blank" class="pn-sv-api-link">Get API key</a>
-                <button id="pn-provider-set-primary" class="pn-btn pn-btn--ghost" type="button">Use this provider</button>
-              </div>
-              <p id="pn-provider-status" class="pn-sv-api-hint">Status: idle</p>
-              <div id="pn-provider-models" class="pn-provider-models"></div>
-            </div>
-
-            <hr class="pn-sv-divider" />
-
-            <h4 class="pn-sv-heading">Search Model</h4>
-            <p class="pn-sv-api-hint">Powers semantic prompt search.</p>
-            <div id="pn-embedding-models" class="pn-embedding-models"></div>
-            <div id="pn-embedding-confirm" class="pn-embedding-confirm pn-hidden">
-              <p id="pn-embedding-confirm-text" class="pn-sv-api-hint">Switch model?</p>
-              <div class="pn-embedding-confirm-actions">
-                <button id="pn-embedding-confirm-yes" class="pn-btn pn-btn--primary" type="button">Confirm</button>
-                <button id="pn-embedding-confirm-no" class="pn-btn pn-btn--ghost" type="button">Cancel</button>
-              </div>
-            </div>
-          <div id="pn-embedding-reindex-wrap" class="pn-local-model-progress pn-hidden">
-            <progress id="pn-embedding-reindex-progress" max="100" value="0"></progress>
-            <span id="pn-embedding-reindex-text">Re-indexing prompts…</span>
-          </div>
-          </div>
-          <p id="settings-status" class="pn-sv-autosave-hint pn-hidden"></p>
-
-          </div>
-
-
-          <div class="pn-settings-pane pn-hidden" data-settings-pane="platforms">
-            <div class="pn-sv-section">
-              <h4 class="pn-sv-heading">LLM Platforms</h4>
-              <p class="pn-sv-api-hint pn-sv-api-hint--platform-intro">Toggle provider support and set the display label used across Promptium.</p>
-              <div class="pn-platform-toolbar">
-                <span id="pn-platform-enabled-count" class="pn-platform-enabled-count">0 enabled</span>
-                <div class="pn-platform-toolbar__actions">
-                  <button id="pn-platform-enable-all" class="pn-btn pn-btn--ghost" type="button">Enable all</button>
-                  <button id="pn-platform-disable-all" class="pn-btn pn-btn--ghost" type="button">Disable all</button>
+                <div id="pn-settings-embed-progress" class="pn-settings-progress-wrap pn-hidden">
+                  <div class="pn-settings-progress-bar"><div class="pn-settings-progress-fill"></div></div>
+                  <span class="pn-settings-progress-text"></span>
                 </div>
               </div>
-              <label class="pn-sv-field pn-sv-field--compact">
-                <span class="pn-sv-field__label">Find platform</span>
-                <input id="pn-platform-filter" type="text" class="pn-sv-textarea" placeholder="Search by platform key or label" />
-              </label>
-              <div id="pn-platform-list" class="pn-settings-list"></div>
-              <p id="pn-platform-warning" class="pn-sv-api-hint pn-hidden">At least one platform should stay enabled.</p>
-
-              <div class="pn-platform-label-form">
-                <div class="pn-platform-label-form__row">
-                  <label class="pn-sv-field pn-sv-field--compact">
-                    <span class="pn-sv-field__label">Platform key</span>
-                    <input id="setting-platform-label-key" type="text" class="pn-sv-textarea" placeholder="e.g. openrouter" />
-                  </label>
-                  <label class="pn-sv-field pn-sv-field--compact">
-                    <span class="pn-sv-field__label">Label</span>
-                    <input id="setting-platform-label-value" type="text" class="pn-sv-textarea" placeholder="e.g. OpenRouter Chat" />
-                  </label>
-                </div>
-                <button id="pn-add-platform-label" class="pn-btn pn-btn--primary" type="button">Add Platform Label</button>
+            </div>
+            <div class="pn-settings-panel" data-settings-section="features">
+              <div class="pn-settings-section">
+                <h4 class="pn-settings-section-title">AI Features</h4>
+                <div id="pn-settings-features-list"></div>
               </div>
-              <p id="pn-platform-label-error" class="pn-platform-label-form__error pn-hidden"></p>
             </div>
-
-            <hr class="pn-sv-divider" />
-
-            <div class="pn-sv-section pn-sv-section--custom-llm">
-              <h4 class="pn-sv-heading">Add Custom LLM</h4>
-              <p class="pn-sv-api-hint pn-sv-api-hint--custom-intro">Add your favorite LLM by URL. We'll try to auto-detect its chat layout.</p>
-              
-              <label class="pn-sv-field">
-                <span class="pn-sv-field__label">LLM Name</span>
-                <input id="setting-custom-name" type="text" class="pn-sv-textarea" placeholder="e.g. Meta Llama Chat" />
-              </label>
-              <label class="pn-sv-field">
-                <span class="pn-sv-field__label">LLM Chat URL</span>
-                <div class="pn-sv-inline-row">
-                  <input id="setting-custom-url" type="url" class="pn-sv-textarea" placeholder="https://chat.example.com/*" />
-                  <button id="pn-add-custom-platform-smart" class="pn-btn pn-btn--primary pn-btn--nowrap" type="button">Auto-Detect & Add</button>
-                </div>
-              </label>
-              
-              <div id="pn-custom-llm-error" class="pn-hidden pn-status-error pn-custom-llm-error"></div>
-
-              <details class="pn-advanced-settings-toggle pn-advanced-settings-toggle--spaced" id="pn-custom-llm-advanced">
-                <summary class="pn-advanced-settings-summary">Advanced: HTML Extraction & Manual Output</summary>
-                
-                <div class="pn-advanced-settings-body">
-                  
-                  <label class="pn-sv-field">
-                    <span class="pn-sv-field__label pn-sv-field__label--strong">Extract from Page HTML</span>
-                    <span class="pn-sv-api-hint pn-sv-api-hint--small">If auto-detect fails (e.g. behind login), inspect the chat page, copy its outer HTML, and paste it here.</span>
-                    <textarea id="setting-custom-html" class="pn-sv-textarea pn-sv-textarea--mono" rows="5" placeholder="<html>...</html>"></textarea>
-                    <button id="pn-add-custom-platform-html" class="pn-btn pn-btn--ghost pn-btn--mt-8" type="button">Extract Selectors & Add</button>
-                  </label>
-
-                  <hr class="pn-sv-divider pn-sv-divider--tight" />
-
-                  <label class="pn-sv-field">
-                    <span class="pn-sv-field__label pn-sv-field__label--strong pn-sv-field__label--with-gap">Manual Registration</span>
-                  </label>
-                  
-                  <label class="pn-sv-field">
-                    <span class="pn-sv-field__label pn-sv-field__label--tiny">Input selector</span>
-                    <input id="setting-custom-input" type="text" class="pn-sv-textarea" placeholder="textarea, div[contenteditable='true']" />
-                  </label>
-                  <label class="pn-sv-field">
-                    <span class="pn-sv-field__label pn-sv-field__label--tiny">User message selector</span>
-                    <input id="setting-custom-user" type="text" class="pn-sv-textarea" placeholder="[data-role='user']" />
-                  </label>
-                  <label class="pn-sv-field">
-                    <span class="pn-sv-field__label pn-sv-field__label--tiny">Bot message selector</span>
-                    <input id="setting-custom-bot" type="text" class="pn-sv-textarea" placeholder="[data-role='assistant']" />
-                  </label>
-                  <button id="pn-add-custom-platform" class="pn-btn pn-btn--ghost pn-btn--mt-4" type="button">Add Manually</button>
-                </div>
-              </details>
+            <div class="pn-settings-panel" data-settings-section="interface">
+              <div id="pn-settings-interface-content"></div>
             </div>
-
-            <div id="pn-custom-platforms" class="pn-settings-list"></div>
-          </div>
-
-          <div class="pn-settings-pane pn-hidden" data-settings-pane="general">
-            <div class="pn-sv-section">
-              <h4 class="pn-sv-heading">Quick Actions Button</h4>
-              <p class="pn-sv-api-hint">The floating button that appears on LLM chat pages.</p>
-              <label class="pn-sv-field">
-                <span class="pn-sv-field__label">Position</span>
-                <select id="setting-fab-position" class="pn-sv-select">
-                  <option value="right">Bottom-right</option>
-                  <option value="left">Bottom-left</option>
-                </select>
-              </label>
-              <label class="pn-sv-field">
-                <span class="pn-sv-field__label">Style</span>
-                <select id="setting-fab-style" class="pn-sv-select">
-                  <option value="circle">Circle</option>
-                  <option value="pill">Pill</option>
-                  <option value="icon-only">Icon-only</option>
-                </select>
-              </label>
-
-              <h4 class="pn-sv-heading pn-sv-heading--sub">Visible actions</h4>
-              <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Save Prompt</span><label class="pn-toggle pn-toggle--sm"><input id="setting-fab-save" type="checkbox" checked /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-              <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Export Chat</span><label class="pn-toggle pn-toggle--sm"><input id="setting-fab-export" type="checkbox" checked /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-              <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Continue Chat</span><label class="pn-toggle pn-toggle--sm"><input id="setting-fab-continue" type="checkbox" checked /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-              <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Prompt Library</span><label class="pn-toggle pn-toggle--sm"><input id="setting-fab-library" type="checkbox" checked /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-            </div>
-
-            <hr class="pn-sv-divider" />
-
-            <div class="pn-sv-section">
-              <h4 class="pn-sv-heading">Side Panel Tabs</h4>
-              <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Prompts</span><label class="pn-toggle pn-toggle--sm"><input id="setting-tab-prompts" type="checkbox" checked /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-              <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Export</span><label class="pn-toggle pn-toggle--sm"><input id="setting-tab-export" type="checkbox" checked /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-              <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">History</span><label class="pn-toggle pn-toggle--sm"><input id="setting-tab-history" type="checkbox" checked /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-              <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Tags</span><label class="pn-toggle pn-toggle--sm"><input id="setting-tab-tags" type="checkbox" checked /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-              <p id="pn-tab-warning" class="pn-sv-api-hint pn-hidden">At least one tab must stay enabled.</p>
-            </div>
-
-            <hr class="pn-sv-divider" />
-
-            <div class="pn-sv-section">
-              <h4 class="pn-sv-heading">Display</h4>
-              <label class="pn-sv-field">
-                <span class="pn-sv-field__label">Card layout</span>
-                <select id="setting-density" class="pn-sv-select">
-                  <option value="comfortable">Comfortable</option>
-                  <option value="compact">Compact</option>
-                </select>
-              </label>
-              <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Show prompt preview on hover</span><label class="pn-toggle pn-toggle--sm"><input id="setting-hover-preview" type="checkbox" checked /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-              <label class="pn-sv-field">
-                <span class="pn-sv-field__label">Hover delay</span>
-                <input id="setting-hover-delay" type="range" min="200" max="800" step="50" value="400" />
-              </label>
-            </div>
-
-            <hr class="pn-sv-divider" />
-
-            <div class="pn-sv-section">
-              <h4 class="pn-sv-heading">Export Defaults</h4>
-              <label class="pn-sv-field">
-                <span class="pn-sv-field__label">File naming</span>
-                <select id="setting-export-naming" class="pn-sv-select">
-                  <option value="smart">Smart (auto)</option>
-                  <option value="manual">Manual</option>
-                </select>
-              </label>
-              <div class="pn-sv-row pn-sv-row--compact"><span class="pn-sv-row__label">Save exports to history</span><label class="pn-toggle pn-toggle--sm"><input id="setting-auto-save-history" type="checkbox" checked /><span class="pn-toggle__track"><span class="pn-toggle__knob"></span></span></label></div>
-              <label class="pn-sv-field">
-                <span class="pn-sv-field__label">Continue Chat mode</span>
-                <select id="setting-continue-mode" class="pn-sv-select">
-                  <option value="FULL_SUMMARY">Full Summary</option>
-                  <option value="KEY_POINTS">Key Points</option>
-                  <option value="RECENT_ONLY">Last 6 Messages</option>
-                </select>
-              </label>
-            </div>
-
-            <hr class="pn-sv-divider" />
-
-            <div class="pn-sv-section">
-              <h4 class="pn-sv-heading">Shortcuts</h4>
-              <label class="pn-sv-field">
-                <span class="pn-sv-field__label">Quick save shortcut</span>
-                <input id="setting-bookmark-shortcut" type="text" class="pn-sv-textarea" placeholder="Alt+Shift+B" />
-              </label>
+            <div class="pn-settings-panel" data-settings-section="data">
+              <div id="pn-settings-data-content"></div>
             </div>
           </div>
-
-
-
-          <div class="pn-settings-pane pn-hidden" data-settings-pane="about">
-            <div class="pn-sv-section">
-              <h4 class="pn-sv-heading">About</h4>
-              <p class="pn-sv-api-hint">Version <span id="pn-version-label">0.1.0</span></p>
-            </div>
-
-            <div class="pn-sv-section">
-              <h4 class="pn-sv-heading">Data</h4>
-              <div class="pn-settings-actions">
-                <button id="pn-export-all-data" class="pn-btn pn-btn--ghost" type="button">Export All Data</button>
-                <label class="pn-btn pn-btn--ghost pn-inline-file">
-                  Import Data
-                  <input id="pn-import-all-data" type="file" accept="application/json" />
-                </label>
-              </div>
-            </div>
-
-            <div class="pn-sv-section">
-              <h4 class="pn-sv-heading">Danger Zone</h4>
-              <div class="pn-settings-danger-row">
-                <button id="pn-clear-prompts" class="pn-btn pn-btn-danger" type="button">Clear All Prompts</button>
-                <button id="pn-confirm-clear-prompts" class="pn-btn pn-btn--ghost pn-hidden" type="button">Confirm</button>
-              </div>
-              <div class="pn-settings-danger-row">
-                <button id="pn-clear-history" class="pn-btn pn-btn-danger" type="button">Clear History</button>
-                <button id="pn-confirm-clear-history" class="pn-btn pn-btn--ghost pn-hidden" type="button">Confirm</button>
-              </div>
-              <div class="pn-settings-danger-row">
-                <button id="pn-reset-all-settings" class="pn-btn pn-btn-danger" type="button">Reset All Settings</button>
-                <button id="pn-confirm-reset-settings" class="pn-btn pn-btn--ghost pn-hidden" type="button">Confirm</button>
-              </div>
-            </div>
-          </div>
-          </div>
+          <p id="pn-settings-ui-status" class="pn-settings-status pn-hidden"></p>
         </div>
       </section>
     </main>
@@ -1085,6 +631,7 @@
     <script src="../libs/markdown-it.min.js"></script>
     <script src="../utils/constants.js"></script>
     <script src="../utils/dom-helpers.js"></script>
+    <script src="../utils/pn-dialog.js"></script>
     <script src="../utils/tags.js"></script>
     <script src="../utils/storage.js"></script>
     <script src="../utils/prompt-duplicate.js"></script>
@@ -1104,6 +651,7 @@
     <script src="../sidepanel/prompt-form.js"></script>
     <script src="../sidepanel/tags-ui.js"></script>
     <script src="../sidepanel/history-ui.js"></script>
+    <script src="../sidepanel/settings-ui.js"></script>
     <script src="../sidepanel/settings-ai-ui.js"></script>
     <script src="../sidepanel/continuation-ui.js"></script>
     <script src="../sidepanel/export-payload-ui.js"></script>

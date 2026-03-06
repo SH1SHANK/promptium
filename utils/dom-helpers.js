@@ -44,8 +44,10 @@ const flushToastQueue = async () => {
 
     const { message, kind, resolve } = next;
     const inferredError = kind === 'error' || (kind !== 'success' && isErrorToast(message));
+    const inferredSuccess = !inferredError && (kind === 'success' || !isErrorToast(message));
     const toast = document.createElement('div');
-    toast.className = `pn-toast${inferredError ? ' pn-toast--error' : ''}`;
+    const toastClass = inferredError ? ' pn-toast--error' : inferredSuccess ? ' pn-toast--success' : '';
+    toast.className = `pn-toast${toastClass}`;
     toast.textContent = normalizeToastText(message);
     toast.setAttribute('role', 'status');
     toast.setAttribute('aria-live', 'polite');

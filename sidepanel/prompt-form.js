@@ -21,6 +21,7 @@
   };
 
   let activeMode = MODE_SELECTOR;
+  let editingPromptId = null;
   let pendingDuplicatePayload = null;
   let pendingDuplicateMatch = null;
   let plainUndoTimer = null;
@@ -244,14 +245,81 @@
     }
   };
 
-  const open = async () => {
+  const open = async (options = {}) => {
+    editingPromptId = null;
     resetPlainForm();
     resetTemplateForm();
 
+    const modalTitle = document.querySelector("#add-modal .pn-modal-title, #add-modal h2");
+    if (modalTitle) modalTitle.textContent = "Add Prompt";
+
+    const saveBtn = byIdSafe("save-new-prompt");
+    if (saveBtn) saveBtn.textContent = "Save";
+    const tplSaveBtn = byIdSafe("pn-template-save");
+    if (tplSaveBtn) tplSaveBtn.textContent = "Save";
+
     byIdSafe("add-modal")?.classList.remove("pn-hidden");
+
+    // Auto-detect mode: skip selector if we can infer from pasted text
+    if (options.autoDetect !== false) {
+      try {
+        const clipText = await navigator.clipboard.readText().catch(() => "");
+        const hasVars = /\[.+?\]/.test(clipText);
+        if (clipText.trim().length > 10) {
+          setMode(hasVars ? MODE_TEMPLATE : MODE_PLAIN);
+          syncFormMetrics();
+          await updateAiStatusStrips();
+          return;
+        }
+      } catch (_) { /* clipboard access denied — fall through to selector */ }
+    }
+
     setMode(MODE_SELECTOR);
     syncFormMetrics();
     await updateAiStatusStrips();
+  };
+
+  const openForEdit = async (prompt) => {
+    if (!prompt || !prompt.id) return;
+    editingPromptId = prompt.id;
+    resetPlainForm();
+    resetTemplateForm();
+
+    const modalTitle = document.querySelector("#add-modal .pn-modal-title, #add-modal h2");
+    if (modalTitle) modalTitle.textContent = "Edit Prompt";
+
+    const hasVars = window.TemplateParser?.parse
+      ? window.TemplateParser.parse(String(prompt.text || "")).length > 0
+      : /\[.+?\]/.test(String(prompt.text || ""));
+
+    byIdSafe("add-modal")?.classList.remove("pn-hidden");
+    await updateAiStatusStrips();
+
+    if (hasVars) {
+      setMode(MODE_TEMPLATE);
+      const titleInput = byIdSafe("pn-template-title");
+      const textInput = byIdSafe("pn-template-text");
+      const tagsInput = byIdSafe("pn-template-tags");
+      if (titleInput) titleInput.value = String(prompt.title || "").trim();
+      if (textInput) textInput.value = String(prompt.text || "").trim();
+      if (tagsInput) tagsInput.value = (prompt.tags || []).join(", ");
+      updateDetectedVarsNow();
+      syncTemplatePolishVisibility();
+      const tplSaveBtn = byIdSafe("pn-template-save");
+      if (tplSaveBtn) tplSaveBtn.textContent = "Update";
+    } else {
+      setMode(MODE_PLAIN);
+      const titleInput = byIdSafe("prompt-title");
+      const textInput = byIdSafe("prompt-text");
+      if (titleInput) titleInput.value = String(prompt.title || "").trim();
+      if (textInput) textInput.value = String(prompt.text || "").trim();
+      setPlainTagsFromArray(prompt.tags || []);
+      syncPlainPolishVisibility();
+      const saveBtn = byIdSafe("save-new-prompt");
+      if (saveBtn) saveBtn.textContent = "Update";
+    }
+
+    syncFormMetrics();
   };
 
   const openPlainPrefilled = async (text, _sourceUrl = "") => {
@@ -276,6 +344,7 @@
   };
 
   const close = async () => {
+    editingPromptId = null;
     byIdSafe("add-modal")?.classList.add("pn-hidden");
     setMode(MODE_SELECTOR);
     clearDuplicateWarning();
@@ -631,22 +700,57 @@
   };
 
   const persistPrompt = async (payload) => {
-    const saved = await window.Store.savePrompt({
-      ...payload,
-      embedding: null,
-    });
-    if (!saved) {
-      const storageError = window.Store?.getLastError?.() || "";
-      if (window.Store?.isQuotaError?.(storageError)) {
-        await showToast(
-          "Storage quota exceeded. Delete older prompts or chat history, then try again.",
-        );
-        if (window.AppShell?.switchTab)
-          await window.AppShell.switchTab("history");
-      } else {
-        await showToast("Save failed.");
+    let saved;
+    const isEditing = Boolean(editingPromptId);
+
+    if (isEditing) {
+      // Update existing prompt in-place
+      const prompts = await window.Store.getPrompts();
+      const index = prompts.findIndex((p) => p.id === editingPromptId);
+      if (index === -1) {
+        await showToast("Prompt not found — it may have been deleted.");
+        return false;
       }
-      return false;
+      const updated = {
+        ...prompts[index],
+        title: payload.title,
+        text: payload.text,
+        tags: payload.tags,
+        category: payload.category ?? prompts[index].category,
+        embedding: null,
+        updatedAt: new Date().toISOString(),
+      };
+      prompts[index] = updated;
+      try {
+        await chrome.storage.local.set({ prompts });
+        saved = updated;
+      } catch (error) {
+        const isQuota = window.Store?.isQuotaError?.(error);
+        await showToast(
+          isQuota
+            ? "Storage quota exceeded. Delete older prompts or chat history, then try again."
+            : "Update failed.",
+        );
+        return false;
+      }
+    } else {
+      saved = await window.Store.savePrompt({
+        ...payload,
+        embedding: null,
+      });
+      if (!saved) {
+        const storageError = window.Store?.getLastError?.() || "";
+        if (window.Store?.isQuotaError?.(storageError)) {
+          await showToast(
+            "Storage quota exceeded. Delete older prompts or chat history, then try again.",
+          );
+          if (window.AppShell?.switchTab)
+            await window.AppShell.switchTab("history");
+        } else {
+          await showToast("Save failed.");
+        }
+        return false;
+      }
     }
 
     if (state.aiReady && saved.id) {
@@ -658,7 +762,7 @@
       await callbacks.onPromptSaved();
     }
     await scrollPromptIntoView(saved.id);
-    await showToast("Prompt saved");
+    await showToast(isEditing ? "Prompt updated" : "Prompt saved");
     return true;
   };
 
@@ -922,6 +1026,7 @@
 
   window.PromptForm = {
     open,
+    openForEdit,
     openPlainPrefilled,
     close,
     saveFromModal: savePlainFromModal,

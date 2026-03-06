@@ -619,6 +619,7 @@
 
     await window.SettingsAI.load();
     window.SettingsAI.renderControls();
+    await window.SettingsUI?.init?.();
     await window.SettingsAI.syncSaveState();
     window.ExportPayloadUI.applyDefaultsFromSettings(state.settings);
     const initialExportPayload = await window.ExportPayloadUI.loadPayload();

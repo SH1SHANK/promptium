@@ -21,6 +21,47 @@
   let hoverAnchor = null;
   let templateFilterHome = null;
   let templateFilterHomeNext = null;
+  
+  const PAGE_SIZE = 25;
+  const currentRenderState = {
+    prompts: [],
+    filter: "",
+    supported: false,
+    nextIndex: 0,
+    observer: null,
+    container: null,
+    sentinel: null
+  };
+
+  const loadNextPromptPage = async () => {
+    const s = currentRenderState;
+    if (!s.container || s.nextIndex >= s.prompts.length) return;
+
+    if (s.sentinel && s.sentinel.parentNode) {
+      s.sentinel.remove();
+    }
+
+    const endIndex = Math.min(s.nextIndex + PAGE_SIZE, s.prompts.length);
+    for (let i = s.nextIndex; i < endIndex; i++) {
+      s.container.appendChild(
+        await createPromptCard(s.prompts[i], s.filter, s.supported)
+      );
+    }
+    s.nextIndex = endIndex;
+
+    if (endIndex < s.prompts.length) {
+      s.container.appendChild(s.sentinel);
+      if (!s.observer) {
+        s.observer = new IntersectionObserver((entries) => {
+          if (entries[0].isIntersecting) {
+            void loadNextPromptPage();
+          }
+        }, { rootMargin: "250px" });
+      }
+      s.observer.observe(s.sentinel);
+    }
+  };
+
   const isCardMenuOpen = () =>
     Boolean(document.querySelector("details.pn-card-menu[open]"));
 
@@ -557,6 +598,15 @@
       const overflow = createCardMenu(
         [
           {
+            label: "Edit Prompt",
+            title: "Edit this prompt's title, text, or tags.",
+            onSelect: async () => {
+              if (window.PromptForm?.openForEdit) {
+                await window.PromptForm.openForEdit(prompt);
+              }
+            },
+          },
+          {
             label: "Improve Prompt",
             title:
               state.settings?.polishWithGemini === false
@@ -725,6 +775,15 @@
     if (!container) {
       return;
     }
+    
+    // Show skeleton loading state
+    container.innerHTML = "";
+    container.classList.add("pn-prompts-layout");
+    for (let i = 0; i < 5; i++) {
+      const skel = document.createElement("div");
+      skel.className = "pn-skeleton";
+      container.appendChild(skel);
+    }
 
     bindTemplateFilters();
     restoreTemplateFilterHome();
@@ -816,15 +875,24 @@
       const libraryList = document.createElement("div");
       libraryList.className = "pn-list pn-list--library";
 
-      for (const prompt of filtered) {
-        libraryList.appendChild(
-          await createPromptCard(
-            prompt,
-            String(filter || "").trim(),
-            tabContext.supported,
-          ),
-        );
+      if (currentRenderState.observer) {
+        currentRenderState.observer.disconnect();
+        currentRenderState.observer = null;
       }
+
+      currentRenderState.prompts = filtered;
+      currentRenderState.filter = String(filter || "").trim();
+      currentRenderState.supported = tabContext.supported;
+      currentRenderState.nextIndex = 0;
+      currentRenderState.container = libraryList;
+      
+      if (!currentRenderState.sentinel) {
+        currentRenderState.sentinel = document.createElement("div");
+        currentRenderState.sentinel.className = "pn-scroll-sentinel";
+        currentRenderState.sentinel.style.height = "20px";
+      }
+
+      await loadNextPromptPage();
 
       librarySection.appendChild(libraryList);
       container.appendChild(librarySection);
