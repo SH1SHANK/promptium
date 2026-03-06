@@ -184,6 +184,7 @@
   const isTabEnabledBySettings = (tabName) => {
     const tabs = state.settings?.visibleTabs || {};
     if (tabName === "prompts") return tabs.prompts !== false;
+    if (tabName === "workflows") return tabs.workflows !== false;
     if (tabName === "export") return tabs.export !== false;
     if (tabName === "history") return tabs.history !== false;
     if (tabName === "tags") return tabs.tags !== false;
@@ -253,10 +254,15 @@
       }
       await window.ExportPayloadUI.renderMeta();
     }
+
+    if (state.activeTab === "workflows") {
+      await window.WorkflowsUI?.render?.();
+    }
   };
 
   const performWorkspaceRefresh = async () => {
     await window.PromptsUI.render(window.PromptsUI.getSearchValue());
+    await window.WorkflowsUI?.render?.();
     await window.HistoryUI.render();
     await window.TagsUI.render();
     await showToast("Workspace synced.");
@@ -288,6 +294,14 @@
         await window.PromptsUI.render(window.PromptsUI.getSearchValue());
         await window.TagsUI.render();
       })();
+    });
+
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName !== "local" || !changes[KEYS.WORKFLOWS_KEY]) {
+        return;
+      }
+
+      void window.WorkflowsUI?.render?.();
     });
 
     chrome.storage.onChanged.addListener((changes, areaName) => {
@@ -586,6 +600,10 @@
       },
     });
 
+    window.WorkflowsUI?.setCallbacks?.({
+      onOpenPrompts: () => switchTab("prompts"),
+    });
+
     window.SettingsAI.setCallbacks({
       onApplyExportDefaults: (settings) =>
         window.ExportPayloadUI.applyDefaultsFromSettings(settings),
@@ -611,6 +629,7 @@
     bindModalScrollLock();
     window.PromptsUI.bindSearchHandlers();
     window.PromptForm.bindEvents();
+    window.WorkflowsUI?.bindEvents?.();
     window.SettingsAI.bindEvents();
     window.ExportPayloadUI.bindEvents();
     window.ExportActionsUI.bindEvents();
@@ -681,6 +700,7 @@
       .toLowerCase();
     const routableTabs = new Set([
       "prompts",
+      "workflows",
       "history",
       "export",
       "tags",

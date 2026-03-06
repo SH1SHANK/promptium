@@ -107,6 +107,7 @@
       <button class="tab pn-tab active" data-tab="prompts" type="button">
         Prompts
       </button>
+      <button class="tab pn-tab" data-tab="workflows" type="button">Workflows</button>
       <button class="tab pn-tab" data-tab="tags" type="button">Tags</button>
     </nav>
 
@@ -137,6 +138,17 @@
 
       <section class="tab-content pn-tab-content" data-tab="history">
         <div id="history-list" class="pn-list"></div>
+      </section>
+
+      <section class="tab-content pn-tab-content" data-tab="workflows">
+        <div class="pn-workflows-head">
+          <div>
+            <h3 class="pn-section-title">Prompt Chains</h3>
+            <p class="pn-card-meta">Build reusable multi-step prompt flows.</p>
+          </div>
+          <button id="pn-workflow-create" class="pn-btn pn-btn--primary" type="button">New Chain</button>
+        </div>
+        <div id="pn-workflow-list" class="pn-list"></div>
       </section>
 
       <section class="tab-content pn-tab-content" data-tab="export">
@@ -654,6 +666,7 @@
     <script src="../sidepanel/template-fill.js"></script>
     <script src="../sidepanel/prompts-ui.js"></script>
     <script src="../sidepanel/prompt-form.js"></script>
+    <script src="../sidepanel/workflows-ui.js"></script>
     <script src="../sidepanel/tags-ui.js"></script>
     <script src="../sidepanel/history-ui.js"></script>
     <script src="../sidepanel/settings-ui.js"></script>

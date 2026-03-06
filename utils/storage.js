@@ -7,6 +7,7 @@
 
 const PROMPTS_KEY = 'prompts';
 const HISTORY_KEY = 'chatHistory';
+const WORKFLOWS_KEY = 'promptiumWorkflows';
 const HISTORY_CAP = 50;
 let lastStorageError = '';
 
@@ -103,6 +104,42 @@ const detectTemplatePrompt = (text) => {
     return false;
   }
   return false;
+};
+
+const normalizeWorkflowStep = (step, index) => {
+  const source = step && typeof step === 'object' ? step : {};
+  const promptId = String(source.promptId || '').trim();
+  const note = String(source.note || '').trim();
+  return {
+    id: String(source.id || crypto.randomUUID()),
+    promptId,
+    note,
+    position: Number.isFinite(Number(source.position))
+      ? Math.max(0, Math.floor(Number(source.position)))
+      : index,
+    advanceMode: String(source.advanceMode || 'manual').trim().toLowerCase() === 'auto'
+      ? 'auto'
+      : 'manual'
+  };
+};
+
+const normalizeWorkflow = (workflow, existing = null) => {
+  const source = workflow && typeof workflow === 'object' ? workflow : {};
+  const createdAt = String(existing?.createdAt || source.createdAt || new Date().toISOString());
+  const rawSteps = Array.isArray(source.steps) ? source.steps : [];
+  const normalizedSteps = rawSteps.map((step, index) => normalizeWorkflowStep(step, index));
+
+  return {
+    id: String(existing?.id || source.id || crypto.randomUUID()),
+    name: String(source.name || source.title || existing?.name || 'Untitled chain').trim() || 'Untitled chain',
+    description: String(source.description || existing?.description || '').trim(),
+    triggerMode: String(source.triggerMode || existing?.triggerMode || 'manual').trim().toLowerCase() === 'auto'
+      ? 'auto'
+      : 'manual',
+    steps: normalizedSteps,
+    createdAt,
+    updatedAt: new Date().toISOString()
+  };
 };
 
 /** Returns prompts array from storage or an empty list when unavailable. */
@@ -231,6 +268,79 @@ const getChatHistory = async () => {
   }
 };
 
+/** Returns workflow definitions from storage or an empty list when unavailable. */
+const getWorkflows = async () => {
+  try {
+    const snapshot = await chrome.storage.local.get([WORKFLOWS_KEY]);
+    clearLastStorageError();
+    const workflows = Array.isArray(snapshot[WORKFLOWS_KEY])
+      ? snapshot[WORKFLOWS_KEY]
+      : [];
+    return workflows
+      .map((workflow) => normalizeWorkflow(workflow))
+      .sort((left, right) =>
+        String(right.updatedAt || '').localeCompare(String(left.updatedAt || '')),
+      );
+  } catch (error) {
+    setLastStorageError(error);
+    console.error('[Promptium][Store] Failed to read workflows.', error);
+    return [];
+  }
+};
+
+/** Saves a new workflow definition and returns the stored record or false. */
+const saveWorkflow = async (workflow) => {
+  try {
+    const workflows = await getWorkflows();
+    const nextWorkflow = normalizeWorkflow(workflow);
+    await chrome.storage.local.set({
+      [WORKFLOWS_KEY]: [nextWorkflow, ...workflows]
+    });
+    clearLastStorageError();
+    return nextWorkflow;
+  } catch (error) {
+    setLastStorageError(error);
+    console.error('[Promptium][Store] Failed to save workflow.', error);
+    return false;
+  }
+};
+
+/** Updates one workflow by id and returns the updated record or false. */
+const updateWorkflow = async (id, updates = {}) => {
+  try {
+    const workflows = await getWorkflows();
+    const index = workflows.findIndex((item) => item.id === id);
+    if (index < 0) {
+      return false;
+    }
+    const current = workflows[index];
+    const next = normalizeWorkflow({ ...current, ...updates }, current);
+    workflows[index] = next;
+    await chrome.storage.local.set({ [WORKFLOWS_KEY]: workflows });
+    clearLastStorageError();
+    return next;
+  } catch (error) {
+    setLastStorageError(error);
+    console.error('[Promptium][Store] Failed to update workflow.', error);
+    return false;
+  }
+};
+
+/** Deletes one workflow by id and returns true when complete. */
+const deleteWorkflow = async (id) => {
+  try {
+    const workflows = await getWorkflows();
+    const nextWorkflows = workflows.filter((item) => item.id !== id);
+    await chrome.storage.local.set({ [WORKFLOWS_KEY]: nextWorkflows });
+    clearLastStorageError();
+    return true;
+  } catch (error) {
+    setLastStorageError(error);
+    console.error('[Promptium][Store] Failed to delete workflow.', error);
+    return false;
+  }
+};
+
 /** Saves a chat history entry with UUID while enforcing the 50-item cap. */
 const saveChatToHistory = async (chat) => {
   try {
@@ -281,6 +391,10 @@ const Store = {
   savePrompt,
   updatePrompt,
   deletePrompt,
+  getWorkflows,
+  saveWorkflow,
+  updateWorkflow,
+  deleteWorkflow,
   getChatHistory,
   saveChatToHistory,
   deleteChatFromHistory,
