@@ -386,7 +386,7 @@
 
         if (isBeingDownloaded) {
           const pct = Math.max(0, Number(status.progress || 0));
-          actionLabel = `Downloading ${pct}%`;
+          actionLabel = pct > 0 ? `Downloading ${pct}%` : "Downloading...";
           actionClass = " is-active-label";
           rowExtra += " is-downloading";
         } else if (isBeingIndexed) {

@@ -62,7 +62,7 @@
     const minHeight = textareaMinHeights.get(textareaId) || 0;
     const nextHeight = Math.max(minHeight, textarea.scrollHeight);
     textarea.style.height = `${nextHeight}px`;
-    textarea.style.overflowY = nextHeight > 280 ? "auto" : "hidden";
+    textarea.style.overflowY = nextHeight > 420 ? "auto" : "hidden";
   };
 
   const syncFormMetrics = () => {

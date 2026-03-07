@@ -33,13 +33,17 @@ const getResolvedEmbeddingModel = (modelId = "") => {
   };
 };
 
-const reportProgress = (modelId = "", loaded = 0, total = 0) => {
+const reportProgress = (modelId = "", loaded = 0, total = 0, overridePct = -1) => {
   const safeTotal = Math.max(0, Number(total) || 0);
   const safeLoaded = Math.max(0, Number(loaded) || 0);
+  // When Content-Length is absent (safeTotal === 0), transformers.js may still
+  // provide a pre-computed 0-100 progress value in overridePct.
   const progress =
-    safeTotal > 0
-      ? Math.max(0, Math.min(100, Math.round((safeLoaded / safeTotal) * 100)))
-      : 0;
+    overridePct >= 0
+      ? Math.max(0, Math.min(100, Math.round(overridePct)))
+      : safeTotal > 0
+        ? Math.max(0, Math.min(100, Math.round((safeLoaded / safeTotal) * 100)))
+        : 0; // 0 signals indeterminate to the UI
 
   chrome.runtime
     .sendMessage({
@@ -84,8 +88,22 @@ const initEmbeddingPipeline = async (modelId = "") => {
     embeddingPipeline = await pipeline("feature-extraction", resolved.repo, {
       quantized: true,
       progress_callback: (event) => {
-        if (event?.status === "downloading") {
-          reportProgress(resolved.id, event?.loaded || 0, event?.total || 0);
+        const evtStatus = String(event?.status || "").toLowerCase();
+        // Transformers.js v2 uses "downloading"; v3 uses "progress" or "download".
+        if (
+          evtStatus === "downloading" ||
+          evtStatus === "progress" ||
+          evtStatus === "download"
+        ) {
+          const loaded = Number(event?.loaded || 0);
+          const total = Number(event?.total || 0);
+          // event.progress is a pre-computed 0-100 value some versions provide.
+          // Use it as override when total is absent (Content-Length not sent).
+          const override =
+            total === 0
+              ? Math.max(0, Math.round(Number(event?.progress || 0)))
+              : -1;
+          reportProgress(resolved.id, loaded, total, override);
         }
       },
     });
