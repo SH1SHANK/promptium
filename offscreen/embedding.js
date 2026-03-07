@@ -72,6 +72,11 @@ const initEmbeddingPipeline = async (modelId = "") => {
     env.allowLocalModels = false;
     env.useBrowserCache = true;
     env.allowRemoteModels = true;
+    // Chrome extensions cannot use SharedArrayBuffer (required for multi-threaded ONNX).
+    // Force single-threaded mode to avoid secondary worker blob: errors.
+    if (env.backends?.onnx?.wasm) {
+      env.backends.onnx.wasm.numThreads = 1;
+    }
 
     embeddingPipeline = await pipeline("feature-extraction", resolved.repo, {
       quantized: true,
