@@ -579,6 +579,7 @@ body.pn-popup::-webkit-scrollbar-thumb:hover {
 .pn-prompt-hover-preview {
   position: fixed;
   z-index: 9999;
+  pointer-events: none;
   width: min(280px, calc(100vw - 28px));
   max-height: 200px;
   overflow: auto;
@@ -587,6 +588,21 @@ body.pn-popup::-webkit-scrollbar-thumb:hover {
   background: rgba(15, 18, 28, 0.97);
   box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35);
   padding: 10px 11px;
+}
+
+@keyframes pn-tooltip-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.pn-prompt-hover-preview:not(.pn-hidden) {
+  animation: pn-tooltip-in 0.13s ease forwards;
 }
 
 .pn-preview-title {

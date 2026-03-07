@@ -141,19 +141,20 @@
   const positionHoverPreview = (anchor, tooltip) => {
     const rect = anchor.getBoundingClientRect();
     const tipRect = tooltip.getBoundingClientRect();
-    const margin = 12;
+    const margin = 8;
+    const gap = 5;
 
-    let top = rect.top + 6;
+    // Place below the card by default; flip above if card is in the bottom half
     const shouldFlipUp = rect.top > window.innerHeight / 2;
-    if (shouldFlipUp) {
-      top = rect.bottom - tipRect.height - 6;
-    }
+    let top = shouldFlipUp
+      ? rect.top - tipRect.height - gap
+      : rect.bottom + gap;
     top = Math.max(
       margin,
       Math.min(window.innerHeight - tipRect.height - margin, top),
     );
 
-    let left = rect.left + 10;
+    let left = rect.left;
     if (left + tipRect.width > window.innerWidth - margin) {
       left = window.innerWidth - tipRect.width - margin;
     }
@@ -181,6 +182,10 @@
     <div class="pn-preview-title">Prompt Preview</div>
     <div class="pn-preview-body">${highlightTemplateVars(text)}</div>
   `;
+    // Pre-position off-screen so getBoundingClientRect() gives real size
+    // without causing a visible flash at (0, 0)
+    tooltip.style.top = "-9999px";
+    tooltip.style.left = "-9999px";
     tooltip.classList.remove("pn-hidden");
     positionHoverPreview(anchor, tooltip);
   };
