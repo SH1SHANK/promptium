@@ -170,7 +170,7 @@
   font-size: 12px;
 }
 
-.pn-save-modal__field input {
+.pn-save-modal__field input:not(.pn-tag-badges__input) {
   width: 100%;
   border: 1px solid var(--pn-border-default);
   border-radius: 8px;
@@ -180,11 +180,87 @@
   font: inherit;
 }
 
-.pn-save-modal__field input:focus {
+.pn-save-modal__field input:not(.pn-tag-badges__input):focus {
   outline: 2px solid var(--pn-accent);
   outline-offset: 2px;
   border-color: var(--pn-accent);
   box-shadow: 0 0 0 3px var(--pn-accent-glow);
+}
+
+.pn-tag-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 4px 8px;
+  border: 1px solid var(--pn-border-default);
+  border-radius: 8px;
+  background: var(--pn-bg-surface);
+  cursor: text;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.pn-tag-badges:focus-within {
+  border-color: var(--pn-accent);
+  box-shadow: 0 0 0 2px var(--pn-accent-glow);
+}
+
+.pn-tag-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(var(--pn-accent-rgb), 0.15);
+  border: 1px solid rgba(var(--pn-accent-rgb), 0.3);
+  color: var(--pn-text-primary);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.pn-tag-badge__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--pn-text-secondary);
+  font-size: 10px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.pn-tag-badge__remove:hover {
+  background: rgba(248, 113, 113, 0.3);
+  color: #ffd1d1;
+}
+
+.pn-tag-badges__input {
+  flex: 1 0 120px;
+  min-width: 80px;
+  width: auto;
+  border: none !important;
+  background: transparent !important;
+  color: var(--pn-text-primary);
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.pn-tag-badges__input::placeholder {
+  color: var(--pn-text-secondary);
 }
 
 .pn-save-modal__actions {

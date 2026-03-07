@@ -16,6 +16,65 @@ const ADD_MODE_PLAIN = 'plain';
 const ADD_MODE_TEMPLATE = 'template';
 let _varDetectTimer = null;
 let modalScrollObserver = null;
+const textareaMinHeights = new Map();
+
+const toCssPixels = (value) => {
+  const numeric = Number.parseFloat(String(value || '0'));
+  return Number.isFinite(numeric) ? numeric : 0;
+};
+
+const getTextareaMinHeight = (textareaId) => {
+  if (textareaMinHeights.has(textareaId)) {
+    return textareaMinHeights.get(textareaId) || 0;
+  }
+
+  const textarea = document.getElementById(textareaId);
+  if (!(textarea instanceof HTMLTextAreaElement)) {
+    return 0;
+  }
+
+  const styles = window.getComputedStyle(textarea);
+  const rows = Math.max(Number.parseInt(textarea.getAttribute('rows') || '1', 10) || 1, 1);
+  const lineHeight = toCssPixels(styles.lineHeight) || (toCssPixels(styles.fontSize) * 1.4) || 18;
+  const paddingHeight = toCssPixels(styles.paddingTop) + toCssPixels(styles.paddingBottom);
+  const borderHeight = toCssPixels(styles.borderTopWidth) + toCssPixels(styles.borderBottomWidth);
+  const fallbackHeight = Math.ceil(lineHeight * rows + paddingHeight + borderHeight);
+  const measuredHeight = Math.ceil(textarea.getBoundingClientRect().height || 0);
+  const minHeight = Math.max(measuredHeight, fallbackHeight);
+
+  textareaMinHeights.set(textareaId, minHeight);
+  return minHeight;
+};
+
+const autoGrowTextarea = (textareaId) => {
+  const textarea = document.getElementById(textareaId);
+  if (!(textarea instanceof HTMLTextAreaElement)) {
+    return;
+  }
+
+  const minHeight = getTextareaMinHeight(textareaId);
+  const isVisible = textarea.getClientRects().length > 0;
+
+  if (!isVisible) {
+    if (minHeight > 0) {
+      textarea.style.height = `${minHeight}px`;
+    }
+    textarea.style.overflowY = 'hidden';
+    return;
+  }
+
+  textarea.style.height = 'auto';
+  const nextHeight = Math.max(minHeight, textarea.scrollHeight);
+  textarea.style.height = `${nextHeight}px`;
+  textarea.style.overflowY = nextHeight > 420 ? 'auto' : 'hidden';
+};
+
+const scheduleAddModalTextareaSizing = () => {
+  requestAnimationFrame(() => {
+    autoGrowTextarea('prompt-text');
+    autoGrowTextarea('pn-template-text');
+  });
+};
 
 const normalizePromptText = (text) => {
   if (window.TemplateParser?.normalizeLegacy) {
@@ -89,6 +148,10 @@ const setAddMode = (mode) => {
     document.getElementById('prompt-title')?.focus();
   } else if (mode === ADD_MODE_TEMPLATE) {
     document.getElementById('pn-template-title')?.focus();
+  }
+
+  if (mode === ADD_MODE_PLAIN || mode === ADD_MODE_TEMPLATE) {
+    scheduleAddModalTextareaSizing();
   }
 };
 
@@ -174,6 +237,7 @@ const bindVariableToolbar = () => {
       const cursorEnd = start + 6;
       textarea.setSelectionRange(cursorStart, cursorEnd);
       textarea.focus();
+      autoGrowTextarea('pn-template-text');
       updateDetectedVars();
     });
   });
@@ -902,6 +966,7 @@ const runModalPolish = async (isTemplate = false) => {
 
     textarea.value = polished;
     syncPolishVisibility();
+    autoGrowTextarea(textId);
 
     if (isTemplate) {
       templatePolishUndo = original;
@@ -1063,6 +1128,7 @@ const openModal = async () => {
   syncPolishVisibility();
   await updateAddAiStatusStrip();
   modal?.classList.remove('pn-hidden');
+  scheduleAddModalTextareaSizing();
 };
 
 /** Closes the add prompt modal and resets duplicate confirmation state. */
@@ -1302,6 +1368,7 @@ const bindEvents = async () => {
 
   promptText?.addEventListener('input', () => {
     syncPolishVisibility();
+    autoGrowTextarea('prompt-text');
     void hideModalError('pn-error-text');
     document.getElementById('pn-duplicate-warning')?.classList.add('pn-hidden');
   });
@@ -1309,6 +1376,7 @@ const bindEvents = async () => {
   templateText?.addEventListener('input', () => {
     updateDetectedVarsDebounced();
     syncPolishVisibility();
+    autoGrowTextarea('pn-template-text');
     void hideModalError('pn-template-error-text');
     document.getElementById('pn-duplicate-warning')?.classList.add('pn-hidden');
   });
@@ -1333,12 +1401,14 @@ const bindEvents = async () => {
     const textarea = document.getElementById('prompt-text');
     if (!textarea || !plainPolishUndo) return;
     textarea.value = plainPolishUndo;
+    autoGrowTextarea('prompt-text');
     document.getElementById('pn-polish-undo')?.classList.add('pn-hidden');
   });
   document.getElementById('pn-template-polish-undo')?.addEventListener('click', () => {
     const textarea = document.getElementById('pn-template-text');
     if (!textarea || !templatePolishUndo) return;
     textarea.value = templatePolishUndo;
+    autoGrowTextarea('pn-template-text');
     updateDetectedVars();
     document.getElementById('pn-template-polish-undo')?.classList.add('pn-hidden');
     void hideModalError('pn-template-polish-warning');
