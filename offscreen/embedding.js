@@ -76,6 +76,9 @@ const initEmbeddingPipeline = async (modelId = "") => {
     // Force single-threaded mode to avoid secondary worker blob: errors.
     if (env.backends?.onnx?.wasm) {
       env.backends.onnx.wasm.numThreads = 1;
+      // Disable the ONNX proxy worker — Transformers.js otherwise spawns a
+      // blob: URL worker which Chrome MV3 CSP blocks unconditionally.
+      env.backends.onnx.wasm.proxy = false;
     }
 
     embeddingPipeline = await pipeline("feature-extraction", resolved.repo, {

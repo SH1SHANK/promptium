@@ -83,7 +83,7 @@ let _embeddingProgress = 0;
 let _embeddingError = "";
 const OFFSCREEN_EMBEDDING_URL = "offscreen/embedding.html";
 const OFFSCREEN_EMBEDDING_REASON = "WORKERS";
-const OFFSCREEN_EMBEDDING_TIMEOUT_MS = 30000;
+const OFFSCREEN_EMBEDDING_TIMEOUT_MS = 600000;
 const OFFSCREEN_EMBEDDING_MAX_RETRIES = 1;
 const OFFSCREEN_EMBEDDING_IDLE_CLOSE_MS = 90000;
 let _offscreenEnsurePromise = null;
@@ -1183,7 +1183,9 @@ const downloadEmbeddingModel = async (modelId = "", { silent = false } = {}) => 
   const current = await readEmbeddingMeta();
   if (
     current.activeModelId === targetModelId &&
-    ["ready", "downloading"].includes(current.status)
+    current.status === "ready" &&
+    Array.isArray(current.downloadedModelIds) &&
+    current.downloadedModelIds.includes(targetModelId)
   ) {
     return {
       ok: true,
@@ -2596,7 +2598,6 @@ const onRuntimeMessage = (message, sender, sendResponse) => {
         _embeddingStatus = "downloading";
         _embeddingProgress = progress;
         _embeddingError = "";
-        scheduleOffscreenIdleClose();
         await broadcastEmbeddingStatus("downloading", progress, modelId);
         respond({ ok: true });
         return;

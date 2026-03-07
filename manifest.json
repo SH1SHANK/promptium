@@ -86,7 +86,7 @@
     "https://openrouter.ai/*"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; worker-src blob: 'self'; object-src 'self'; style-src 'self'; font-src 'self' data:"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; style-src 'self'; font-src 'self' data:"
   },
   "content_scripts": [
     {
