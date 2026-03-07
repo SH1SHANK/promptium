@@ -1675,6 +1675,32 @@ body.pn-sidepanel
   pointer-events: none;
 }
 
+/* Active-but-clickable: accent styling, cursor pointer for re-index action */
+.pn-settings-embed-action.is-ready-label {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.pn-settings-embed-action.is-ready-label:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+/* Downloading state: row pulse */
+.pn-settings-embed-row.is-downloading {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border-default));
+  animation: pnEmbedRowPulse 1.8s ease-in-out infinite;
+}
+
+/* Indexing state: row subtle highlight */
+.pn-settings-embed-row.is-indexing {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border-default));
+}
+
+@keyframes pnEmbedRowPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.72; }
+}
+
 /* ── Progress bar inline ────────────────────────────────────────────────── */
 .pn-settings-progress-wrap {
   display: grid;

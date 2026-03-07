@@ -2391,6 +2391,16 @@ const bootstrapEmbeddingOnInstall = async () => {
     meta.downloadedModelIds.length > 0
   ) {
     await updateSearchModeFromMeta(meta);
+    // Auto-repair: if model is marked ready but vectors are missing, rebuild silently.
+    if (meta.status === "ready") {
+      const cache = await readEmbeddingCache(meta.activeModelId);
+      const hasVectors =
+        cache.modelId === meta.activeModelId &&
+        Object.keys(cache.vectors || {}).length > 0;
+      if (!hasVectors) {
+        void runEmbeddingReindex(meta.activeModelId);
+      }
+    }
     return;
   }
 
@@ -2398,6 +2408,9 @@ const bootstrapEmbeddingOnInstall = async () => {
     getDefaultEmbeddingModel()?.id || EMBEDDING_META_FALLBACK.activeModelId,
   );
   await downloadEmbeddingModel(defaultModelId, { silent: true });
+  // Build the search index immediately after the first download so
+  // semantic search is available without a manual re-index step.
+  await runEmbeddingReindex(defaultModelId);
   const refreshed = await readEmbeddingMeta();
   await updateSearchModeFromMeta(refreshed);
   broadcast({

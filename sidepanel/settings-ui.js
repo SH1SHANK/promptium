@@ -361,36 +361,57 @@
     const container = byId("pn-settings-embed-list");
     if (!container) return;
     const status = uiState.embeddingStatus || {};
-    const activeId = String(
+    // "settings active" = what the user has confirmed and persisted
+    const settingsActiveId = String(
       state.settings.embeddingModelId || DEFAULT_SETTINGS.embeddingModelId,
     );
+    // "meta active" = which model the backend is currently working with
+    // (may differ from settingsActiveId during a switch operation)
+    const metaActiveId = String(status.activeModelId || settingsActiveId);
     const downloaded = new Set(
       Array.isArray(status.downloadedModelIds) ? status.downloadedModelIds : [],
     );
+    const reindex = status.reindex || {};
 
     container.innerHTML = uiState.embeddings
       .map((m) => {
-        const isActive = m.id === activeId;
-        const isDownloading = isActive && status.status === "downloading";
-        let actionLabel = "Download";
+        const isSelected = m.id === settingsActiveId;
+        const isBeingDownloaded =
+          m.id === metaActiveId && status.status === "downloading";
+        const isBeingIndexed = reindex.running && reindex.modelId === m.id;
+
+        let actionLabel;
         let actionClass = "";
-        if (isActive && status.status === "ready") {
+        let rowExtra = isSelected ? " is-active" : "";
+
+        if (isBeingDownloaded) {
+          const pct = Math.max(0, Number(status.progress || 0));
+          actionLabel = `Downloading ${pct}%`;
+          actionClass = " is-active-label";
+          rowExtra += " is-downloading";
+        } else if (isBeingIndexed) {
+          const pct = Math.round(Number(reindex.progress || 0));
+          actionLabel = `Indexing ${pct}%`;
+          actionClass = " is-active-label";
+          rowExtra += " is-indexing";
+        } else if (isSelected && status.status === "ready") {
+          // Clickable so user can trigger a re-index — styled subtly with accent
           actionLabel = "Active";
-          actionClass = " is-active-label";
-        } else if (isDownloading) {
-          actionLabel = `${Math.max(0, Number(status.progress || 0))}%`;
-          actionClass = " is-active-label";
+          actionClass = " is-ready-label";
         } else if (downloaded.has(m.id)) {
           actionLabel = "Switch";
+        } else {
+          actionLabel = "Download";
         }
+
         return `
-      <div class="pn-settings-embed-row${isActive ? " is-active" : ""}" data-embed-id="${esc(m.id)}">
+      <div class="pn-settings-embed-row${rowExtra}" data-embed-id="${esc(m.id)}">
         <span class="pn-settings-embed-dot"></span>
         <div class="pn-settings-embed-info">
           <span class="pn-settings-embed-name">${esc(m.label)}</span>
           <span class="pn-settings-embed-meta">${esc(m.size)} · ${esc(m.note)}</span>
         </div>
-        <button class="pn-settings-embed-action${actionClass}" type="button" data-embed-action="${esc(m.id)}">${esc(actionLabel)}</button>
+        <button class="pn-settings-embed-action${actionClass}" type="button" data-embed-action="${esc(m.id)}"${isBeingDownloaded || isBeingIndexed ? " disabled" : ""}>${esc(actionLabel)}</button>
       </div>`;
       })
       .join("");
@@ -583,7 +604,9 @@
         ? fabStyle.value
         : "circle";
     if (highlightStyle)
-      next.chatHighlightStyle = ["solid", "dotted", "disabled"].includes(highlightStyle.value)
+      next.chatHighlightStyle = ["solid", "dotted", "disabled"].includes(
+        highlightStyle.value,
+      )
         ? highlightStyle.value
         : "solid";
     if (density)
@@ -726,10 +749,43 @@
 
     chrome.runtime.onMessage.addListener((message) => {
       const type = String(message?.type || "").trim();
-      if (
-        ["AI_EMBEDDING_STATUS", "AI_EMBEDDING_REINDEX_PROGRESS"].includes(type)
-      ) {
-        syncEmbeddingStatus();
+      if (type === "AI_EMBEDDING_REINDEX_PROGRESS") {
+        // Update reindex state directly from the broadcast payload to avoid
+        // a round-trip storage read on every indexed prompt.
+        if (uiState.embeddingStatus) {
+          uiState.embeddingStatus.reindex = {
+            running: Boolean(message.running),
+            done: Number(message.done) || 0,
+            total: Number(message.total) || 0,
+            progress: Number(message.progress) || 0,
+            modelId: String(message.modelId || ""),
+            error: String(message.error || ""),
+            startedAt: Number(message.startedAt) || 0,
+            completedAt: Number(message.completedAt) || 0,
+          };
+          renderEmbeddings();
+        }
+        // When reindex finishes, do a full sync to pick up status:"ready" from meta
+        if (!message.running) {
+          void syncEmbeddingStatus();
+        }
+        return;
+      }
+      if (type === "AI_EMBEDDING_STATUS") {
+        // Patch status fields from the broadcast so download % updates immediately
+        // without a storage round-trip. Then do a full sync to get the reindex state.
+        if (uiState.embeddingStatus) {
+          Object.assign(uiState.embeddingStatus, {
+            status: String(message.status || uiState.embeddingStatus.status || ""),
+            progress: Number(message.progress) || 0,
+            activeModelId: String(message.activeModelId || message.modelId || uiState.embeddingStatus.activeModelId || ""),
+            downloadedModelIds: Array.isArray(message.downloadedModelIds)
+              ? message.downloadedModelIds
+              : uiState.embeddingStatus.downloadedModelIds,
+          });
+          renderEmbeddings();
+        }
+        void syncEmbeddingStatus();
       }
     });
   };
@@ -776,31 +832,64 @@
   /* ── Embedding switch ────────────────────────────────────────────────────── */
 
   const requestEmbeddingSwitch = (modelId) => {
+    if (!modelId) return;
+    // Don't start a new action while one is already running
+    const status = uiState.embeddingStatus || {};
+    const reindex = status.reindex || {};
+    if (status.status === "downloading" || reindex.running) return;
+
+    uiState.pendingEmbeddingId = modelId;
     const current = String(
       state.settings.embeddingModelId || DEFAULT_SETTINGS.embeddingModelId,
     );
-    if (!modelId || modelId === current) return;
-    uiState.pendingEmbeddingId = modelId;
-    byId("pn-settings-embed-confirm")?.classList.remove("pn-hidden");
+    const confirmBar = byId("pn-settings-embed-confirm");
+    const confirmText = confirmBar?.querySelector(".pn-settings-confirm-text");
+    if (confirmText) {
+      confirmText.textContent =
+        modelId === current
+          ? "Re-index all prompts with the current model?"
+          : "Switch model and re-index all prompts?";
+    }
+    confirmBar?.classList.remove("pn-hidden");
   };
 
   const confirmEmbeddingSwitch = async () => {
     const modelId = uiState.pendingEmbeddingId;
     if (!modelId) return;
     byId("pn-settings-embed-confirm")?.classList.add("pn-hidden");
-    const result = await window.AIBridge?.switchEmbeddingModel?.(modelId).catch(
-      () => null,
+
+    const current = String(
+      state.settings.embeddingModelId || DEFAULT_SETTINGS.embeddingModelId,
     );
-    if (!result?.ok) {
-      setStatus(result?.error || "Model switch failed", true);
-      return;
+
+    if (modelId === current) {
+      // Re-index only — no model change needed
+      const result = await window.AIBridge?.startEmbeddingReindex?.(
+        modelId,
+      ).catch(() => null);
+      if (!result?.ok) {
+        setStatus(result?.error || "Re-index failed", true);
+        return;
+      }
+      uiState.pendingEmbeddingId = "";
+      await syncEmbeddingStatus();
+      setStatus("Re-indexing started");
+    } else {
+      // Download (if needed) and switch
+      const result = await window.AIBridge?.switchEmbeddingModel?.(
+        modelId,
+      ).catch(() => null);
+      if (!result?.ok) {
+        setStatus(result?.error || "Model switch failed", true);
+        return;
+      }
+      const next = deepClone(state.settings);
+      next.embeddingModelId = modelId;
+      await persistSettings(next);
+      uiState.pendingEmbeddingId = "";
+      await syncEmbeddingStatus();
+      setStatus("Search model updated");
     }
-    const next = deepClone(state.settings);
-    next.embeddingModelId = modelId;
-    await persistSettings(next);
-    uiState.pendingEmbeddingId = "";
-    await syncEmbeddingStatus();
-    setStatus("Search model updated");
   };
 
   const syncEmbeddingStatus = async () => {
