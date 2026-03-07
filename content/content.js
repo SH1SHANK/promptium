@@ -8,7 +8,7 @@
   window.__PN = window.__PN || {};
 
   const OPEN_SIDEPANEL_ACTION = "OPEN_SIDEPANEL";
-  const OBSERVER_DEBOUNCE_MS = 140;
+  const OBSERVER_DEBOUNCE_MS = 300;
   const URL_WATCH_INTERVAL_MS = 1000;
   const INJECTION_UNDO_TTL_MS = 8000;
   const INJECTION_CONFIRMATION_DELAY_MS = 360;
@@ -17,18 +17,23 @@
   const INLINE_SELECT_SHADOW_CSS = `
     :host {
       position: absolute;
-      top: 10px;
-      left: -6px;
+      top: 12px;
+      left: -20px;
       z-index: 2147483642;
-      width: 18px;
-      height: 18px;
+      width: 20px;
+      height: 20px;
       opacity: 0;
       transform: scale(0.9) translateX(-4px);
-      transition: opacity 0.18s ease, transform 0.18s ease;
+      transition: opacity 0.2s ease, transform 0.2s ease;
       pointer-events: none;
     }
+    :host-context(.pn-selectable-message--relative:hover) {
+      opacity: 0.55;
+      transform: scale(1) translateX(0);
+      pointer-events: auto;
+    }
     :host([data-visible="true"]) {
-      opacity: 0.6;
+      opacity: 0.8;
       transform: scale(1) translateX(0);
       pointer-events: auto;
     }
@@ -40,22 +45,37 @@
     .pn-inline-select {
       width: 100%;
       height: 100%;
-      border-radius: 5px;
+      border-radius: 6px;
       background: rgba(24, 24, 27, 0.72);
-      border: 1.5px solid rgba(255, 255, 255, 0.16);
+      border: 1.5px solid rgba(255, 255, 255, 0.25);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
       display: inline-flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
       box-sizing: border-box;
       user-select: none;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    
+    /* Transparent bridge to connect hover area seamlessly to the message body */
+    .pn-inline-select::after {
+      content: '';
+      position: absolute;
+      top: -10px;
+      right: -20px;
+      bottom: -10px;
+      left: -10px;
+      z-index: -1;
     }
     .pn-inline-select:hover {
-      border-color: rgba(45, 212, 191, 0.55);
+      border-color: rgba(45, 212, 191, 0.8);
+      background: rgba(45, 212, 191, 0.1);
     }
     .pn-inline-select.pn-checked {
       background: rgba(45, 212, 191, 0.18);
-      border-color: rgba(45, 212, 191, 0.8);
+      border-color: rgba(45, 212, 191, 0.9);
     }
     .pn-inline-check {
       position: absolute;
@@ -63,16 +83,17 @@
       pointer-events: none;
     }
     .pn-inline-mark {
-      width: 9px;
-      height: 9px;
+      width: 10px;
+      height: 10px;
       border-radius: 3px;
-      border: 1.5px solid rgba(255, 255, 255, 0.55);
+      border: 1.5px solid rgba(255, 255, 255, 0.6);
       box-sizing: border-box;
-      transition: background 0.16s ease, border-color 0.16s ease;
+      transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
     }
     .pn-inline-check:checked + .pn-inline-mark {
       background: #2dd4bf;
       border-color: #2dd4bf;
+      box-shadow: 0 0 6px rgba(45, 212, 191, 0.4);
     }
   `;
 
@@ -157,6 +178,7 @@
   const exportSelectionState = {
     platform: null,
     selectors: null,
+    selectionModeActive: false,
     observer: null,
     observerRoot: null,
     scanTimer: null,
@@ -166,6 +188,7 @@
     messageOrder: [],
     messagesById: new Map(),
     sequence: 0,
+    chatHighlightStyle: "solid",
   };
   const injectionUndoState = {
     previousText: "",
@@ -393,9 +416,11 @@
     }
 
     const clone = node.cloneNode(true);
-    clone.querySelectorAll(".pn-inline-select, .pn-inline-select-host").forEach((injected) => {
-      injected.remove();
-    });
+    clone
+      .querySelectorAll(".pn-inline-select, .pn-inline-select-host")
+      .forEach((injected) => {
+        injected.remove();
+      });
 
     // Strip executable/dangerous elements before carrying HTML into extension pages.
     clone
@@ -509,8 +534,10 @@
     Array.from(document.querySelectorAll(".pn-inline-select-host"))
       .map((host) => {
         if (!(host instanceof HTMLElement)) return null;
-        const input = host.shadowRoot?.querySelector(".pn-inline-check") || null;
-        const control = host.shadowRoot?.querySelector(".pn-inline-select") || null;
+        const input =
+          host.shadowRoot?.querySelector(".pn-inline-check") || null;
+        const control =
+          host.shadowRoot?.querySelector(".pn-inline-select") || null;
         const messageId = String(host.dataset.messageId || "").trim();
         return { host, input, control, messageId };
       })
@@ -525,10 +552,19 @@
     entry.control?.classList.toggle("pn-checked", bool);
     entry.host?.setAttribute("data-checked", bool ? "true" : "false");
     entry.host?.setAttribute("data-visible", bool ? "true" : "false");
+
+    const messageNode = entry.host?.parentElement;
+    if (messageNode) {
+      const style = exportSelectionState.chatHighlightStyle;
+      messageNode.classList.toggle("pn-chat-highlight-solid", bool && style === "solid");
+      messageNode.classList.toggle("pn-chat-highlight-dotted", bool && style === "dotted");
+    }
   };
 
   const setAllSelectionControls = (checked) => {
-    getSelectionControls().forEach((entry) => setControlChecked(entry, checked));
+    getSelectionControls().forEach((entry) =>
+      setControlChecked(entry, checked),
+    );
   };
 
   /** Ensures each message gets a single injected checkbox control and syncs checked state. */
@@ -689,12 +725,11 @@
   };
 
   /** Activates the selection mode with all messages pre-selected for UI review. */
-  const activateSelectionModeAll = () => {
+  const activateSelectionModeAll = async () => {
+    await ensureSelectionModeActive();
+
     if (!exportSelectionState.messageOrder.length) {
-      scanSelectionTargets().catch(console.error);
-      notify("Messages are still loading. Please try again.").catch(
-        console.error,
-      );
+      notify("No messages found in this chat.").catch(console.error);
       return false;
     }
 
@@ -708,25 +743,61 @@
     return true;
   };
 
-  /** Selects all currently discovered message rows then opens side panel export view. */
-  const openSidePanelWithAllMessages = () => {
-    if (!exportSelectionState.messageOrder.length) {
-      scanSelectionTargets().catch(console.error);
-      notify("Messages are still loading. Please try again.").catch(
-        console.error,
-      );
-      return { ok: false, error: "Messages still loading." };
+  /** Selects all visible messages by scraping the page and stages side panel export payload. */
+  const openSidePanelWithAllMessages = async () => {
+    const platform = String(exportSelectionState.platform || "unknown");
+    const messages = await window.Scraper.scrape(platform);
+
+    if (!messages.length) {
+      notify("No messages found in this chat.").catch(console.error);
+      return { ok: false, error: "No messages available." };
     }
 
-    exportSelectionState.selectedIds = new Set(
-      exportSelectionState.messageOrder,
-    );
+    const payload = {
+      title: document.title || "Untitled chat",
+      platform,
+      url: window.location.href,
+      createdAt: new Date().toISOString(),
+      messages: messages.map((message, index) => ({
+        role: message.role,
+        text: message.text,
+        html: String(message.html || ""),
+        index,
+      })),
+    };
 
-    setAllSelectionControls(true);
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: "SET_SIDEPANEL_PAYLOAD",
+        payload,
+      });
 
-    const response = openSidePanelWithSelection();
-    updateSelectionFab().catch(console.error);
-    return response;
+      if (!response?.ok) {
+        return {
+          ok: false,
+          error: response?.error || "Failed to stage full export payload.",
+        };
+      }
+
+      return { ok: true };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error?.message || "Failed to prepare full export payload.",
+      };
+    }
+  };
+
+  /** Enables selection mode only when explicitly requested by the user. */
+  const ensureSelectionModeActive = async () => {
+    if (exportSelectionState.selectionModeActive) {
+      return;
+    }
+
+    exportSelectionState.selectionModeActive = true;
+    await ensureSelectionFab();
+    await attachSelectionObserver();
+    await scanSelectionTargets();
   };
 
   /** Creates the floating selection bar once and wires all action handlers. */
@@ -892,6 +963,10 @@
 
   /** Scans message DOM, injects checkboxes, and refreshes cached extraction payloads. */
   const scanSelectionTargets = async () => {
+    if (!exportSelectionState.selectionModeActive) {
+      return;
+    }
+
     const selectors = exportSelectionState.selectors;
 
     if (!selectors) {
@@ -921,7 +996,10 @@
 
     getSelectionControls().forEach((entry) => {
       if (!entry?.messageId) return;
-      setControlChecked(entry, exportSelectionState.selectedIds.has(entry.messageId));
+      setControlChecked(
+        entry,
+        exportSelectionState.selectedIds.has(entry.messageId),
+      );
     });
 
     await updateSelectionFab();
@@ -929,6 +1007,10 @@
 
   /** Debounces expensive message scan work during rapid streaming DOM updates. */
   const scheduleSelectionScan = async () => {
+    if (!exportSelectionState.selectionModeActive) {
+      return;
+    }
+
     if (exportSelectionState.scanTimer) {
       clearTimeout(exportSelectionState.scanTimer);
     }
@@ -976,14 +1058,61 @@
       exportSelectionState.observer.disconnect();
     }
 
-    const observer = new MutationObserver(() => {
+    const observer = new MutationObserver((mutations) => {
+      // High-performance, zero-allocation check to prevent infinite loops globally
+      let isPromptiumMutation = true;
+      for (let i = 0; i < mutations.length; i++) {
+        const m = mutations[i];
+        let isLocalMutation = false;
+
+        if (m.type === 'childList') {
+          if (m.addedNodes.length > 0 || m.removedNodes.length > 0) {
+            let allPn = true;
+            for (let j = 0; j < m.addedNodes.length; j++) {
+              const n = m.addedNodes[j];
+              if (!(n instanceof HTMLElement)) { allPn = false; break; }
+              const c = typeof n.className === 'string' ? n.className : '';
+              const id = typeof n.id === 'string' ? n.id : '';
+              if (c.indexOf('pn-') === -1 && id.indexOf('pn-') === -1) { allPn = false; break; }
+            }
+            if (allPn) {
+              for (let j = 0; j < m.removedNodes.length; j++) {
+                const n = m.removedNodes[j];
+                if (!(n instanceof HTMLElement)) { allPn = false; break; }
+                const c = typeof n.className === 'string' ? n.className : '';
+                const id = typeof n.id === 'string' ? n.id : '';
+                if (c.indexOf('pn-') === -1 && id.indexOf('pn-') === -1) { allPn = false; break; }
+              }
+            }
+            isLocalMutation = allPn;
+          } else {
+            isLocalMutation = true;
+          }
+        }
+
+        if (!isLocalMutation && m.target instanceof HTMLElement) {
+          const tc = typeof m.target.className === 'string' ? m.target.className : '';
+          const tid = typeof m.target.id === 'string' ? m.target.id : '';
+          if (tc.indexOf('pn-') !== -1 || tid.indexOf('pn-') !== -1) {
+            isLocalMutation = true;
+          }
+        }
+
+        if (!isLocalMutation) {
+          isPromptiumMutation = false;
+          break;
+        }
+      }
+      
+      if (isPromptiumMutation) return;
       void scheduleSelectionScan();
     });
 
     observer.observe(root, {
       childList: true,
       subtree: true,
-      characterData: true,
+      characterData: false,
+      attributes: false,
     });
 
     exportSelectionState.observerRoot = root;
@@ -998,7 +1127,11 @@
     exportSelectionState.messagesById = new Map();
     exportSelectionState.selectors =
       await window.Platform.getSelectors(platform);
-    await attachSelectionObserver();
+
+    if (exportSelectionState.selectionModeActive) {
+      await attachSelectionObserver();
+    }
+
     await updateSelectionFab();
   };
 
@@ -1036,8 +1169,7 @@
       return;
     }
 
-    await ensureSelectionFab();
-    await attachSelectionObserver();
+    await ensureSelectionModeActive();
     await startSelectionUrlWatcher(platform);
   };
 
@@ -1330,6 +1462,8 @@
       exportSelectionState.observer = null;
       exportSelectionState.observerRoot = null;
     }
+
+    exportSelectionState.selectionModeActive = false;
   };
 
   /** Initializes content execution when the current page matches a supported platform. */
@@ -1357,6 +1491,26 @@
     };
 
     chrome.runtime.onMessage.addListener(onRuntimeMessage);
+
+    const syncHighlightSettings = async () => {
+      try {
+        const snap = await chrome.storage.local.get("promptiumSettings");
+        exportSelectionState.chatHighlightStyle = 
+          snap?.promptiumSettings?.chatHighlightStyle || "solid";
+        getSelectionControls().forEach((entry) => {
+          setControlChecked(entry, entry.host?.getAttribute("data-checked") === "true");
+        });
+      } catch (e) {}
+    };
+
+    chrome.storage.local.onChanged.addListener((changes) => {
+      if (changes.promptiumSettings) {
+        syncHighlightSettings();
+      }
+    });
+
+    await syncHighlightSettings();
+
     window.addEventListener(
       "beforeunload",
       () => {

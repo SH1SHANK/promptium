@@ -149,10 +149,17 @@ const getEntryForMessage = (messageIndex, messageHash) => currentBookmarks.find(
 const updateIconState = (messageEl, isBookmarked) => {
   const icon = messageEl?.querySelector(':scope > .pn-bookmark-icon');
   if (!icon) return;
-  icon.textContent = isBookmarked ? '⭐' : '☆';
+  const newText = isBookmarked ? '⭐' : '☆';
+  if (icon.textContent !== newText) {
+    icon.textContent = newText;
+  }
   icon.title = isBookmarked ? 'Bookmarked — click to remove' : 'Bookmark this response';
-  icon.classList.toggle('pn-bookmark-active', isBookmarked);
-  messageEl.classList.toggle('pn-bookmarked', isBookmarked);
+  
+  if (isBookmarked && !icon.classList.contains('pn-bookmark-active')) icon.classList.add('pn-bookmark-active');
+  if (!isBookmarked && icon.classList.contains('pn-bookmark-active')) icon.classList.remove('pn-bookmark-active');
+  
+  if (isBookmarked && !messageEl.classList.contains('pn-bookmarked')) messageEl.classList.add('pn-bookmarked');
+  if (!isBookmarked && messageEl.classList.contains('pn-bookmarked')) messageEl.classList.remove('pn-bookmarked');
 };
 
 const loadBookmarks = async () => {
@@ -280,10 +287,62 @@ const initShortcut = () => {
   });
 };
 
+let debounceTimer = null;
+
 const startWatchers = () => {
   if (!observer) {
-    observer = new MutationObserver(() => {
-      void injectBookmarkIcons();
+    observer = new MutationObserver((mutations) => {
+      // High-performance, zero-allocation check to prevent infinite loops
+      let isPromptiumMutation = true;
+      for (let i = 0; i < mutations.length; i++) {
+        const m = mutations[i];
+        let isLocalMutation = false;
+
+        if (m.type === 'childList') {
+          if (m.addedNodes.length > 0 || m.removedNodes.length > 0) {
+            let allPn = true;
+            for (let j = 0; j < m.addedNodes.length; j++) {
+              const n = m.addedNodes[j];
+              if (!(n instanceof HTMLElement)) { allPn = false; break; }
+              const c = typeof n.className === 'string' ? n.className : '';
+              const id = typeof n.id === 'string' ? n.id : '';
+              if (c.indexOf('pn-') === -1 && id.indexOf('pn-') === -1) { allPn = false; break; }
+            }
+            if (allPn) {
+              for (let j = 0; j < m.removedNodes.length; j++) {
+                const n = m.removedNodes[j];
+                if (!(n instanceof HTMLElement)) { allPn = false; break; }
+                const c = typeof n.className === 'string' ? n.className : '';
+                const id = typeof n.id === 'string' ? n.id : '';
+                if (c.indexOf('pn-') === -1 && id.indexOf('pn-') === -1) { allPn = false; break; }
+              }
+            }
+            isLocalMutation = allPn;
+          } else {
+            isLocalMutation = true;
+          }
+        }
+
+        if (!isLocalMutation && m.target instanceof HTMLElement) {
+          const tc = typeof m.target.className === 'string' ? m.target.className : '';
+          const tid = typeof m.target.id === 'string' ? m.target.id : '';
+          if (tc.indexOf('pn-') !== -1 || tid.indexOf('pn-') !== -1) {
+            isLocalMutation = true;
+          }
+        }
+
+        if (!isLocalMutation) {
+          isPromptiumMutation = false;
+          break;
+        }
+      }
+      
+      if (isPromptiumMutation) return;
+
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        void injectBookmarkIcons();
+      }, 500);
     });
     observer.observe(document.body, { childList: true, subtree: true });
   }

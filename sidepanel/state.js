@@ -12,7 +12,6 @@
     ANTHROPIC_KEY: "promptiumAnthropicKey",
     OPENROUTER_KEY: "promptiumOpenRouterKey",
     IMPROVE_PAYLOAD_KEY: "promptiumImprovePayload",
-    WORKFLOWS_KEY: "promptiumWorkflows",
     PENDING_SNIPPET_KEY: "pendingSnippet",
     ONBOARDING_KEY: "onboardingComplete",
     LOCAL_CACHE_INDEX_KEY: "localModelCacheIndex",
@@ -37,6 +36,7 @@
     },
     fabPosition: "bottom-right",
     fabStyle: "circle",
+    chatHighlightStyle: "solid",
     fabButtons: {
       savePrompt: true,
       exportChat: true,
@@ -45,7 +45,6 @@
     },
     visibleTabs: {
       prompts: true,
-      workflows: true,
       export: true,
       history: true,
       tags: true,
@@ -63,8 +62,8 @@
       icon: "✦",
       iconClass: "pn-card-icon--violet",
       subheadline: "Welcome to Promptium",
-      headline: "Your AI workflow, organized.",
-      body: "Promptium combines reusable prompts, variable templates, semantic search, cross-LLM continuation, bookmarks, and export workflows in one place.",
+      headline: "Your AI workspace, organized.",
+      body: "Promptium combines reusable prompts, variable templates, semantic search, cross-LLM continuation, bookmarks, and rich exports in one place.",
       isPersonalize: false,
     },
     {
@@ -147,8 +146,6 @@
     onboardingIndex: 0,
     aiReady: false,
     semanticResults: null,
-    workflows: [],
-    activeWorkflowId: null,
     _searchDebounce: null,
     pendingActions: [],
     initialized: false,

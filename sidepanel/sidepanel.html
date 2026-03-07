@@ -184,9 +184,6 @@
       <button class="tab pn-tab active" data-tab="prompts" type="button">
         Prompts
       </button>
-      <button class="tab pn-tab" data-tab="workflows" type="button">
-        Workflows
-      </button>
       <button class="tab pn-tab" data-tab="tags" type="button">Tags</button>
     </nav>
 
@@ -209,6 +206,29 @@
           <span class="pn-bridge-label">Continue on</span>
           <div id="pn-bridge-targets" class="pn-bridge-targets"></div>
         </div>
+        <button
+          id="pn-prompts-continue-chat"
+          type="button"
+          class="pn-btn pn-btn--ghost pn-btn--block pn-continue-shortcut"
+          title="Continue this conversation on another LLM"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M21 12a9 9 0 1 1-3.4-7" />
+            <path d="M21 3v7h-7" />
+            <path d="M8 12h8" />
+            <path d="M12 8l4 4-4 4" />
+          </svg>
+          Continue Chat
+        </button>
         <div
           id="pn-template-filters"
           class="pn-template-filters pn-hidden"
@@ -299,23 +319,6 @@
         <div id="history-list" class="pn-list"></div>
       </section>
 
-      <section class="tab-content pn-tab-content" data-tab="workflows">
-        <div class="pn-workflows-head">
-          <div>
-            <h3 class="pn-section-title">Prompt Chains</h3>
-            <p class="pn-card-meta">Build reusable multi-step prompt flows.</p>
-          </div>
-          <button
-            id="pn-workflow-create"
-            class="pn-btn pn-btn--primary"
-            type="button"
-          >
-            New Chain
-          </button>
-        </div>
-        <div id="pn-workflow-list" class="pn-list"></div>
-      </section>
-
       <section class="tab-content pn-tab-content" data-tab="export">
         <div class="pn-export-grid">
           <aside class="pn-export-controls">
@@ -378,10 +381,8 @@
                 <option value="System">System</option>
                 <option value="Outfit">Outfit</option>
                 <option value="Montserrat">Montserrat</option>
-                <option value="Montstret">Montstret</option>
                 <option value="Inter">Inter</option>
                 <option value="Helvetica">Helvetica</option>
-                <option value="Helivica">Helivica</option>
                 <option value="Poppins">Poppins</option>
                 <option value="Roboto">Roboto</option>
                 <option value="Open Sans">Open Sans</option>
@@ -458,15 +459,25 @@
                 <input id="include-msg-numbers" type="checkbox" />
                 <span>Include message numbers</span>
               </label>
+
+              <label class="pn-check-row">
+                <input id="include-thinking" type="checkbox" />
+                <span>Include AI thinking/reasoning</span>
+              </label>
+
+              <label class="pn-check-row">
+                <input id="trim-follow-ups" type="checkbox" checked />
+                <span>Trim AI conversational filler</span>
+              </label>
             </div>
 
-            <div class="pn-export-actions-row">
+            <div class="pn-export-actions-row pn-export-actions-row--tools">
               <button
                 id="export-btn"
                 type="button"
                 class="pn-btn pn-btn--primary"
               >
-                Export Markdown
+                Export
               </button>
               <button
                 id="copy-export-btn"
@@ -492,41 +503,43 @@
                 Copy
               </button>
             </div>
-            <div class="pn-export-actions-row pn-export-actions-row--tools">
-              <button
-                id="pn-export-notion-btn"
-                type="button"
-                class="pn-btn pn-btn--ghost pn-export-notion-btn"
-              >
-                <span class="pn-export-icon">N</span>
-                Notion
-              </button>
-              <button
-                id="pn-export-obsidian-btn"
-                type="button"
-                class="pn-btn pn-btn--ghost pn-export-obsidian-btn"
-              >
-                <span class="pn-export-icon">⟁</span>
-                Obsidian
-              </button>
-            </div>
-            <div class="pn-export-actions-row pn-export-actions-row--tools">
-              <button
-                id="pn-export-png-btn"
-                type="button"
-                class="pn-btn pn-btn--ghost pn-export-image-btn"
-              >
-                <span class="pn-export-icon">PNG</span>
-                Image
-              </button>
-              <button
-                id="pn-export-jpeg-btn"
-                type="button"
-                class="pn-btn pn-btn--ghost pn-export-image-btn"
-              >
-                <span class="pn-export-icon">JPG</span>
-                Image
-              </button>
+            
+            <div class="pn-export-quick-apps">
+              <span class="pn-export-quick-label">Or export directly to:</span>
+              <div class="pn-export-quick-grid">
+                <button
+                  id="pn-export-notion-btn"
+                  type="button"
+                  class="pn-btn pn-btn--ghost pn-export-app-btn"
+                >
+                  <span class="pn-export-icon">N</span>
+                  Notion
+                </button>
+                <button
+                  id="pn-export-obsidian-btn"
+                  type="button"
+                  class="pn-btn pn-btn--ghost pn-export-app-btn"
+                >
+                  <span class="pn-export-icon">⟁</span>
+                  Obsidian
+                </button>
+                <button
+                  id="pn-export-png-btn"
+                  type="button"
+                  class="pn-btn pn-btn--ghost pn-export-app-btn"
+                >
+                  <span class="pn-export-icon">PNG</span>
+                  Image
+                </button>
+                <button
+                  id="pn-export-jpeg-btn"
+                  type="button"
+                  class="pn-btn pn-btn--ghost pn-export-app-btn"
+                >
+                  <span class="pn-export-icon">JPG</span>
+                  Image
+                </button>
+              </div>
             </div>
             <div id="export-status" class="pn-card-meta"></div>
           </aside>
@@ -552,73 +565,56 @@
 
       <section class="tab-content pn-tab-content" data-tab="continue">
         <div class="pn-continue-view">
+          <!-- Header -->
           <div class="pn-continue-head">
             <h3 class="pn-sv-hero__title">Continue Chat</h3>
-            <p class="pn-sv-hero__sub">
-              Carry context into a new chat window on the same or another LLM.
+            <p id="pn-continue-summary" class="pn-continue-summary">
+              No conversation loaded yet.
             </p>
+            <p id="pn-continue-advisory" class="pn-sv-api-hint pn-hidden"></p>
           </div>
 
-          <div id="pn-continue-summary" class="pn-continue-summary">
-            No conversation loaded yet.
-          </div>
-          <p id="pn-continue-advisory" class="pn-sv-api-hint pn-hidden"></p>
-
-          <label class="pn-field">
-            <span>Target LLM</span>
-            <select id="pn-continue-target"></select>
-          </label>
-          <p id="pn-continue-target-meta" class="pn-sv-api-hint">
-            Checking enabled platforms…
-          </p>
-
-          <label class="pn-field">
-            <span>What to carry over</span>
-            <select id="pn-continue-mode">
-              <option value="FULL_SUMMARY">Full Summary</option>
-              <option value="KEY_POINTS">Key Points Only</option>
-              <option value="RECENT_ONLY">Last N Messages</option>
-            </select>
-          </label>
-
-          <label class="pn-field">
-            <span class="pn-field-head">
-              <span
-                >Also tell it that...
-                <small class="pn-field-hint">(optional)</small></span
-              >
-              <span id="pn-count-continue-note" class="pn-field-counter"
-                >0</span
-              >
-            </span>
-            <textarea
-              id="pn-continue-note"
-              rows="4"
-              placeholder="Any extra context or instruction for the next chat"
-            ></textarea>
-          </label>
-
-          <div class="pn-continue-actions">
-            <button
-              id="pn-continue-cancel"
-              class="pn-btn pn-btn--ghost"
-              type="button"
-            >
-              Cancel
-            </button>
-            <button
-              id="pn-continue-run"
-              class="pn-btn pn-btn--primary"
-              type="button"
-            >
-              Continue →
-            </button>
+          <!-- Quick Launch Grid -->
+          <div class="pn-continue-quick">
+            <span class="pn-continue-quick-label">Continue on</span>
+            <div id="pn-continue-targets" class="pn-continue-grid"></div>
           </div>
 
+          <!-- Advanced options (collapsed by default) -->
+          <details id="pn-continue-advanced" class="pn-continue-advanced">
+            <summary class="pn-continue-advanced-toggle">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              Advanced options
+            </summary>
+            <div class="pn-continue-advanced-body">
+              <label class="pn-field">
+                <span>Context mode</span>
+                <select id="pn-continue-mode">
+                  <option value="FULL_SUMMARY">Full Summary</option>
+                  <option value="KEY_POINTS">Key Points Only</option>
+                  <option value="RECENT_ONLY">Last N Messages</option>
+                </select>
+              </label>
+
+              <label class="pn-field">
+                <span>
+                  Extra instructions
+                  <small class="pn-field-hint">(optional)</small>
+                </span>
+                <textarea
+                  id="pn-continue-note"
+                  rows="2"
+                  placeholder="e.g. Focus on the code review part"
+                ></textarea>
+              </label>
+            </div>
+          </details>
+
+          <!-- Inline preview (hidden until handoff is ready) -->
           <div id="pn-continue-preview-wrap" class="pn-hidden">
             <label class="pn-field">
               <span>Handoff Preview</span>
-              <textarea id="pn-continue-preview" rows="7" readonly></textarea>
+              <textarea id="pn-continue-preview" rows="5" readonly></textarea>
             </label>
             <div class="pn-continue-actions">
               <button
@@ -626,16 +622,27 @@
                 class="pn-btn pn-btn--ghost"
                 type="button"
               >
-                Copy instead
+                📋 Copy
               </button>
               <button
                 id="pn-continue-open"
                 class="pn-btn pn-btn--primary"
                 type="button"
               >
-                Open in target
+                Open in target →
               </button>
             </div>
+          </div>
+
+          <!-- Cancel -->
+          <div class="pn-continue-actions pn-continue-footer">
+            <button
+              id="pn-continue-cancel"
+              class="pn-btn pn-btn--ghost pn-btn--sm"
+              type="button"
+            >
+              ← Back to prompts
+            </button>
           </div>
         </div>
       </section>
@@ -1216,7 +1223,6 @@
     <script src="../sidepanel/template-fill.js"></script>
     <script src="../sidepanel/prompts-ui.js"></script>
     <script src="../sidepanel/prompt-form.js"></script>
-    <script src="../sidepanel/workflows-ui.js"></script>
     <script src="../sidepanel/tags-ui.js"></script>
     <script src="../sidepanel/history-ui.js"></script>
     <script src="../sidepanel/settings-ui.js"></script>

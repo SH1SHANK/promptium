@@ -488,6 +488,17 @@
       </div>
     </div>
     <div class="pn-settings-section">
+      <h4 class="pn-settings-section-title">Chat Exports</h4>
+      <div class="pn-settings-select-field">
+        <span class="pn-settings-select-label">Selection Highlight</span>
+        <select class="pn-settings-select" id="pn-sui-highlight-style">
+          <option value="solid"${s.chatHighlightStyle === "solid" ? " selected" : ""}>Solid green line</option>
+          <option value="dotted"${s.chatHighlightStyle === "dotted" ? " selected" : ""}>Dotted green line</option>
+          <option value="disabled"${s.chatHighlightStyle === "disabled" ? " selected" : ""}>Disabled (None)</option>
+        </select>
+      </div>
+    </div>
+    <div class="pn-settings-section">
       <h4 class="pn-settings-section-title">Visible Tabs</h4>
       <div class="pn-settings-row">${tabRowCopy("Prompts")}${toggleHTML("pn-sui-tab-prompts", s.visibleTabs?.prompts !== false, "Prompts tab")}</div>
       <div class="pn-settings-row">${tabRowCopy("Export")}${toggleHTML("pn-sui-tab-export", s.visibleTabs?.export !== false, "Export tab")}</div>
@@ -562,6 +573,7 @@
     const next = deepClone(state.settings);
     const fabPos = byId("pn-sui-fab-position");
     const fabStyle = byId("pn-sui-fab-style");
+    const highlightStyle = byId("pn-sui-highlight-style");
     const density = byId("pn-sui-density");
     if (fabPos)
       next.fabPosition =
@@ -570,6 +582,10 @@
       next.fabStyle = ["circle", "pill", "icon-only"].includes(fabStyle.value)
         ? fabStyle.value
         : "circle";
+    if (highlightStyle)
+      next.chatHighlightStyle = ["solid", "dotted", "disabled"].includes(highlightStyle.value)
+        ? highlightStyle.value
+        : "solid";
     if (density)
       next.cardDensity =
         density.value === "compact" ? "compact" : "comfortable";

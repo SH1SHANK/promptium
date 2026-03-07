@@ -1,7 +1,7 @@
 (() => {
   /**
    * File: sidepanel/improve-ui.js
-   * Purpose: Improve modal state machine and injection/save/undo workflows.
+   * Purpose: Improve modal state machine and injection/save/undo flows.
    */
 
   const { state, UI_FEEDBACK_MS } = window.SidepanelState;

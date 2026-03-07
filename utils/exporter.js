@@ -6,7 +6,7 @@
 
 const DEFAULT_PREFS = {
   fontStyle: 'System',
-  fontSize: 14,
+  fontSize: 15,
   background: 'dark',
   customBackground: '#18181c',
   contentMode: 'structured',
@@ -14,6 +14,9 @@ const DEFAULT_PREFS = {
   includeExportDate: true,
   includePlatformLabel: true,
   includeMessageNumbers: false,
+  includeThinking: false,
+  trimFollowUps: true,
+  metadataPosition: 'footer',
   headerText: '',
   bookmarkedIndices: new Set(),
   fallbackMessages: []
@@ -38,14 +41,41 @@ const normalizePrefs = (prefs = {}) => {
     includeExportDate: Boolean(merged.includeExportDate),
     includePlatformLabel: Boolean(merged.includePlatformLabel),
     includeMessageNumbers: Boolean(merged.includeMessageNumbers),
+    includeThinking: Boolean(merged.includeThinking),
+    trimFollowUps: merged.trimFollowUps !== undefined ? Boolean(merged.trimFollowUps) : DEFAULT_PREFS.trimFollowUps,
+    metadataPosition: ['header', 'footer', 'none'].includes(String(merged.metadataPosition).toLowerCase()) ? String(merged.metadataPosition).toLowerCase() : DEFAULT_PREFS.metadataPosition,
     headerText: String(merged.headerText || '').trim(),
     bookmarkedIndices,
     fallbackMessages: Array.isArray(merged.fallbackMessages) ? merged.fallbackMessages : []
   };
 };
 
+/**
+ * Strips common AI follow-up offer patterns from the end of assistant messages.
+ */
+function stripTrailingFollowUps(text) {
+  const patterns = [
+    /\n+(?:if you want|would you like|let me know if|feel free to ask|i can also explain)[^\n]*/gi,
+  ];
+  let cleaned = String(text || '').trim();
+  for (const pattern of patterns) {
+    cleaned = cleaned.replace(pattern, '');
+  }
+  return cleaned.trimEnd();
+}
+
+/**
+ * Detects ASCII flow patterns and wraps them in code blocks.
+ */
+function wrapAsciiFlows(text) {
+  return String(text || '').replace(
+    /((?:.*(?:→|←|↑|↓|⇒|⟶).*\n){2,})/g,
+    (match) => `\n\`\`\`\n${match.trim()}\n\`\`\`\n`
+  );
+}
+
 /** Builds a safe export chat object from unknown input. */
-const normalizeChat = (chat) => {
+const normalizeChat = (chat, options = {}) => {
   const value = chat && typeof chat === 'object' ? chat : {};
   const messages = Array.isArray(value.messages) ? value.messages : [];
 
@@ -55,9 +85,18 @@ const normalizeChat = (chat) => {
     createdAt: String(value.createdAt || new Date().toISOString()),
     messages: messages.map((message, index) => {
       const indexCandidate = Number(message?.index);
+      const role = String(message?.role || 'assistant').trim().toLowerCase();
+      let text = String(message?.text || '').trim();
+      text = wrapAsciiFlows(text);
+
+      if (options.trimFollowUps && role === 'assistant') {
+        text = stripTrailingFollowUps(text);
+      }
+      
       return {
-        role: String(message?.role || 'assistant').trim().toLowerCase(),
-        text: String(message?.text || '').trim(),
+        role,
+        text,
+        thinking: String(message?.thinking || '').trim(),
         html: String(message?.html || '').trim(),
         index: Number.isFinite(indexCandidate) ? indexCandidate : index,
         bookmarkMeta: message?.bookmarkMeta && typeof message.bookmarkMeta === 'object'
@@ -105,6 +144,12 @@ const isMessageBookmarked = (message, index, prefs) => {
 
 const bookmarkTag = (message, index, prefs) => (isMessageBookmarked(message, index, prefs) ? ' ⭐' : '');
 const bookmarkPrefix = (message, index, prefs) => (isMessageBookmarked(message, index, prefs) ? '⭐ ' : '');
+const getRoleIcon = (role) => {
+  const safeRole = String(role || 'unknown').trim().toLowerCase();
+  if (safeRole === 'user' || safeRole === 'human' || safeRole === 'you') return '👤 ';
+  if (safeRole === 'assistant' || safeRole === 'model' || safeRole === 'bot') return '🤖 ';
+  return '💬 ';
+};
 
 /** Returns plain message text rows in original order. */
 const getMessageTextRows = (chat, prefs) => (chat.messages || [])
@@ -220,23 +265,32 @@ const buildFilename = (chat, extension, prefs = {}) => {
   return `promptium_${platform}_${date}.${ext}`;
 };
 
+/** Builds a YAML-style metadata block for text exports. */
+const buildYamlMetadata = (chat, options) => {
+  if (options.metadataPosition === 'none') return '';
+  const lines = ['---'];
+  if (options.includePlatformLabel) lines.push(`platform: ${chat.platform}`);
+  if (options.includeExportDate) lines.push(`exported: ${new Date().toISOString()}`);
+  if (options.headerText) lines.push(`notes: ${options.headerText}`);
+  lines.push('---', '');
+  
+  if (lines.length === 3) return ''; // Only --- and empty string
+  return lines.join('\n');
+};
+
 /** Converts chat data to markdown with optional metadata controls from prefs. */
 const toMarkdown = async (chat, prefs = {}) => {
-  const normalizedChat = normalizeChat(chat);
   const options = normalizePrefs(prefs);
-  const headerLines = [`# ${normalizedChat.title}`];
-
-  if (options.includePlatformLabel) {
-    headerLines.push(`Platform: ${normalizedChat.platform.toUpperCase()}`);
+  const normalizedChat = normalizeChat(chat, options);
+  const metadataBlock = buildYamlMetadata(normalizedChat, options);
+  const headerLines = [];
+  
+  if (options.metadataPosition === 'header' && metadataBlock) {
+    headerLines.push(metadataBlock.trim());
+    headerLines.push('');
   }
-
-  if (options.includeExportDate) {
-    headerLines.push(`Exported: ${new Date().toLocaleString()}`);
-  }
-
-  if (options.headerText) {
-    headerLines.push('', `## ${options.headerText}`);
-  }
+  
+  headerLines.push(`# 💬 ${normalizedChat.title}`, '');
 
   const rows = [];
 
@@ -246,36 +300,40 @@ const toMarkdown = async (chat, prefs = {}) => {
     for (let index = 0; index < normalizedChat.messages.length; index += 1) {
       const message = normalizedChat.messages[index];
       const role = formatRole(message.role);
+      const icon = getRoleIcon(message.role);
       const prefix = buildTimestampPrefix(message, options);
       const messageNumber = options.includeMessageNumbers ? `${index + 1}. ` : '';
       const text = String(message.text || '').trim();
       const star = bookmarkTag(message, index, options);
-      rows.push(`**${messageNumber}${role}${star}:** ${prefix}${text}`);
+      const thinking = String(message.thinking || '').trim();
+      const thinkingBlock = (options.includeThinking && thinking)
+        ? `\n\n<details>\n<summary>💭 <i>Thinking Process</i></summary>\n\n${thinking}\n</details>`
+        : '';
+      
+      const timeTag = prefix ? ` \`${prefix.trim()}\`` : '';
+      rows.push(`### ${messageNumber}${icon}${role}${star}${timeTag}\n\n${text}${thinkingBlock}`);
     }
   }
 
   const body = rows.join('\n\n---\n\n');
-  return `${headerLines.join('\n')}\n\n---\n\n${body}`.trim();
+  return `${headerLines.join('\n')}\n\n---\n\n${body}`.trim() + '\n';
 };
 
 /** Converts chat data to plain text with optional metadata controls from prefs. */
 const toTXT = async (chat, prefs = {}) => {
-  const normalizedChat = normalizeChat(chat);
   const options = normalizePrefs(prefs);
-  const divider = '====================';
-  const header = [normalizedChat.title];
-
-  if (options.includePlatformLabel) {
-    header.push(`Platform: ${normalizedChat.platform.toUpperCase()}`);
+  const normalizedChat = normalizeChat(chat, options);
+  const metadataBlock = buildYamlMetadata(normalizedChat, options);
+  
+  const divider = '--------------------------------------------------------------------------------';
+  const heavyDivider = '================================================================================';
+  const header = [];
+  
+  if (options.metadataPosition === 'header' && metadataBlock) {
+    header.push(metadataBlock.trim(), '');
   }
-
-  if (options.includeExportDate) {
-    header.push(`Exported: ${new Date().toLocaleString()}`);
-  }
-
-  if (options.headerText) {
-    header.push(options.headerText);
-  }
+  
+  header.push(heavyDivider, `  ${normalizedChat.title}`, heavyDivider, '');
 
   const rows = [];
 
@@ -289,57 +347,77 @@ const toTXT = async (chat, prefs = {}) => {
       const messageNumber = options.includeMessageNumbers ? `${index + 1}. ` : '';
       const text = String(message.text || '').trim();
       const star = bookmarkTag(message, index, options);
-      rows.push(`${messageNumber}${role}${star}: ${prefix}${text}`);
+      const thinking = String(message.thinking || '').trim();
+      const thinkingBlock = (options.includeThinking && thinking)
+        ? `\n\n[[ Thinking Process ]]\n${thinking}\n[[ /Thinking Process ]]`
+        : '';
+        
+      const timeTag = prefix ? ` (Time: ${prefix.replace(/[[\]]/g, '').trim()})` : '';
+      rows.push(`[ ${messageNumber}${role} ]${star}${timeTag}\n\n${text}${thinkingBlock}`);
     }
   }
 
-  return `${header.join('\n')}\n${divider}\n${rows.join(`\n${divider}\n`)}`.trim();
+  if (options.metadataPosition === 'footer' && metadataBlock) {
+    rows.push(metadataBlock.trim());
+  }
+
+  return `${header.join('\n')}\n\n${divider}\n\n${rows.join(`\n\n${divider}\n\n`)}\n\n${divider}\n`.trim() + '\n';
 };
 
 /** Converts chat data to Notion-compatible markdown. */
 const toNotion = async (chat, prefs = {}) => {
-  const normalizedChat = normalizeChat(chat);
   const options = normalizePrefs(prefs);
+  const normalizedChat = normalizeChat(chat, options);
+  const metadataBlock = buildYamlMetadata(normalizedChat, options);
   const title = options.headerText || normalizedChat.title;
-  const header = [`# ${title}`];
+  const header = [];
 
-  if (options.includeExportDate || options.includePlatformLabel) {
-    const meta = [];
-    if (options.includeExportDate) meta.push(`📅 ${new Date().toLocaleDateString()}`);
-    if (options.includePlatformLabel) meta.push(normalizedChat.platform);
-    header.push(`> ${meta.join(' · ')}`);
+  if (options.metadataPosition === 'header' && metadataBlock) {
+    header.push(metadataBlock.trim(), '');
   }
 
-  header.push('', '---', '');
+  header.push(`# 💬 ${title}`, '', '---', '');
 
   if (options.contentMode === 'combined') {
     header.push(getCombinedText(normalizedChat, options));
-    return header.join('\n').trim();
+    return header.join('\n').trim() + '\n';
   }
 
   for (let index = 0; index < normalizedChat.messages.length; index += 1) {
     const message = normalizedChat.messages[index];
     const isUser = formatRole(message.role) === 'You';
+    const icon = getRoleIcon(message.role);
     const star = bookmarkTag(message, index, options);
+    const timePref = buildTimestampPrefix(message, options);
+    const timeTag = timePref ? ` \`${timePref.trim()}\`` : '';
+    const thinking = String(message.thinking || '').trim();
+    const thinkingBlock = (options.includeThinking && thinking)
+      ? `\n\n<details>\n<summary>💭 <i>Thinking</i></summary>\n\n${thinking}\n</details>`
+      : '';
 
     if (isUser) {
-      header.push(`**You${star}**`, '', String(message.text || '').trim(), '', '---', '');
+      header.push(`### ${icon} **You${star}**${timeTag}`, '', String(message.text || '').trim(), '', '---', '');
     } else {
-      header.push(`> 💡 **Assistant${star}**`);
+      header.push(`### ${icon} **Assistant${star}**${timeTag}`, '');
       String(message.text || '').split('\n').forEach((line) => {
-        header.push(`> ${line}`);
+        header.push(`${line}`);
       });
+      if (thinkingBlock) header.push(thinkingBlock);
       header.push('', '---', '');
     }
   }
 
-  return header.join('\n').trim();
+  if (options.metadataPosition === 'footer' && metadataBlock) {
+    header.push(metadataBlock.trim(), '');
+  }
+
+  return header.join('\n').trim() + '\n';
 };
 
 /** Converts chat data to Obsidian-compatible markdown. */
 const toObsidian = async (chat, prefs = {}) => {
-  const normalizedChat = normalizeChat(chat);
   const options = normalizePrefs(prefs);
+  const normalizedChat = normalizeChat(chat, options);
   const title = options.headerText || normalizedChat.title;
   const date = new Date().toISOString().slice(0, 10);
 
@@ -353,34 +431,44 @@ const toObsidian = async (chat, prefs = {}) => {
     '  - ai-chat',
     '---',
     '',
-    `# ${title}`,
+    `# 💬 ${title}`,
     ''
   ];
 
   if (options.contentMode === 'combined') {
     lines.push(getCombinedText(normalizedChat, options));
     lines.push('', '---', `*Exported from [[Promptium]] · ${normalizedChat.platform} · ${date}*`);
-    return lines.join('\n').trim();
+    return lines.join('\n').trim() + '\n';
   }
 
   for (let index = 0; index < normalizedChat.messages.length; index += 1) {
     const message = normalizedChat.messages[index];
     const isUser = formatRole(message.role) === 'You';
+    const icon = getRoleIcon(message.role);
     const star = bookmarkTag(message, index, options);
+    const thinking = String(message.thinking || '').trim();
+    const timePref = buildTimestampPrefix(message, options);
+    const timeTag = timePref ? ` \`${timePref.trim()}\`` : '';
+    
+    // Callouts in Obsidian format
+    const thinkingBlock = (options.includeThinking && thinking)
+      ? `> [!quote]- 💭 Thinking Process\n${thinking.split('\n').map(line => `> ${line}`).join('\n')}\n`
+      : '';
 
     if (isUser) {
-      lines.push(`## You${star}`, '', String(message.text || '').trim(), '');
+      lines.push(`## ${icon} You${star}${timeTag}`, '', String(message.text || '').trim(), '');
     } else {
-      lines.push(`> [!note] Assistant${star}`);
-      String(message.text || '').split('\n').forEach((line) => {
-        lines.push(`> ${line}`);
-      });
-      lines.push('');
+      lines.push(`## ${icon} Assistant${star}${timeTag}`, '');
+      if (thinkingBlock) lines.push(thinkingBlock);
+      lines.push(String(message.text || '').trim(), '');
     }
+    
+    // Add distinct separation between messages
+    lines.push('---', '');
   }
 
-  lines.push('---', `*Exported from [[Promptium]] · ${normalizedChat.platform} · ${date}*`);
-  return lines.join('\n').trim();
+  lines.push(`*Exported from [[Promptium]] · ${normalizedChat.platform} · ${date}*`);
+  return lines.join('\n').trim() + '\n';
 };
 
 /** Ensures there is enough vertical space on the current PDF page before writing text. */
@@ -508,8 +596,8 @@ const toImage = async (chat, prefs = {}, imageFormat = 'png') => {
     throw new Error('Image export requires a document context.');
   }
 
-  const normalizedChat = normalizeChat(chat);
   const options = normalizePrefs(prefs);
+  const normalizedChat = normalizeChat(chat, options);
   const imageKind = String(imageFormat || 'png').toLowerCase() === 'jpeg' ? 'jpeg' : 'png';
   const mimeType = imageKind === 'jpeg' ? 'image/jpeg' : 'image/png';
   const colors = resolveImageColors(options);
@@ -700,14 +788,14 @@ const toImage = async (chat, prefs = {}, imageFormat = 'png') => {
 
 /** Converts chat data into a paginated PDF ArrayBuffer using jsPDF with style prefs. */
 const toPDF = async (chat, prefs = {}) => {
-  const normalizedChat = normalizeChat(chat);
   const options = normalizePrefs(prefs);
+  const normalizedChat = normalizeChat(chat, options);
 
   if (!window.jspdf || !window.jspdf.jsPDF) {
     throw new Error('jsPDF is not loaded in the current context.');
   }
 
-  const doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4' });
+  const doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4', putOnlyUsedFonts: true });
   const margin = 40;
   const pageHeight = doc.internal.pageSize.getHeight();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -727,25 +815,27 @@ const toPDF = async (chat, prefs = {}) => {
   let y = margin;
   y = await writePdfLine(doc, normalizedChat.title, y, pageHeight, margin, maxWidth, lineHeight, backgroundRgb);
 
-  if (options.includePlatformLabel) {
-    y = await writePdfLine(
-      doc,
-      `Platform: ${normalizedChat.platform.toUpperCase()}`,
-      y,
-      pageHeight,
-      margin,
-      maxWidth,
-      lineHeight,
-      backgroundRgb
-    );
-  }
+  if (options.metadataPosition === 'header') {
+    if (options.includePlatformLabel) {
+      y = await writePdfLine(
+        doc,
+        `Platform: ${normalizedChat.platform.toUpperCase()}`,
+        y,
+        pageHeight,
+        margin,
+        maxWidth,
+        lineHeight,
+        backgroundRgb
+      );
+    }
 
-  if (options.includeExportDate) {
-    y = await writePdfLine(doc, `Exported: ${new Date().toLocaleString()}`, y, pageHeight, margin, maxWidth, lineHeight, backgroundRgb);
-  }
+    if (options.includeExportDate) {
+      y = await writePdfLine(doc, `Exported: ${new Date().toLocaleString()}`, y, pageHeight, margin, maxWidth, lineHeight, backgroundRgb);
+    }
 
-  if (options.headerText) {
-    y = await writePdfLine(doc, options.headerText, y, pageHeight, margin, maxWidth, lineHeight, backgroundRgb);
+    if (options.headerText) {
+      y = await writePdfLine(doc, options.headerText, y, pageHeight, margin, maxWidth, lineHeight, backgroundRgb);
+    }
   }
 
   y += lineHeight;
@@ -772,6 +862,24 @@ const toPDF = async (chat, prefs = {}) => {
         backgroundRgb
       );
       y += Math.round(lineHeight * 0.55);
+    }
+  }
+
+  if (options.metadataPosition === 'footer') {
+    const pageCount = doc.internal.getNumberOfPages();
+    const footerLines = [];
+    if (options.includePlatformLabel) footerLines.push(`Platform: ${normalizedChat.platform.toUpperCase()}`);
+    if (options.includeExportDate) footerLines.push(`Exported: ${new Date().toLocaleString()}`);
+    if (options.headerText) footerLines.push(`Notes: ${options.headerText}`);
+
+    if (footerLines.length > 0) {
+      const footerText = footerLines.join(' | ');
+      doc.setFontSize(10);
+      doc.setTextColor(textRgb[0], textRgb[1], textRgb[2]);
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.text(footerText, margin, pageHeight - 20);
+      }
     }
   }
 
@@ -871,6 +979,10 @@ const toJSON = async (chat, prefs = {}) => {
         entry.marker = '⭐';
       }
       if (options.includeMessageNumbers) entry.number = index + 1;
+      const thinking = String(message.thinking || '').trim();
+      if (options.includeThinking && thinking) {
+        entry.thinking = thinking;
+      }
       return entry;
     });
   }
@@ -883,12 +995,12 @@ const toJSON = async (chat, prefs = {}) => {
 
 /** Converts chat data into clipboard-optimized plain text without dividers. */
 const toClipboardText = async (chat, prefs = {}) => {
-  const normalizedChat = normalizeChat(chat);
   const options = normalizePrefs(prefs);
-  const lines = [normalizedChat.title];
+  const normalizedChat = normalizeChat(chat, options);
+  const lines = [`💬 ${normalizedChat.title}`];
 
   if (options.includePlatformLabel) {
-    lines.push(`Platform: ${normalizedChat.platform}`);
+    lines.push(`Platform: ${normalizedChat.platform.toUpperCase()}`);
   }
   if (options.includeExportDate) {
     lines.push(`Exported: ${new Date().toLocaleString()}`);
@@ -905,12 +1017,24 @@ const toClipboardText = async (chat, prefs = {}) => {
       const prefix = buildTimestampPrefix(message, options);
       const messageNumber = options.includeMessageNumbers ? `${index + 1}. ` : '';
       const star = bookmarkTag(message, index, options);
-      lines.push(`${messageNumber}${role}${star}: ${prefix}${String(message.text || '').trim()}`);
+      const text = String(message.text || '').trim();
+      
+      lines.push(`[${messageNumber}${role}${star}] ${prefix}`);
+      lines.push(text);
+      
+      const thinking = String(message.thinking || '').trim();
+      if (options.includeThinking && thinking) {
+        lines.push('');
+        lines.push('[[ Thinking Process ]]');
+        lines.push(thinking);
+        lines.push('[[ /Thinking Process ]]');
+      }
+      
       lines.push('');
     }
   }
 
-  return lines.join('\n').trim();
+  return lines.join('\n').trim() + '\n';
 };
 
 const Exporter = {

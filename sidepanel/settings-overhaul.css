@@ -707,6 +707,76 @@ body.pn-sidepanel .pn-empty-state__title {
   margin-bottom: 6px;
 }
 
+/* Export UI Customizations */
+body.pn-sidepanel .pn-export-quick-apps {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+  display: grid;
+  gap: 8px;
+}
+
+body.pn-sidepanel .pn-export-quick-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+body.pn-sidepanel .pn-export-quick-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+body.pn-sidepanel .pn-export-app-btn {
+  justify-content: flex-start;
+  padding: 6px 10px;
+  font-size: 11.5px;
+}
+
+body.pn-sidepanel .pn-export-advanced {
+  margin-top: 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-surface) 50%, transparent);
+}
+
+body.pn-sidepanel .pn-export-advanced[open] {
+  background: var(--bg-elevated);
+  border-color: var(--border-default);
+}
+
+body.pn-sidepanel .pn-export-advanced-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  user-select: none;
+}
+
+body.pn-sidepanel .pn-export-advanced-toggle::-webkit-details-marker {
+  display: none;
+}
+
+body.pn-sidepanel .pn-export-advanced-toggle svg {
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+
+body.pn-sidepanel .pn-export-advanced[open] .pn-export-advanced-toggle svg {
+  transform: rotate(90deg);
+}
+
+body.pn-sidepanel .pn-export-advanced-body {
+  padding: 0 12px 12px;
+  display: grid;
+  gap: 10px;
+}
+
 /* Settings tab parity with prompts tab (high-specificity override) */
 body.pn-sidepanel .tab-content.pn-tab-content[data-tab="settings"] {
   border: 1px solid var(--border-default);

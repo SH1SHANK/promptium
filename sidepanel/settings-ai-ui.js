@@ -178,6 +178,9 @@ const normalizeSettings = (value = {}) => {
     fabStyle: ["circle", "pill", "icon-only"].includes(source.fabStyle)
       ? source.fabStyle
       : DEFAULT_SETTINGS.fabStyle,
+    chatHighlightStyle: ["solid", "dotted", "disabled"].includes(source.chatHighlightStyle)
+      ? source.chatHighlightStyle
+      : DEFAULT_SETTINGS.chatHighlightStyle,
     fabButtons: {
       ...deepClone(DEFAULT_SETTINGS.fabButtons),
       ...normalizeBooleanMap(source.fabButtons || source.fabActions, DEFAULT_SETTINGS.fabButtons),

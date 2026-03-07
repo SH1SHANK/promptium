@@ -36,6 +36,7 @@
     container: null,
     sentinel: null,
   };
+  let renderVersion = 0;
 
   const loadNextPromptPage = async () => {
     const s = currentRenderState;
@@ -419,9 +420,11 @@
       if (menu.open) {
         hideHoverPreview();
         ownerCard?.classList.add("pn-hover-preview-paused");
+        ownerCard?.classList.add("pn-card-menu-open");
         return;
       }
       ownerCard?.classList.remove("pn-hover-preview-paused");
+      ownerCard?.classList.remove("pn-card-menu-open");
     });
 
     menu.addEventListener("pointerenter", () => {
@@ -829,6 +832,9 @@
   };
 
   const render = async (filter = "") => {
+    const myRenderVersion = ++renderVersion;
+    const isStale = () => myRenderVersion !== renderVersion;
+
     const container = byId("prompt-list");
 
     if (!container) {
@@ -848,13 +854,19 @@
     restoreTemplateFilterHome();
 
     const promptsRaw = await window.Store.getPrompts();
+    if (isStale()) return;
+
     const prompts = promptsRaw.map((prompt) => ({
       ...prompt,
       text: normalizePromptText(prompt.text),
     }));
 
     const filtered = await filterPrompts(filter, prompts);
+    if (isStale()) return;
+
     const tabContext = await getActiveTabContext();
+    if (isStale()) return;
+
     let templates = window.PromptTemplates
       ? window.PromptTemplates.getTemplates(filter)
       : [];
@@ -876,9 +888,12 @@
     );
     const hasUserPrompts = prompts.length > 0;
 
+    if (isStale()) return;
+
     container.innerHTML = "";
     container.classList.add("pn-prompts-layout");
     await renderBridgeStrip();
+    if (isStale()) return;
 
     if (!hasUserPrompts) {
       container.appendChild(
@@ -1011,6 +1026,7 @@
       divider.appendChild(tempsContainer);
 
       for (const tpl of templates) {
+        if (isStale()) return;
         tempsContainer.appendChild(
           await createPromptCard(
             tpl,
@@ -1135,7 +1151,8 @@
       }
       clearTimeout(state._searchDebounce);
       state._searchDebounce = setTimeout(() => {
-        void render(String(target?.value || ""));
+        const query = String(target?.value || "");
+        void render(query);
       }, UI_FEEDBACK_MS.SEARCH_DEBOUNCE);
     });
 

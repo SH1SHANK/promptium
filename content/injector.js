@@ -5,7 +5,7 @@
  * Communicates with: utils/platform.js, content/content.js, popup/popup.js.
  */
 
-const reactPlatforms = ['chatgpt'];
+const reactPlatforms = ['chatgpt', 'perplexity', 'claude', 'deepseek'];
 
 /** Dispatches an input event that host editors use to sync model state. */
 const dispatchInput = async (element) => {
@@ -14,6 +14,7 @@ const dispatchInput = async (element) => {
   }
 
   element.dispatchEvent(new Event('input', { bubbles: true }));
+  element.dispatchEvent(new Event('change', { bubbles: true }));
 };
 
 /** Sets a React-managed input value through the native setter API. */
@@ -47,8 +48,17 @@ const injectIntoEditable = async (editable, text) => {
   }
 
   editable.focus();
-  document.execCommand('selectAll');
-  document.execCommand('insertText', false, text);
+  // Allow a tick for React editors to initialize after focus
+  await new Promise((r) => setTimeout(r, 50));
+
+  // Try execCommand first (works on most editors)
+  const execSuccess = document.execCommand('selectAll') && document.execCommand('insertText', false, text);
+
+  // Fallback: if execCommand didn't work, directly set content
+  if (!execSuccess || !editable.textContent?.trim()) {
+    editable.textContent = text;
+  }
+
   await dispatchInput(editable);
   editable.classList.add('pn-injected-flash');
   setTimeout(() => editable.classList.remove('pn-injected-flash'), 600);

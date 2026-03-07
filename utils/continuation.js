@@ -35,12 +35,41 @@ const normalizeRole = (role) => {
   return value.includes('user') ? 'Human' : 'Assistant';
 };
 
+const cleanContinuationText = (text) => {
+  let cleaned = String(text || '').trim();
+
+  // 1. Remove leaked thinking blocks
+  cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, '');
+  cleaned = cleaned.replace(/\[Thinking\][\s\S]*?\[\/Thinking\]/gi, '');
+  
+  // 2. Remove LaTeX display math (\\[ ... \\] and $$ ... $$)
+  cleaned = cleaned.replace(/\\\[[\s\S]*?\\\]/g, '');
+  cleaned = cleaned.replace(/\$\$[\s\S]*?\$\$/g, '');
+  
+  // 3. Remove LaTeX inline math (\\( ... \\) and $ ... $) - avoiding currency
+  cleaned = cleaned.replace(/\\\([\s\S]*?\\\)/g, '');
+  cleaned = cleaned.replace(/(^|\s)\$[^$\n]+\$(\s|$)/g, '$1$2');
+
+  // 4. Remove basic HTML tags
+  cleaned = cleaned.replace(/<\/?[a-z][\s\S]*?>/gi, '');
+  
+  // 5. Remove Markdown headers and horizontal rules
+  cleaned = cleaned.replace(/^#{1,6}\s+/gm, '');
+  cleaned = cleaned.replace(/^(---+|\*\*\*+|___+)\s*$/gm, '');
+
+  // 6. Clean up excess whitespace
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+  cleaned = cleaned.replace(/ {2,}/g, ' ');
+
+  return cleaned.trim();
+};
+
 const normalizeMessages = (messages) => {
   if (!Array.isArray(messages)) return [];
   return messages
     .map((message) => ({
       role: normalizeRole(message?.role),
-      text: String(message?.text || '').trim()
+      text: cleanContinuationText(message?.text)
     }))
     .filter((message) => message.text.length > 0);
 };

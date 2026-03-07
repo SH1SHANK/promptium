@@ -67,8 +67,8 @@
 
 .pn-toast {
   position: fixed;
-  right: 16px;
-  bottom: 20px;
+  right: 24px;
+  bottom: 84px;
   z-index: 999999;
   max-width: 320px;
   padding: 10px 12px;

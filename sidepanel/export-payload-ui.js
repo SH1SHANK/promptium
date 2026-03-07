@@ -48,6 +48,11 @@ const normalizeExportPrefs = (raw, fallback = state.exportPrefs || {}) => {
     includeDate: source.includeDate !== undefined ? Boolean(source.includeDate) : Boolean(base.includeDate),
     includePlatform: source.includePlatform !== undefined ? Boolean(source.includePlatform) : Boolean(base.includePlatform),
     includeMessageNumbers: source.includeMessageNumbers !== undefined ? Boolean(source.includeMessageNumbers) : Boolean(base.includeMessageNumbers),
+    includeThinking: source.includeThinking !== undefined ? Boolean(source.includeThinking) : Boolean(base.includeThinking),
+    trimFollowUps: source.trimFollowUps !== undefined ? Boolean(source.trimFollowUps) : (base.trimFollowUps !== undefined ? Boolean(base.trimFollowUps) : true),
+    metadataPosition: ['header', 'footer', 'none'].includes(String(source.metadataPosition || '').toLowerCase()) 
+      ? String(source.metadataPosition).toLowerCase() 
+      : (['header', 'footer', 'none'].includes(String(base.metadataPosition || '').toLowerCase()) ? String(base.metadataPosition).toLowerCase() : 'footer'),
     contentMode: String(source.contentMode || base.contentMode || 'structured') === 'combined' ? 'combined' : 'structured',
     fontStyle: String(source.fontStyle || base.fontStyle || 'System'),
     fontSize: Math.min(20, Math.max(12, Number(source.fontSize || base.fontSize || 14) || 14)),
@@ -75,6 +80,9 @@ const hydrateExportPrefsFromStorage = async () => {
   const includeDateNode = byId('include-date');
   const includePlatformNode = byId('include-platform');
   const includeNumbersNode = byId('include-msg-numbers');
+  const includeThinkingNode = byId('include-thinking');
+  const trimFollowUpsNode = byId('trim-follow-ups');
+  const metadataPositionNode = byId('metadata-position');
   const fontStyleNode = byId('export-font-style');
   const fontSizeNode = byId('export-font-size');
   const fontSizeNumberNode = byId('export-font-size-number');
@@ -94,6 +102,9 @@ const hydrateExportPrefsFromStorage = async () => {
       state.exportPrefs.includeMessageNumbers = false;
     }
   }
+  if (includeThinkingNode) includeThinkingNode.checked = Boolean(state.exportPrefs.includeThinking);
+  if (trimFollowUpsNode) trimFollowUpsNode.checked = Boolean(state.exportPrefs.trimFollowUps);
+  if (metadataPositionNode) metadataPositionNode.value = String(state.exportPrefs.metadataPosition);
   if (fontStyleNode) fontStyleNode.value = state.exportPrefs.fontStyle;
   if (fontSizeNode) fontSizeNode.value = String(state.exportPrefs.fontSize);
   if (fontSizeNumberNode) fontSizeNumberNode.value = String(state.exportPrefs.fontSize);
@@ -101,6 +112,7 @@ const hydrateExportPrefsFromStorage = async () => {
   if (customBgNode) customBgNode.value = state.exportPrefs.customBackground;
   customWrapNode?.classList.toggle('pn-hidden', state.exportPrefs.background !== 'custom');
   applyCustomExportThemeRules(state.exportPrefs.customBackground);
+  if (includeThinkingNode) includeThinkingNode.checked = Boolean(state.exportPrefs.includeThinking);
 };
 
 // Safety guard: sidepanel export must never use html2pdf/html2canvas due MV3 CSP.
@@ -240,9 +252,9 @@ const getExportFontClass = () => {
   if (selected.includes('jetbrains')) return 'pn-export-font--mono';
   if (selected.includes('georgia') || selected.includes('merriweather')) return 'pn-export-font--serif';
   if (selected.includes('outfit')) return 'pn-export-font--outfit';
-  if (selected.includes('montserrat') || selected.includes('montstret')) return 'pn-export-font--montserrat';
+  if (selected.includes('montserrat')) return 'pn-export-font--montserrat';
   if (selected.includes('inter')) return 'pn-export-font--inter';
-  if (selected.includes('helvetica') || selected.includes('helivica')) return 'pn-export-font--helvetica';
+  if (selected.includes('helvetica')) return 'pn-export-font--helvetica';
   if (selected.includes('poppins')) return 'pn-export-font--poppins';
   if (selected.includes('roboto')) return 'pn-export-font--roboto';
   if (selected.includes('open sans')) return 'pn-export-font--opensans';
@@ -353,6 +365,7 @@ const normalizePayload = async (rawPayload) => {
       return {
         role: String(message?.role || 'assistant').toLowerCase(),
         text,
+        thinking: String(message?.thinking || '').trim(),
         html: String(message?.html || '').trim(),
         index: sourceIndex,
         bookmarkMeta: {
@@ -604,6 +617,7 @@ const buildExporterChatPayload = () => {
     messages: payload.messages.map((message) => ({
       role: message.role,
       text: message.text,
+      thinking: message.thinking || '',
       html: message.html,
       index: message.index,
       bookmarkMeta: message.bookmarkMeta
@@ -624,6 +638,9 @@ const buildExporterPrefs = () => {
     includeTimestamps: false,
     includeExportDate: state.exportPrefs.includeDate,
     includeMessageNumbers: state.exportPrefs.includeMessageNumbers,
+    includeThinking: state.exportPrefs.includeThinking,
+    trimFollowUps: state.exportPrefs.trimFollowUps,
+    metadataPosition: state.exportPrefs.metadataPosition,
     headerText: '',
     contentMode: state.exportPrefs.contentMode,
     fontStyle: state.exportPrefs.fontStyle,
@@ -745,6 +762,9 @@ const syncPrefsFromControls = async () => {
   const includeDate = byId('include-date');
   const includePlatform = byId('include-platform');
   const includeMsgNumbers = byId('include-msg-numbers');
+  const includeThinking = byId('include-thinking');
+  const trimFollowUps = byId('trim-follow-ups');
+  const metadataPosition = byId('metadata-position');
   const fontStyle = byId('export-font-style');
   const fontSize = byId('export-font-size');
   const fontSizeNumber = byId('export-font-size-number');
@@ -763,6 +783,9 @@ const syncPrefsFromControls = async () => {
     includeDate: Boolean(includeDate?.checked),
     includePlatform: Boolean(includePlatform?.checked),
     includeMessageNumbers: Boolean(includeMsgNumbers?.checked),
+    includeThinking: Boolean(includeThinking?.checked),
+    trimFollowUps: trimFollowUps ? Boolean(trimFollowUps.checked) : true,
+    metadataPosition: String(metadataPosition?.value || state.exportPrefs.metadataPosition || 'footer'),
     fontStyle: String(fontStyle?.value || state.exportPrefs.fontStyle || 'System'),
     fontSize: normalizedSize,
     background: String(background?.value || state.exportPrefs.background || 'dark'),
@@ -884,6 +907,7 @@ const applyDefaultsFromSettings = (settings) => {
     includeDate: Boolean(input.defaultIncludeDate),
     includePlatform: Boolean(input.defaultIncludePlatform),
     includeMessageNumbers: false,
+    includeThinking: false,
     contentMode: 'structured',
     fontStyle: 'System',
     fontSize: 14,
@@ -897,6 +921,9 @@ const applyDefaultsFromSettings = (settings) => {
   const includeDateNode = byId('include-date');
   const includePlatformNode = byId('include-platform');
   const includeNumbersNode = byId('include-msg-numbers');
+  const includeThinkingNode = byId('include-thinking');
+  const trimFollowUpsNode = byId('trim-follow-ups');
+  const metadataPositionNode = byId('metadata-position');
   const fontStyleNode = byId('export-font-style');
   const fontSizeNode = byId('export-font-size');
   const fontSizeNumberNode = byId('export-font-size-number');
@@ -917,6 +944,9 @@ const applyDefaultsFromSettings = (settings) => {
     includeNumbersNode.checked = state.exportPrefs.includeMessageNumbers;
     includeNumbersNode.disabled = state.exportPrefs.contentMode === 'combined';
   }
+  if (includeThinkingNode) includeThinkingNode.checked = state.exportPrefs.includeThinking;
+  if (trimFollowUpsNode) trimFollowUpsNode.checked = state.exportPrefs.trimFollowUps;
+  if (metadataPositionNode) metadataPositionNode.value = state.exportPrefs.metadataPosition;
   if (fontStyleNode) fontStyleNode.value = state.exportPrefs.fontStyle;
   if (fontSizeNode) fontSizeNode.value = String(state.exportPrefs.fontSize);
   if (fontSizeNumberNode) fontSizeNumberNode.value = String(state.exportPrefs.fontSize);
@@ -938,31 +968,41 @@ const bindEvents = () => {
     'include-date',
     'include-platform',
     'include-msg-numbers',
+    'include-thinking',
+    'trim-follow-ups',
+    'metadata-position',
     'export-font-style',
-    'export-bg-style',
-    'export-bg-custom'
+    'export-bg-style'
   ];
+
+  let renderTimeout;
+  const debouncedRerender = () => {
+    clearTimeout(renderTimeout);
+    renderTimeout = setTimeout(() => {
+      void rerenderExport();
+    }, 150);
+  };
 
   exportControlIds.forEach((id) => {
     byId(id)?.addEventListener('change', () => {
-      void rerenderExport();
+      void debouncedRerender();
     });
   });
   byId('export-bg-custom')?.addEventListener('input', () => {
-    void rerenderExport();
+    void debouncedRerender();
   });
 
   const fontSizeSlider = byId('export-font-size');
   const fontSizeNumber = byId('export-font-size-number');
   fontSizeSlider?.addEventListener('input', () => {
     if (fontSizeNumber) fontSizeNumber.value = String(fontSizeSlider.value || '14');
-    void rerenderExport();
+    void debouncedRerender();
   });
   fontSizeNumber?.addEventListener('input', () => {
     const next = Math.min(20, Math.max(12, Number(fontSizeNumber.value || 14)));
     fontSizeNumber.value = String(next);
     if (fontSizeSlider) fontSizeSlider.value = String(next);
-    void rerenderExport();
+    void debouncedRerender();
   });
 
   byId('export-reload-selection')?.addEventListener('click', () => {

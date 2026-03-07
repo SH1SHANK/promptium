@@ -16,7 +16,7 @@
     {
       id: "welcome",
       headline: "Meet Promptium",
-      subline: "Your AI workflow, elevated.",
+      subline: "Your AI workspace, elevated.",
       hint: "private \u00B7 flexible \u00B7 powerful",
     },
     {
@@ -41,7 +41,8 @@
     {
       id: "ai",
       headline: "Smart AI built in",
-      subline: "Semantic search and provider routing \u2014 ready when you are.",
+      subline:
+        "Semantic search and provider routing \u2014 ready when you are.",
       hint: "\u2726 Search model ready",
     },
     {

@@ -1,6 +1,6 @@
 {
   "name": "promptium",
-  "description": "Promptium Chrome extension for prompt libraries, semantic search, AI prompt improvement, and chat export workflows.",
+  "description": "Promptium Chrome extension for prompt libraries, semantic search, AI prompt improvement, and chat exports.",
   "version": "1.0.0",
   "packageManager": "pnpm@8.9.0",
   "scripts": {

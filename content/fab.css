@@ -380,73 +380,6 @@
   position: relative !important;
 }
 
-.pn-inline-select {
-  position: absolute;
-  top: 10px;
-  left: -6px;
-  z-index: 4;
-  width: 18px;
-  height: 18px;
-  border-radius: 5px;
-  background: rgba(24, 24, 27, 0.7);
-  border: 1.5px solid rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  opacity: 0;
-  transition:
-    opacity 0.2s ease,
-    transform 0.2s ease,
-    border-color 0.18s ease,
-    background 0.18s ease;
-  transform: scale(0.9) translateX(-4px);
-}
-
-/* Show on hover — very subtle slide-in */
-.pn-selectable-message--relative:hover .pn-inline-select {
-  opacity: 0.55;
-  transform: scale(1) translateX(0);
-}
-
-.pn-selectable-message--relative:hover .pn-inline-select:hover {
-  opacity: 1;
-  border-color: rgba(139, 124, 246, 0.5);
-}
-
-/* When checked: always visible */
-.pn-inline-select.pn-checked {
-  opacity: 1;
-  transform: scale(1) translateX(0);
-  background: rgba(139, 124, 246, 0.15);
-  border-color: var(--pn-fab-accent);
-}
-
-.pn-inline-check {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.pn-inline-mark {
-  width: 9px;
-  height: 9px;
-  border-radius: 3px;
-  border: 1.5px solid rgba(255, 255, 255, 0.5);
-  transition:
-    background 0.18s ease,
-    border-color 0.18s ease,
-    box-shadow 0.18s ease;
-}
-
-.pn-inline-check:checked + .pn-inline-mark {
-  background: var(--pn-fab-accent);
-  border-color: var(--pn-fab-accent);
-  box-shadow: 0 0 6px rgba(139, 124, 246, 0.4);
-}
-
 /* ─── Selection Bar (bottom, sidebar-themed) ─── */
 
 #pn-selection-fab {
@@ -639,10 +572,16 @@
   width: 46px !important;
   padding: 0 !important;
   justify-content: center !important;
+  border-radius: 23px !important;
 }
 
 #pn-fab-root.pn-fab-style-circle .pn-fab-trigger__text {
   display: none !important;
+}
+
+#pn-fab-root.pn-fab-style-circle .pn-fab-logo-wrap {
+  background: transparent !important;
+  border: none !important;
 }
 
 #pn-fab-root.pn-fab-style-pill #pn-fab-trigger {
@@ -655,10 +594,16 @@
   width: 46px !important;
   padding: 0 !important;
   justify-content: center !important;
+  border-radius: 23px !important;
 }
 
 #pn-fab-root.pn-fab-style-icon-only .pn-fab-trigger__text {
   display: none !important;
+}
+
+#pn-fab-root.pn-fab-style-icon-only .pn-fab-logo-wrap {
+  background: transparent !important;
+  border: none !important;
 }
 
 #pn-fab-root.pn-fab-style-icon-only .pn-fab-action {
@@ -672,4 +617,23 @@
 
 #pn-fab-root.pn-fab-left .pn-fab-action:hover {
   transform: translateX(2px);
+}
+
+/* --- Chat Selection Highlighting --- */
+.pn-chat-highlight-solid {
+  position: relative !important;
+  border-radius: 8px !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.45) !important;
+  transition: box-shadow 0.2s ease-in-out, outline 0.2s ease-in-out !important;
+  background-color: rgba(16, 185, 129, 0.03) !important;
+}
+
+.pn-chat-highlight-dotted {
+  position: relative !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  outline: 2px dotted rgba(16, 185, 129, 0.6) !important;
+  outline-offset: -2px !important;
+  transition: box-shadow 0.2s ease-in-out, outline 0.2s ease-in-out !important;
+  background-color: rgba(16, 185, 129, 0.02) !important;
 }

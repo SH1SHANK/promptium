@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Promptium",
   "short_name": "Promptium",
-  "description": "Advanced prompt management and AI workflow extension with semantic search, templates, optimization, and chat export.",
+  "description": "Advanced prompt management extension with semantic search, templates, optimization, and chat export.",
   "version": "0.1.0",
   "icons": {
     "16": "icons/promptium/icon16.png",
@@ -148,10 +148,7 @@
         "content/bookmarks.js",
         "content/content.js"
       ],
-      "css": [
-        "content/fab.css",
-        "content/toolbar.css"
-      ],
+      "css": ["content/fab.css", "content/toolbar.css"],
       "run_at": "document_idle"
     }
   ],

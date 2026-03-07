@@ -1,28 +1,37 @@
 (() => {
   /**
    * File: sidepanel/continuation-ui.js
-   * Purpose: Continue Chat view orchestration for sidepanel and export-triggered continuation.
+   * Purpose: Continue Chat — quick-launch grid to carry conversation context to another LLM.
    */
 
   const { state } = window.SidepanelState;
+
+  /* ——— Icons for each platform ——— */
+  const PLATFORM_ICONS = {
+    chatgpt: `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M22.28 10.87c.3-1.45.13-2.97-.51-4.3a5.86 5.86 0 0 0-6.4-3.13A5.87 5.87 0 0 0 4.1 5.66a5.86 5.86 0 0 0-3.93 2.84 5.88 5.88 0 0 0 .73 6.88 5.86 5.86 0 0 0 .5 4.3 5.87 5.87 0 0 0 6.41 3.14A5.87 5.87 0 0 0 12.2 24a5.86 5.86 0 0 0 5.5-3.88 5.87 5.87 0 0 0 3.93-2.84 5.88 5.88 0 0 0-.73-6.88l-.62.47Z"/></svg>`,
+    claude: `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>`,
+    gemini: `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2Zm0 3c1.66 0 3 2.69 3 6s-1.34 6-3 6-3-2.69-3-6 1.34-6 3-6Z"/></svg>`,
+    perplexity: `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16v16H4V4Zm2 2v12h12V6H6Z"/></svg>`,
+    copilot: `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-1 14H8v-2h3v2Zm5 0h-3v-2h3v2Z"/></svg>`,
+  };
 
   const localState = {
     payload: null,
     busy: false,
     advisory: "",
     pendingHandoff: null,
+    activeTarget: null,
   };
-  let continueNoteMinHeight = 0;
+
+  /* ——— Helpers ——— */
 
   const normalizeMessages = (messages) =>
     (Array.isArray(messages) ? messages : [])
-      .map((message) => ({
-        role: String(message?.role || "assistant")
-          .trim()
-          .toLowerCase(),
-        text: String(message?.text || "").trim(),
+      .map((m) => ({
+        role: String(m?.role || "assistant").trim().toLowerCase(),
+        text: String(m?.text || "").trim(),
       }))
-      .filter((message) => message.text.length > 0);
+      .filter((m) => m.text.length > 0);
 
   const getEnabledPlatformMap = () => {
     const source =
@@ -32,7 +41,7 @@
         : null;
     if (source) return source;
     return Object.fromEntries(
-      Object.keys(window.Bridge?.LLM_URLS || {}).map((platform) => [platform, true]),
+      Object.keys(window.Bridge?.LLM_URLS || {}).map((p) => [p, true]),
     );
   };
 
@@ -40,86 +49,23 @@
     const bridgeUrls = window.Bridge?.LLM_URLS || {};
     const enabledMap = getEnabledPlatformMap();
     const all = Object.keys(bridgeUrls).filter(
-      (platform) => enabledMap[platform] !== false,
+      (p) => enabledMap[p] !== false,
     );
-
-    if (!all.length) {
-      return [];
-    }
-
-    const source = String(sourcePlatform || "")
-      .toLowerCase()
-      .trim();
-    if (!source || !all.includes(source)) {
-      return all;
-    }
-
-    return [source, ...all.filter((platform) => platform !== source)];
+    if (!all.length) return [];
+    const source = String(sourcePlatform || "").toLowerCase().trim();
+    if (!source || !all.includes(source)) return all;
+    return [source, ...all.filter((p) => p !== source)];
   };
 
-  const setBusy = (busy) => {
-    localState.busy = Boolean(busy);
-    const run = byId("pn-continue-run");
-    const cancel = byId("pn-continue-cancel");
-    const summary = byId("pn-continue-summary");
-    if (run) {
-      run.disabled = localState.busy;
-      run.textContent = localState.busy ? "Summarizing..." : "Continue →";
-    }
-    if (cancel) {
-      cancel.disabled = localState.busy;
-    }
-    if (summary) {
-      summary.classList.toggle("pn-loading-state", localState.busy);
-      if (localState.busy) {
-        summary.textContent = "Summarizing conversation for handoff…";
-      } else {
-        renderSummary();
-      }
-    }
-  };
-
-  const clearPreview = () => {
-    localState.pendingHandoff = null;
-    byId("pn-continue-preview") && (byId("pn-continue-preview").value = "");
-    byId("pn-continue-preview-wrap")?.classList.add("pn-hidden");
-  };
-
-  const showPreview = ({ text, target, llmUrl, sourcePlatform }) => {
-    localState.pendingHandoff = {
-      text: String(text || "").trim(),
-      target: String(target || "")
-        .trim()
-        .toLowerCase(),
-      llmUrl: String(llmUrl || "").trim(),
-      sourcePlatform: String(sourcePlatform || "")
-        .trim()
-        .toLowerCase(),
-    };
-
-    const preview = byId("pn-continue-preview");
-    if (preview) {
-      preview.value = localState.pendingHandoff.text;
-      preview.scrollTop = 0;
-    }
-    byId("pn-continue-preview-wrap")?.classList.remove("pn-hidden");
-  };
-
-  const mapContinuationFailure = (value = "") => {
-    const code = String(value || "")
-      .trim()
-      .toLowerCase();
+  const mapContinuationFailure = (v = "") => {
+    const code = String(v || "").trim().toLowerCase();
     if (code === "no_ai_available") return "No AI available";
-    if (code.includes("quota") || code.includes("429"))
-      return "Cloud provider rate limited";
-    if (
-      code.includes("model_not_loaded") ||
-      code.includes("model not loaded") ||
-      code.includes("embedding model")
-    )
-      return "Model not loaded";
+    if (code.includes("quota") || code.includes("429")) return "Rate limited — try again shortly";
+    if (code.includes("model_not_loaded") || code.includes("embedding model")) return "Model not loaded";
     return "Continue Chat failed";
   };
+
+  /* ——— UI Updates ——— */
 
   const setAdvisory = (value = "") => {
     localState.advisory = String(value || "").trim();
@@ -132,7 +78,6 @@
   const renderSummary = () => {
     const summary = byId("pn-continue-summary");
     if (!summary) return;
-
     const payload = localState.payload;
     const messages = normalizeMessages(payload?.messages);
 
@@ -142,109 +87,193 @@
       return;
     }
 
-    const preview = messages
-      .slice(-2)
-      .map(
-        (message) =>
-          `${message.role === "user" ? "You" : "Assistant"}: ${message.text}`,
-      )
-      .join("\n")
-      .slice(0, 320);
-
     const platform =
       window.PLATFORM_LABELS?.[payload?.platform] ||
       String(payload?.platform || "Unknown");
-    summary.textContent = `${messages.length} messages from ${platform}\n\n${preview}`;
+    const last = messages[messages.length - 1];
+    const preview = `"${last.text.slice(0, 120)}${last.text.length > 120 ? "…" : ""}"`;
+    summary.textContent = `${messages.length} messages from ${platform} · ${preview}`;
   };
 
-  const renderTargetOptions = () => {
-    const select = byId("pn-continue-target");
-    const meta = byId("pn-continue-target-meta");
-    if (!select) return;
+  const clearPreview = () => {
+    localState.pendingHandoff = null;
+    const p = byId("pn-continue-preview");
+    if (p) p.value = "";
+    byId("pn-continue-preview-wrap")?.classList.add("pn-hidden");
+  };
 
-    const sourcePlatform = String(
-      localState.payload?.platform || "",
-    ).toLowerCase();
+  const showPreview = ({ text, target, llmUrl, sourcePlatform }) => {
+    localState.pendingHandoff = {
+      text: String(text || "").trim(),
+      target: String(target || "").trim().toLowerCase(),
+      llmUrl: String(llmUrl || "").trim(),
+      sourcePlatform: String(sourcePlatform || "").trim().toLowerCase(),
+    };
+    const preview = byId("pn-continue-preview");
+    if (preview) {
+      preview.value = localState.pendingHandoff.text;
+      preview.scrollTop = 0;
+    }
+    byId("pn-continue-preview-wrap")?.classList.remove("pn-hidden");
+  };
+
+  /* ——— Quick-Launch Grid ——— */
+
+  const renderTargetGrid = () => {
+    const container = byId("pn-continue-targets");
+    if (!container) return;
+
+    const sourcePlatform = String(localState.payload?.platform || "").toLowerCase();
     const targets = getEligibleTargets(sourcePlatform);
+    container.innerHTML = "";
 
-    select.innerHTML = "";
     if (!targets.length) {
-      const option = document.createElement("option");
-      option.value = "";
-      option.textContent = "No enabled targets";
-      select.appendChild(option);
-      select.disabled = true;
-      if (meta) meta.textContent = "Enable at least one platform in Settings → LLM Platforms.";
+      container.innerHTML = `<p class="pn-sv-api-hint">No platforms enabled. Check Settings → LLM Platforms.</p>`;
       return;
     }
 
     targets.forEach((platform) => {
-      const option = document.createElement("option");
-      option.value = platform;
-      option.textContent = window.PLATFORM_LABELS?.[platform] || platform;
-      select.appendChild(option);
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "pn-continue-target-btn";
+      btn.dataset.platform = platform;
+      btn.title = `Continue on ${window.PLATFORM_LABELS?.[platform] || platform}`;
+      btn.innerHTML = `
+        <span class="pn-continue-target-icon">${PLATFORM_ICONS[platform] || "🔗"}</span>
+        <span class="pn-continue-target-name">${window.PLATFORM_LABELS?.[platform] || platform}</span>
+      `;
+      btn.addEventListener("click", () => void quickContinue(platform));
+      container.appendChild(btn);
     });
-
-    select.disabled = false;
-    select.value = targets[0];
-    if (meta) meta.textContent = `${targets.length} enabled target${targets.length === 1 ? "" : "s"}`;
   };
 
-  const syncDefaults = () => {
-    const mode = byId("pn-continue-mode");
-    const note = byId("pn-continue-note");
-    if (mode) {
-      const preferred = String(
-        "FULL_SUMMARY",
-      )
-        .trim()
-        .toUpperCase();
-      mode.value = ["FULL_SUMMARY", "KEY_POINTS", "RECENT_ONLY"].includes(
-        preferred,
-      )
-        ? preferred
-        : "FULL_SUMMARY";
-    }
-    if (note) {
-      note.value = "";
-    }
-    syncContinueNoteMetrics();
+  /* ——— Core Flow ——— */
+
+  const setBusy = (target, busy) => {
+    localState.busy = Boolean(busy);
+    localState.activeTarget = busy ? target : null;
+
+    // Update button states
+    const container = byId("pn-continue-targets");
+    if (!container) return;
+    container.querySelectorAll(".pn-continue-target-btn").forEach((btn) => {
+      const p = btn.dataset.platform;
+      btn.disabled = busy;
+      if (busy && p === target) {
+        btn.classList.add("pn-loading-state");
+        const nameEl = btn.querySelector(".pn-continue-target-name");
+        if (nameEl) nameEl.textContent = "Summarizing…";
+      } else if (!busy) {
+        btn.classList.remove("pn-loading-state");
+        const nameEl = btn.querySelector(".pn-continue-target-name");
+        if (nameEl) nameEl.textContent = window.PLATFORM_LABELS?.[p] || p;
+      }
+    });
   };
 
-  const syncContinueNoteMetrics = () => {
-    const note = byId("pn-continue-note");
-    if (!(note instanceof HTMLTextAreaElement)) return;
+  const quickContinue = async (target) => {
+    if (localState.busy) return;
 
-    const counter = byId("pn-count-continue-note");
-    if (counter) {
-      counter.textContent = String(note.value.length);
+    let payload = localState.payload;
+    if (!payload?.messages?.length) {
+      payload = await loadFromActiveTab();
+      if (!payload) {
+        await showToast("No conversation found to continue.");
+        return;
+      }
+      localState.payload = payload;
+      renderSummary();
+      renderTargetGrid();
     }
 
-    if (!continueNoteMinHeight) {
-      continueNoteMinHeight = note.offsetHeight || 0;
+    const llmUrl = window.Bridge?.LLM_URLS?.[target];
+    if (!llmUrl) {
+      await showToast("Unsupported platform.");
+      return;
     }
-    note.style.height = "auto";
-    const nextHeight = Math.max(continueNoteMinHeight, note.scrollHeight);
-    note.style.height = `${nextHeight}px`;
-    note.style.overflowY = nextHeight > 220 ? "auto" : "hidden";
+
+    const modeNode = byId("pn-continue-mode");
+    const noteNode = byId("pn-continue-note");
+    const mode = String(modeNode?.value || "FULL_SUMMARY").trim();
+    const note = String(noteNode?.value || "").trim();
+
+    setBusy(target, true);
+    setAdvisory("");
+    clearPreview();
+
+    try {
+      const handoff = await window.Continuation.buildHandoff(
+        payload.messages,
+        mode,
+        note,
+      );
+
+      if (handoff && typeof handoff === "object" && handoff.ok === false) {
+        throw new Error(mapContinuationFailure(handoff.error || ""));
+      }
+
+      const handoffText =
+        typeof handoff === "string"
+          ? handoff
+          : String(handoff?.text || "").trim();
+
+      if (!handoffText) {
+        throw new Error("Continue Chat failed");
+      }
+
+      if (typeof handoff === "object" && handoff?.advisory) {
+        setAdvisory(handoff.advisory);
+      }
+
+      // Store and open immediately (no intermediate preview step)
+      await window.Continuation.store(
+        handoffText,
+        target,
+        payload.platform || "unknown",
+      );
+
+      const opened = await chrome.runtime
+        .sendMessage({ action: "openLlmTab", url: llmUrl })
+        .catch(() => null);
+
+      if (!opened?.ok) {
+        // If opening fails, show preview as fallback
+        showPreview({
+          text: handoffText,
+          target,
+          llmUrl,
+          sourcePlatform: payload.platform,
+        });
+        await showToast(opened?.error || "Could not open — use Copy instead");
+      } else {
+        await showToast(
+          `Opening ${window.PLATFORM_LABELS?.[target] || target}`,
+        );
+        if (window.AppShell?.switchTab) {
+          await window.AppShell.switchTab("prompts");
+        }
+      }
+    } catch (error) {
+      await showToast(mapContinuationFailure(error?.message || ""));
+    } finally {
+      setBusy(target, false);
+    }
   };
+
+  /* ——— Data loading ——— */
 
   const loadFromActiveTab = async () => {
     const [tab] = await chrome.tabs.query({
       active: true,
       currentWindow: true,
     });
-    if (!tab?.id) {
-      return null;
-    }
+    if (!tab?.id) return null;
 
     const response = await chrome.tabs
       .sendMessage(tab.id, { action: "scrapeForContinuation" })
       .catch(() => null);
     const messages = normalizeMessages(response?.messages);
-    if (!messages.length) {
-      return null;
-    }
+    if (!messages.length) return null;
 
     return {
       platform: String(response?.platform || "").toLowerCase(),
@@ -264,8 +293,8 @@
     renderSummary();
     clearPreview();
     setAdvisory("");
-    renderTargetOptions();
-    syncDefaults();
+    renderTargetGrid();
+
     if (window.AppShell?.switchTab) {
       await window.AppShell.switchTab("continue");
     }
@@ -293,78 +322,7 @@
     return openFromActiveTab();
   };
 
-  const runContinuation = async () => {
-    if (localState.busy) {
-      return;
-    }
-
-    let payload = localState.payload;
-    if (!payload?.messages?.length) {
-      payload = await loadFromActiveTab();
-      if (!payload) {
-        await showToast("No conversation found to continue.");
-        return;
-      }
-      localState.payload = payload;
-      renderSummary();
-      renderTargetOptions();
-    }
-
-    const targetNode = byId("pn-continue-target");
-    const modeNode = byId("pn-continue-mode");
-    const noteNode = byId("pn-continue-note");
-    const target = String(targetNode?.value || "")
-      .trim()
-      .toLowerCase();
-    const mode = String(modeNode?.value || "FULL_SUMMARY").trim();
-    const note = String(noteNode?.value || "").trim();
-
-    if (!target) {
-      await showToast("Select a target platform.");
-      return;
-    }
-
-    const llmUrl = window.Bridge?.LLM_URLS?.[target];
-    if (!llmUrl) {
-      await showToast("Unsupported continuation target.");
-      return;
-    }
-
-    setBusy(true);
-    setAdvisory("");
-    clearPreview();
-    try {
-      const handoff = await window.Continuation.buildHandoff(
-        payload.messages,
-        mode,
-        note,
-      );
-      if (handoff && typeof handoff === "object" && handoff.ok === false) {
-        throw new Error(mapContinuationFailure(handoff.error || ""));
-      }
-      const handoffText =
-        typeof handoff === "string"
-          ? handoff
-          : String(handoff?.text || "").trim();
-      if (!handoffText) {
-        throw new Error("Continue Chat failed");
-      }
-      if (typeof handoff === "object" && handoff?.advisory)
-        setAdvisory(handoff.advisory);
-
-      showPreview({
-        text: handoffText,
-        target,
-        llmUrl,
-        sourcePlatform: payload.platform,
-      });
-      await showToast("Review handoff, then open target");
-    } catch (error) {
-      await showToast(mapContinuationFailure(error?.message || ""));
-    } finally {
-      setBusy(false);
-    }
-  };
+  /* ——— Preview actions (fallback when open fails) ——— */
 
   const openPendingContinuation = async () => {
     const pending = localState.pendingHandoff;
@@ -395,28 +353,24 @@
   };
 
   const copyPendingContinuation = async () => {
-    const pending = localState.pendingHandoff;
-    const text = String(pending?.text || "").trim();
+    const text = String(localState.pendingHandoff?.text || "").trim();
     if (!text) {
       await showToast("No handoff text to copy.");
       return;
     }
-
     try {
       await navigator.clipboard.writeText(text);
-      await showToast("Handoff copied");
-    } catch (_error) {
+      await showToast("Handoff copied ✓");
+    } catch (_) {
       await showToast("Copy failed");
     }
   };
 
+  /* ——— Events ——— */
+
   const bindEvents = () => {
     byId("pn-open-continue-chat")?.addEventListener("click", () => {
       void openFromExportSelection();
-    });
-
-    byId("pn-continue-run")?.addEventListener("click", () => {
-      void runContinuation();
     });
 
     byId("pn-continue-open")?.addEventListener("click", () => {
@@ -433,20 +387,14 @@
         void window.AppShell.switchTab("prompts");
       }
     });
-
-    byId("pn-continue-note")?.addEventListener("input", () => {
-      syncContinueNoteMetrics();
-    });
-
-    syncContinueNoteMetrics();
   };
 
   window.ContinuationUI = {
     openFromPayload,
     openFromActiveTab,
     openFromExportSelection,
-    refreshTargets: renderTargetOptions,
+    refreshTargets: renderTargetGrid,
     bindEvents,
-    runContinuation,
+    runContinuation: quickContinue,
   };
 })();

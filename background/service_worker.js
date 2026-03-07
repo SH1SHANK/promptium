@@ -17,7 +17,11 @@ import {
   getProviderKeyStorageKey,
   normalizeProviderModels,
 } from "../utils/model-registry.js";
-import { callProvider, validateProviderKey } from "../utils/provider-client.js";
+import {
+  callProvider,
+  getProviderKey,
+  validateProviderKey,
+} from "../utils/provider-client.js";
 
 // ─── AI State ────────────────────────────────────────────────────────────────
 
