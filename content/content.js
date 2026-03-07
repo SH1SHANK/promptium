@@ -58,7 +58,7 @@
       user-select: none;
       transition: background 0.15s, border-color 0.15s;
     }
-    
+
     /* Transparent bridge to connect hover area seamlessly to the message body */
     .pn-inline-select::after {
       content: '';
@@ -556,8 +556,14 @@
     const messageNode = entry.host?.parentElement;
     if (messageNode) {
       const style = exportSelectionState.chatHighlightStyle;
-      messageNode.classList.toggle("pn-chat-highlight-solid", bool && style === "solid");
-      messageNode.classList.toggle("pn-chat-highlight-dotted", bool && style === "dotted");
+      messageNode.classList.toggle(
+        "pn-chat-highlight-solid",
+        bool && style === "solid",
+      );
+      messageNode.classList.toggle(
+        "pn-chat-highlight-dotted",
+        bool && style === "dotted",
+      );
     }
   };
 
@@ -1065,23 +1071,35 @@
         const m = mutations[i];
         let isLocalMutation = false;
 
-        if (m.type === 'childList') {
+        if (m.type === "childList") {
           if (m.addedNodes.length > 0 || m.removedNodes.length > 0) {
             let allPn = true;
             for (let j = 0; j < m.addedNodes.length; j++) {
               const n = m.addedNodes[j];
-              if (!(n instanceof HTMLElement)) { allPn = false; break; }
-              const c = typeof n.className === 'string' ? n.className : '';
-              const id = typeof n.id === 'string' ? n.id : '';
-              if (c.indexOf('pn-') === -1 && id.indexOf('pn-') === -1) { allPn = false; break; }
+              if (!(n instanceof HTMLElement)) {
+                allPn = false;
+                break;
+              }
+              const c = typeof n.className === "string" ? n.className : "";
+              const id = typeof n.id === "string" ? n.id : "";
+              if (c.indexOf("pn-") === -1 && id.indexOf("pn-") === -1) {
+                allPn = false;
+                break;
+              }
             }
             if (allPn) {
               for (let j = 0; j < m.removedNodes.length; j++) {
                 const n = m.removedNodes[j];
-                if (!(n instanceof HTMLElement)) { allPn = false; break; }
-                const c = typeof n.className === 'string' ? n.className : '';
-                const id = typeof n.id === 'string' ? n.id : '';
-                if (c.indexOf('pn-') === -1 && id.indexOf('pn-') === -1) { allPn = false; break; }
+                if (!(n instanceof HTMLElement)) {
+                  allPn = false;
+                  break;
+                }
+                const c = typeof n.className === "string" ? n.className : "";
+                const id = typeof n.id === "string" ? n.id : "";
+                if (c.indexOf("pn-") === -1 && id.indexOf("pn-") === -1) {
+                  allPn = false;
+                  break;
+                }
               }
             }
             isLocalMutation = allPn;
@@ -1091,9 +1109,10 @@
         }
 
         if (!isLocalMutation && m.target instanceof HTMLElement) {
-          const tc = typeof m.target.className === 'string' ? m.target.className : '';
-          const tid = typeof m.target.id === 'string' ? m.target.id : '';
-          if (tc.indexOf('pn-') !== -1 || tid.indexOf('pn-') !== -1) {
+          const tc =
+            typeof m.target.className === "string" ? m.target.className : "";
+          const tid = typeof m.target.id === "string" ? m.target.id : "";
+          if (tc.indexOf("pn-") !== -1 || tid.indexOf("pn-") !== -1) {
             isLocalMutation = true;
           }
         }
@@ -1103,7 +1122,7 @@
           break;
         }
       }
-      
+
       if (isPromptiumMutation) return;
       void scheduleSelectionScan();
     });
@@ -1347,6 +1366,73 @@
     return true;
   };
 
+  /* ——— Continuation loading banner helpers ——— */
+
+  let _continuationBanner = null;
+  let _continuationBannerTimer = null;
+
+  const showContinuationBanner = (message) => {
+    _continuationBanner?.remove();
+    if (_continuationBannerTimer) {
+      clearTimeout(_continuationBannerTimer);
+      _continuationBannerTimer = null;
+    }
+    const el = document.createElement("div");
+    el.className = "pn-continuation-banner";
+    el.setAttribute("role", "status");
+    el.setAttribute("aria-live", "polite");
+    el.innerHTML =
+      `<div class="pn-continuation-banner__spinner"></div>` +
+      `<span><span class="pn-continuation-banner__label">Promptium</span>${message}</span>`;
+    document.body.appendChild(el);
+    _continuationBanner = el;
+  };
+
+  const updateContinuationBanner = (message, state) => {
+    const el = _continuationBanner;
+    if (!el) return;
+    el.classList.remove(
+      "pn-continuation-banner--success",
+      "pn-continuation-banner--error",
+    );
+    const spinner = el.querySelector(".pn-continuation-banner__spinner");
+    if (state === "success") {
+      el.classList.add("pn-continuation-banner--success");
+      if (spinner) {
+        spinner.className = "pn-continuation-banner__check";
+        spinner.style.cssText = "";
+        spinner.textContent = "✓";
+      }
+    } else if (state === "error") {
+      el.classList.add("pn-continuation-banner--error");
+      if (spinner) {
+        spinner.style.cssText =
+          "border-color:rgba(248,113,113,0.22);border-top-color:#f87171;animation:none";
+      }
+    }
+    const textSpan = el.querySelector(
+      "span:not(.pn-continuation-banner__check):not(.pn-continuation-banner__label)",
+    );
+    if (textSpan) {
+      const labelText = state === "success" ? "" : "Promptium";
+      textSpan.innerHTML = `<span class="pn-continuation-banner__label">${labelText}</span>${message}`;
+    }
+  };
+
+  const hideContinuationBanner = (delay) => {
+    const el = _continuationBanner;
+    if (!el) return;
+    const safeDelay = typeof delay === "number" ? delay : 2400;
+    _continuationBannerTimer = setTimeout(() => {
+      el.classList.add("pn-continuation-banner--out");
+      setTimeout(() => {
+        el.remove();
+        if (_continuationBanner === el) _continuationBanner = null;
+      }, 300);
+      _continuationBannerTimer = null;
+    }, safeDelay);
+  };
+
   /** Reads pending cross-LLM bridge context and injects it on target platform load. */
   const hydratePendingBridge = async (platform) => {
     try {
@@ -1365,6 +1451,8 @@
       if (bridge.kind !== "ready" || !bridge.text) {
         return;
       }
+
+      showContinuationBanner("Loading conversation context…");
 
       let success = false;
 
@@ -1385,11 +1473,19 @@
         await chrome.storage.local.remove([bridgeKey]).catch(() => {});
         const label =
           PLATFORM_LABELS[bridge.sourcePlatform] || bridge.sourcePlatform;
+        updateContinuationBanner(`Continued from ${label}`, "success");
+        hideContinuationBanner(2600);
         await notify(`Continued from ${label}`);
       } else {
+        updateContinuationBanner(
+          "Bridge failed — reopen extension to retry.",
+          "error",
+        );
+        hideContinuationBanner(4000);
         await notify("Bridge failed — reopen extension to retry.");
       }
     } catch (error) {
+      hideContinuationBanner(0);
       console.error(
         "[Promptium][Content] Failed pending bridge hydration.",
         error,
@@ -1414,6 +1510,8 @@
 
       if (pending.kind !== "ready" || !pending.text) return;
 
+      showContinuationBanner("Loading conversation context…");
+
       let success = false;
 
       for (let attempt = 0; attempt < 12; attempt += 1) {
@@ -1426,11 +1524,22 @@
         const continuationKey =
           window.Continuation?.CONTINUATION_KEY || "pendingContinuation";
         await chrome.storage.local.remove([continuationKey]).catch(() => {});
+        updateContinuationBanner(
+          "Context ready — continue your conversation",
+          "success",
+        );
+        hideContinuationBanner(2600);
         await notify("Context loaded — continue your conversation");
       } else {
+        updateContinuationBanner(
+          "Injection failed — open the extension to retry.",
+          "error",
+        );
+        hideContinuationBanner(4000);
         await notify("Injection failed — open the extension to retry.");
       }
     } catch (error) {
+      hideContinuationBanner(0);
       console.error(
         "[Promptium][Content] Failed continuation hydration.",
         error,
@@ -1495,10 +1604,13 @@
     const syncHighlightSettings = async () => {
       try {
         const snap = await chrome.storage.local.get("promptiumSettings");
-        exportSelectionState.chatHighlightStyle = 
+        exportSelectionState.chatHighlightStyle =
           snap?.promptiumSettings?.chatHighlightStyle || "solid";
         getSelectionControls().forEach((entry) => {
-          setControlChecked(entry, entry.host?.getAttribute("data-checked") === "true");
+          setControlChecked(
+            entry,
+            entry.host?.getAttribute("data-checked") === "true",
+          );
         });
       } catch (e) {}
     };

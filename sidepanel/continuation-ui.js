@@ -28,7 +28,9 @@
   const normalizeMessages = (messages) =>
     (Array.isArray(messages) ? messages : [])
       .map((m) => ({
-        role: String(m?.role || "assistant").trim().toLowerCase(),
+        role: String(m?.role || "assistant")
+          .trim()
+          .toLowerCase(),
         text: String(m?.text || "").trim(),
       }))
       .filter((m) => m.text.length > 0);
@@ -48,20 +50,24 @@
   const getEligibleTargets = (sourcePlatform = "") => {
     const bridgeUrls = window.Bridge?.LLM_URLS || {};
     const enabledMap = getEnabledPlatformMap();
-    const all = Object.keys(bridgeUrls).filter(
-      (p) => enabledMap[p] !== false,
-    );
+    const all = Object.keys(bridgeUrls).filter((p) => enabledMap[p] !== false);
     if (!all.length) return [];
-    const source = String(sourcePlatform || "").toLowerCase().trim();
+    const source = String(sourcePlatform || "")
+      .toLowerCase()
+      .trim();
     if (!source || !all.includes(source)) return all;
     return [source, ...all.filter((p) => p !== source)];
   };
 
   const mapContinuationFailure = (v = "") => {
-    const code = String(v || "").trim().toLowerCase();
+    const code = String(v || "")
+      .trim()
+      .toLowerCase();
     if (code === "no_ai_available") return "No AI available";
-    if (code.includes("quota") || code.includes("429")) return "Rate limited — try again shortly";
-    if (code.includes("model_not_loaded") || code.includes("embedding model")) return "Model not loaded";
+    if (code.includes("quota") || code.includes("429"))
+      return "Rate limited — try again shortly";
+    if (code.includes("model_not_loaded") || code.includes("embedding model"))
+      return "Model not loaded";
     return "Continue Chat failed";
   };
 
@@ -105,9 +111,13 @@
   const showPreview = ({ text, target, llmUrl, sourcePlatform }) => {
     localState.pendingHandoff = {
       text: String(text || "").trim(),
-      target: String(target || "").trim().toLowerCase(),
+      target: String(target || "")
+        .trim()
+        .toLowerCase(),
       llmUrl: String(llmUrl || "").trim(),
-      sourcePlatform: String(sourcePlatform || "").trim().toLowerCase(),
+      sourcePlatform: String(sourcePlatform || "")
+        .trim()
+        .toLowerCase(),
     };
     const preview = byId("pn-continue-preview");
     if (preview) {
@@ -123,7 +133,9 @@
     const container = byId("pn-continue-targets");
     if (!container) return;
 
-    const sourcePlatform = String(localState.payload?.platform || "").toLowerCase();
+    const sourcePlatform = String(
+      localState.payload?.platform || "",
+    ).toLowerCase();
     const targets = getEligibleTargets(sourcePlatform);
     container.innerHTML = "";
 
@@ -169,6 +181,15 @@
         if (nameEl) nameEl.textContent = window.PLATFORM_LABELS?.[p] || p;
       }
     });
+  };
+
+  const setActiveLabel = (target, label) => {
+    const container = byId("pn-continue-targets");
+    const btn = container?.querySelector(
+      `.pn-continue-target-btn[data-platform="${target}"]`,
+    );
+    const nameEl = btn?.querySelector(".pn-continue-target-name");
+    if (nameEl) nameEl.textContent = label;
   };
 
   const quickContinue = async (target) => {
@@ -226,6 +247,10 @@
       }
 
       // Store and open immediately (no intermediate preview step)
+      setActiveLabel(
+        target,
+        `Opening ${window.PLATFORM_LABELS?.[target] || target}…`,
+      );
       await window.Continuation.store(
         handoffText,
         target,

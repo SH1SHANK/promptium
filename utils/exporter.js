@@ -491,8 +491,10 @@ const writePdfLine = async (doc, text, y, pageHeight, margin, maxWidth, lineHeig
 
   for (const line of wrappedLines) {
     nextY = await ensurePdfSpace(doc, nextY, lineHeight, margin, pageHeight, backgroundRgb);
-    doc.text(line, margin, nextY);
-    nextY += lineHeight;
+    if (line.trim()) {
+      doc.text(line, margin, nextY);
+    }
+    nextY += line.trim() ? lineHeight : Math.round(lineHeight * 0.5);
   }
 
   return nextY;
@@ -644,7 +646,8 @@ const toImage = async (chat, prefs = {}, imageFormat = 'png') => {
   if (options.contentMode === 'combined') {
     measure.font = `${bodySize}px ${fontFamily}`;
     const bodyLines = wrapTextByWidth(measure, getCombinedText(normalizedChat, options), maxTextWidth);
-    const cardHeight = (cardPadding * 2) + (bodyLines.length * bodyLineHeight);
+    const combinedBodyHeight = bodyLines.reduce((sum, l) => sum + (l ? bodyLineHeight : Math.round(bodyLineHeight * 0.5)), 0);
+    const cardHeight = (cardPadding * 2) + Math.max(bodyLineHeight, combinedBodyHeight);
     cards.push({
       heading: '',
       headingLines: [],
@@ -666,10 +669,11 @@ const toImage = async (chat, prefs = {}, imageFormat = 'png') => {
       measure.font = `${bodySize}px ${fontFamily}`;
       const bodyLines = wrapTextByWidth(measure, String(message.text || '').trim(), maxTextWidth);
 
+      const msgBodyHeight = bodyLines.reduce((sum, l) => sum + (l ? bodyLineHeight : Math.round(bodyLineHeight * 0.5)), 0);
       const cardHeight = (cardPadding * 2)
         + (Math.max(1, headingLines.length) * headingLineHeight)
         + 8
-        + (Math.max(1, bodyLines.length) * bodyLineHeight);
+        + Math.max(bodyLineHeight, msgBodyHeight);
 
       cards.push({
         heading,
@@ -751,7 +755,7 @@ const toImage = async (chat, prefs = {}, imageFormat = 'png') => {
       if (line) {
         ctx.fillText(line, innerX, innerY);
       }
-      innerY += bodyLineHeight;
+      innerY += line ? bodyLineHeight : Math.round(bodyLineHeight * 0.5);
     });
 
     y += card.cardHeight + messageGap;

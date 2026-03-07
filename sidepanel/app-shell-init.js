@@ -18,18 +18,18 @@
       <span class="pn-card-icon ${getOnboardingIconClass(card)}">${card.icon}</span>
     </div>
     <p class="pn-card-sub">${card.subheadline}</p>
-    <h2 class="pn-ob-headline">${card.headline}</h2>
+    <h2 class="pn-ob-headline" data-text="${card.headline}">${card.headline}</h2>
     <p class="pn-ob-subline">${card.body}</p>
     ${
       card.isLaunch
         ? `<div class="pn-onboard-actions">
             <button class="pn-onboarding-primary" type="button" data-action="onboard-get-started">Get Started</button>
-            <button class="pn-onboard-btn pn-btn--ghost" type="button" data-action="onboard-open-library">Open Library</button>
-            <button class="pn-onboard-btn pn-btn--ghost" type="button" data-action="onboard-go-settings">Go to Settings</button>
+            <button class="pn-onboard-btn" type="button" data-action="onboard-open-library">Open Library</button>
+            <button class="pn-onboard-btn" type="button" data-action="onboard-go-settings">Go to Settings</button>
           </div>`
         : `<div class="pn-onboard-actions">
             <button class="pn-onboarding-primary" type="button" data-action="onboard-next">Continue</button>
-            <a class="pn-ob-skip" href="#" data-action="onboard-skip">Skip</a>
+            <a class="pn-ob-skip" href="#" data-action="onboard-skip">Skip intro</a>
           </div>`
     }
   </section>
@@ -44,24 +44,111 @@
     );
 
     cards.forEach((card, index) => {
-      card.classList.toggle("active", index === state.onboardingIndex);
-      card.classList.toggle("exited", index < state.onboardingIndex);
-      card.classList.toggle("pn-reveal", index === state.onboardingIndex);
+      card.classList.remove("active", "exit");
+      if (index === state.onboardingIndex) {
+        card.classList.add("active");
+      }
     });
 
     dots.forEach((dot, index) => {
-      dot.classList.toggle("active", index === state.onboardingIndex);
+      dot.classList.remove("active", "visited");
+      if (index < state.onboardingIndex) {
+        dot.classList.add("visited");
+      }
+      if (index === state.onboardingIndex) {
+        dot.classList.add("active");
+      }
     });
+
+    /* Animate headline char-by-char for the active card */
+    const activeCard = cards[state.onboardingIndex];
+    if (activeCard) {
+      const headlineEl = activeCard.querySelector(".pn-ob-headline");
+      if (headlineEl) {
+        const text =
+          headlineEl.getAttribute("data-text") || headlineEl.textContent;
+        headlineEl.setAttribute("data-text", text);
+        headlineEl.textContent = text;
+        /* Trigger charReveal using inline span injection */
+        setTimeout(() => {
+          headlineEl.innerHTML = "";
+          text.split("").forEach((ch, i) => {
+            if (ch === " ") {
+              headlineEl.appendChild(document.createTextNode("\u00A0"));
+            } else {
+              const span = document.createElement("span");
+              span.className = "char";
+              span.textContent = ch;
+              span.style.animationDelay = `${160 + i * 28}ms`;
+              headlineEl.appendChild(span);
+            }
+          });
+        }, 0);
+      }
+
+      /* Animate icon */
+      const iconEl = activeCard.querySelector(".pn-card-icon");
+      if (iconEl) {
+        iconEl.style.animation = "none";
+        iconEl.style.opacity = "0";
+        iconEl.style.transform = "scale(0.7)";
+        setTimeout(() => {
+          iconEl.style.transition =
+            "opacity 0.35s ease 80ms, transform 0.45s cubic-bezier(0.34,1.56,0.64,1) 80ms";
+          iconEl.style.opacity = "1";
+          iconEl.style.transform = "scale(1)";
+        }, 10);
+      }
+
+      /* Move glow orbs */
+      const glowPositions = [
+        { top: "25%", left: "35%", top2: "70%", left2: "65%" },
+        { top: "60%", left: "50%", top2: "28%", left2: "22%" },
+        { top: "30%", left: "20%", top2: "72%", left2: "62%" },
+        { top: "65%", left: "55%", top2: "22%", left2: "35%" },
+        { top: "22%", left: "60%", top2: "68%", left2: "28%" },
+        { top: "55%", left: "30%", top2: "25%", left2: "65%" },
+        { top: "40%", left: "40%", top2: "50%", left2: "55%" },
+      ];
+      const gp = glowPositions[state.onboardingIndex] || glowPositions[0];
+      const glow = document.querySelector("#pn-onboarding .pn-onboarding-glow");
+      const glow2 = document.querySelector(
+        "#pn-onboarding .pn-onboarding-glow-2",
+      );
+      if (glow) {
+        glow.style.top = gp.top;
+        glow.style.left = gp.left;
+      }
+      if (glow2) {
+        glow2.style.top = gp.top2;
+        glow2.style.left = gp.left2;
+      }
+    }
   };
 
   const completeOnboarding = async () => {
     await chrome.storage.local.set({ [KEYS.ONBOARDING_KEY]: true });
     const overlay = document.getElementById("pn-onboarding");
-    overlay?.remove();
+    if (overlay) {
+      overlay.classList.add("pn-ob-exit");
+      await new Promise((r) => setTimeout(r, 350));
+      overlay.remove();
+    }
   };
 
   const onOnboardingNext = async () => {
     if (state.onboardingIndex < ONBOARDING_CARDS.length - 1) {
+      /* Animate current card out */
+      const cards = Array.from(
+        document.querySelectorAll("#pn-onboarding .pn-onboarding-card"),
+      );
+      const currentCard = cards[state.onboardingIndex];
+      if (currentCard) {
+        currentCard.classList.remove("active");
+        currentCard.classList.add("exit");
+        await new Promise((r) => setTimeout(r, 220));
+        currentCard.classList.remove("exit");
+      }
       state.onboardingIndex += 1;
       await updateOnboardingPositions();
       return false;
@@ -71,6 +158,17 @@
   };
 
   const onOnboardingSkip = async () => {
+    /* Animate current card out */
+    const cards = Array.from(
+      document.querySelectorAll("#pn-onboarding .pn-onboarding-card"),
+    );
+    const currentCard = cards[state.onboardingIndex];
+    if (currentCard) {
+      currentCard.classList.remove("active");
+      currentCard.classList.add("exit");
+      await new Promise((r) => setTimeout(r, 220));
+      currentCard.classList.remove("exit");
+    }
     state.onboardingIndex = ONBOARDING_CARDS.length - 1;
     await updateOnboardingPositions();
   };
@@ -100,6 +198,19 @@
     <div class="pn-ob-deck">${cardsMarkup.join("")}</div>
     <div class="pn-ob-dots">${dotsMarkup}</div>
   `;
+
+    /* Dual ambient glow orbs */
+    const glow = document.createElement("div");
+    glow.className = "pn-onboarding-glow";
+    glow.style.top = "25%";
+    glow.style.left = "35%";
+    overlay.appendChild(glow);
+
+    const glow2 = document.createElement("div");
+    glow2.className = "pn-onboarding-glow-2";
+    glow2.style.top = "70%";
+    glow2.style.left = "65%";
+    overlay.appendChild(glow2);
 
     document.body.appendChild(overlay);
     await updateOnboardingPositions();

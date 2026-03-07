@@ -269,3 +269,98 @@
   animation: pn-flash-bg 600ms ease-out !important;
   border-radius: 4px;
 }
+
+/* ——— Continuation loading banner ——— */
+.pn-continuation-banner {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  border-radius: 12px;
+  background: rgba(12, 15, 24, 0.97);
+  border: 1px solid var(--pn-border-default);
+  border-left: 3px solid var(--pn-accent);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.55),
+    0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  font-family: -apple-system, "Segoe UI", sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--pn-text-primary);
+  pointer-events: none;
+  white-space: nowrap;
+  animation: pn-banner-in 240ms cubic-bezier(0.34, 1.1, 0.64, 1) both;
+}
+
+.pn-continuation-banner--success {
+  border-left-color: var(--pn-accent);
+  border-color: rgba(var(--pn-accent-rgb), 0.35);
+}
+
+.pn-continuation-banner--error {
+  border-left-color: var(--pn-danger);
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
+.pn-continuation-banner--out {
+  animation: pn-banner-out 280ms ease-in forwards;
+}
+
+.pn-continuation-banner__spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(var(--pn-accent-rgb), 0.22);
+  border-top-color: var(--pn-accent);
+  border-radius: 50%;
+  animation: pn-banner-spin 0.72s linear infinite;
+  flex-shrink: 0;
+}
+
+.pn-continuation-banner__check {
+  color: var(--pn-accent);
+  font-size: 14px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.pn-continuation-banner__label {
+  color: var(--pn-accent);
+  font-weight: 700;
+  margin-right: 5px;
+  letter-spacing: -0.01em;
+}
+
+@keyframes pn-banner-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+@keyframes pn-banner-out {
+  from {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-14px) scale(0.97);
+  }
+}
+
+@keyframes pn-banner-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
