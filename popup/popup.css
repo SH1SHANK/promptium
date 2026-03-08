@@ -1659,7 +1659,7 @@ code {
 .pn-fill-header {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
@@ -3531,29 +3531,40 @@ code {
 .pn-form-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
-  margin-bottom: 10px;
+  padding: 0 0 12px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .pn-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   border: 1px solid var(--border-default);
-  background: transparent;
-  color: var(--text-secondary);
+  background: var(--bg-surface);
+  color: var(--text-primary);
   border-radius: 8px;
-  padding: 5px 9px;
-  font-size: 12px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s;
 }
 
 .pn-back-btn:hover {
   border-color: var(--accent);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
 .pn-form-title {
-  font-size: 13px;
-  color: var(--text-secondary);
+  flex: 1;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .pn-add-mode-selector {

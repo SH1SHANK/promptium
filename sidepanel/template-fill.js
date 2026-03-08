@@ -227,8 +227,10 @@
 
     panel.innerHTML = `
     <div class="pn-fill-header">
-      <button class="pn-back-btn" id="pn-fill-back" type="button">← Back</button>
-      <span class="pn-fill-title">${escapeHtml(prompt.title)}</span>
+      <div class="pn-form-header">
+        <button class="pn-back-btn" id="pn-fill-back" type="button">← Back</button>
+        <span class="pn-form-title">${escapeHtml(prompt.title)}</span>
+      </div>
       <span class="pn-fill-subtitle">Fill required blanks. Optional blanks can be skipped.</span>
     </div>
 
