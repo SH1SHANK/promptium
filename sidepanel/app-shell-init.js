@@ -331,6 +331,7 @@
     const tabBar = document.querySelector(".pn-tab-bar");
     const searchWrap = document.getElementById("search-wrap");
     const backBtn = document.getElementById("back-btn");
+    const headerPageTitle = document.getElementById("header-page-title");
     const addPromptBtn = document.getElementById("add-prompt-btn");
     const historyBtn = document.getElementById("history-btn");
     const settingsBtn = document.getElementById("settings-btn");
@@ -346,6 +347,12 @@
     if (historyBtn) historyBtn.classList.toggle("hidden", isStandaloneView);
     if (settingsBtn) settingsBtn.classList.toggle("hidden", isStandaloneView);
     if (refreshBtn) refreshBtn.classList.toggle("hidden", isStandaloneView);
+
+    if (headerPageTitle) {
+      headerPageTitle.classList.toggle("hidden", !isStandaloneView);
+      const pageTitles = { history: "History", settings: "Settings", export: "Export", continue: "Continue" };
+      headerPageTitle.textContent = pageTitles[tabName] || "";
+    }
 
     refreshHeaderControls();
 

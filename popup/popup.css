@@ -895,6 +895,39 @@ body.pn-popup::-webkit-scrollbar-thumb:hover {
   color: var(--text-primary);
 }
 
+/* Back navigation button — standalone views (settings, history, export) */
+#back-btn {
+  padding: 6px 12px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  gap: 6px;
+}
+
+#back-btn:hover {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* When back-btn is visible, expand header-actions to full width so it sits on the left */
+body.pn-sidepanel .pn-sidepanel-header:has(#back-btn:not(.hidden)) {
+  justify-content: flex-start;
+}
+
+body.pn-sidepanel .pn-sidepanel-header:has(#back-btn:not(.hidden)) .pn-header-actions {
+  width: 100%;
+}
+
+#header-page-title {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: center;
+  pointer-events: none;
+}
+
 .pn-btn svg {
   flex-shrink: 0;
 }
