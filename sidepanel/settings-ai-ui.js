@@ -198,6 +198,8 @@ const normalizeSettings = (value = {}) => {
     defaultExportFormat: normalizeExportFormat(source.defaultExportFormat),
     autoSaveHistory:
       source.autoSaveHistory ?? source.autoSaveExportsToHistory ?? true,
+    enableAI: source.enableAI !== false,
+    semanticSearch: source.semanticSearch !== false,
     settingsMigratedV2: source.settingsMigratedV2 === true,
     onboardingComplete: source.onboardingComplete === true,
   };
@@ -735,10 +737,16 @@ const bindEmbeddingEvents = () => {
   });
   chrome.runtime.onMessage.addListener((message) => {
     const type = String(message?.type || "").trim();
+    if (type === "AI_SEARCH_MODE") {
+      state.aiReady = message.mode === "semantic";
+      return;
+    }
     if (!["AI_EMBEDDING_STATUS", "AI_EMBEDDING_REINDEX_PROGRESS"].includes(type)) {
       return;
     }
-    void syncAiState();
+    void syncAiState().then((embStatus) => {
+      state.aiReady = embStatus?.status === "ready";
+    });
   });
 };
 

@@ -819,7 +819,8 @@
 
     if (state.settings.enableAI) {
       if (!onboardingInitializedAi) {
-        await window.SettingsAI.syncAiState();
+        const embStatus = await window.SettingsAI.syncAiState();
+        state.aiReady = embStatus?.status === "ready";
       }
     } else {
       await window.SettingsAI.setAiDisabledBadge();

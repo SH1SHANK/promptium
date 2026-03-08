@@ -52,6 +52,8 @@
     cardDensity: "comfortable",
     defaultExportFormat: "markdown",
     autoSaveHistory: true,
+    enableAI: true,
+    semanticSearch: true,
     settingsMigratedV2: false,
     onboardingComplete: false,
   });
