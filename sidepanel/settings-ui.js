@@ -478,6 +478,7 @@
       .join("");
 
     renderEmbeddingProgress();
+    renderSearchStatusCard();
   };
 
   const renderEmbeddingProgress = () => {
@@ -497,6 +498,65 @@
           ? `Re-indexing prompts… ${Math.round(Number(reindex.progress || 0))}%`
           : "";
     }
+  };
+
+  const renderSearchStatusCard = () => {
+    const container = byId("pn-search-status-card");
+    if (!container) return;
+    const semanticEnabled = state.settings.semanticSearch !== false;
+    const status = uiState.embeddingStatus || {};
+    const reindex = status.reindex || {};
+    const activeId = String(
+      state.settings.embeddingModelId || DEFAULT_SETTINGS.embeddingModelId,
+    );
+    const modelMeta = uiState.embeddings.find((m) => m.id === activeId);
+    const modelLabel = modelMeta?.label || activeId;
+
+    let statusText = "";
+    let statusClass = "";
+    let showReindex = false;
+
+    if (!semanticEnabled) {
+      statusText = "Disabled";
+      statusClass = "pn-search-status--off";
+    } else if (status.status === "downloading") {
+      const pct = Math.max(0, Number(status.progress || 0));
+      statusText = pct > 0 ? `Downloading ${pct}%` : "Downloading...";
+      statusClass = "pn-search-status--busy";
+    } else if (reindex.running) {
+      const pct = Math.round(Number(reindex.progress || 0));
+      statusText = `Indexing ${pct}%`;
+      statusClass = "pn-search-status--busy";
+    } else if (status.status === "ready") {
+      statusText = "Active";
+      statusClass = "pn-search-status--active";
+      showReindex = state.aiReady;
+    } else if (status.status) {
+      statusText = "Not ready";
+      statusClass = "pn-search-status--idle";
+      showReindex = true;
+    }
+
+    const statusRow =
+      statusText && semanticEnabled
+        ? `<div class="pn-settings-row">
+        <div class="pn-settings-row-copy">
+          <span class="pn-settings-row-label">${esc(modelLabel)}</span>
+          <span class="pn-settings-row-desc"><span class="pn-search-status-badge ${statusClass}">${esc(statusText)}</span></span>
+        </div>
+        ${showReindex ? `<button class="pn-settings-embed-action is-ready-label" type="button" data-embed-action="${esc(activeId)}">Re-index</button>` : ""}
+      </div>`
+        : "";
+
+    container.innerHTML = `
+    <div class="pn-settings-row">
+      <div class="pn-settings-row-copy">
+        <span class="pn-settings-row-label">Semantic search</span>
+        <span class="pn-settings-row-desc">Find prompts by meaning, not just exact keywords.</span>
+      </div>
+      ${toggleHTML("setting-semantic-search", semanticEnabled, "Enable semantic search")}
+    </div>
+    ${statusRow}`;
   };
 
   /* ── Section 3: Features ─────────────────────────────────────────────────── */
@@ -750,6 +810,18 @@
     setStatus("Saved");
   };
 
+  const readAndSaveSearch = async () => {
+    const next = deepClone(state.settings);
+    const toggle = byId("setting-semantic-search");
+    if (toggle) next.semanticSearch = toggle.checked;
+    await persistSettings(next);
+    state.aiReady =
+      next.semanticSearch !== false &&
+      uiState.embeddingStatus?.status === "ready";
+    renderSearchStatusCard();
+    setStatus("Saved");
+  };
+
   const readAndSaveFeatures = async () => {
     const next = deepClone(state.settings);
     FEATURE_TOGGLES.forEach((t) => {
@@ -891,6 +963,10 @@
         const file = e.target.files?.[0];
         if (file) await importAllData(file);
         e.target.value = "";
+        return;
+      }
+      if (e.target.closest("[data-settings-section='search']")) {
+        await readAndSaveSearch();
         return;
       }
       if (e.target.closest("[data-settings-section='features']")) {

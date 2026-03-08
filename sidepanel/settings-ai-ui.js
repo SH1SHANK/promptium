@@ -739,6 +739,7 @@ const bindEmbeddingEvents = () => {
     const type = String(message?.type || "").trim();
     if (type === "AI_SEARCH_MODE") {
       state.aiReady = message.mode === "semantic";
+      void window.SettingsUI?.syncEmbeddingStatus?.();
       return;
     }
     if (!["AI_EMBEDDING_STATUS", "AI_EMBEDDING_REINDEX_PROGRESS"].includes(type)) {

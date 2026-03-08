@@ -1760,6 +1760,38 @@ body.pn-sidepanel
   font-family: var(--font-mono);
 }
 
+/* ── Semantic search status badge ──────────────────────────────────────── */
+.pn-search-status-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.pn-search-status--active {
+  background: color-mix(in srgb, var(--color-green, #4ade80) 14%, transparent);
+  color: var(--color-green, #4ade80);
+}
+
+.pn-search-status--busy {
+  background: color-mix(in srgb, var(--color-amber, #fbbf24) 14%, transparent);
+  color: var(--color-amber, #fbbf24);
+}
+
+.pn-search-status--idle {
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  color: var(--text-muted);
+}
+
+.pn-search-status--off {
+  background: color-mix(in srgb, var(--text-muted) 8%, transparent);
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
 /* ── Confirm embed switch ───────────────────────────────────────────────── */
 .pn-settings-confirm-bar {
   display: flex;
