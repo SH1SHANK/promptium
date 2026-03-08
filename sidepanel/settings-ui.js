@@ -6,8 +6,66 @@
 (() => {
   const { KEYS, DEFAULT_SETTINGS, state } = window.SidepanelState;
 
-  const SECTION_IDS = ["providers", "search", "features", "interface", "data"];
+  const SECTION_IDS = [
+    "providers",
+    "search",
+    "features",
+    "permissions",
+    "interface",
+    "data",
+  ];
   const PROVIDER_ORDER = ["gemini", "openai", "anthropic", "openrouter"];
+
+  // Platform categorization: websites vs APIs
+  const PLATFORM_METADATA = {
+    // Websites
+    chatgpt: { label: "ChatGPT", type: "website", host: "chatgpt.com" },
+    claude: { label: "Claude", type: "website", host: "claude.ai" },
+    gemini: { label: "Gemini", type: "website", host: "gemini.google.com" },
+    perplexity: { label: "Perplexity", type: "website", host: "perplexity.ai" },
+    copilot: {
+      label: "Copilot",
+      type: "website",
+      host: "copilot.microsoft.com",
+    },
+    deepseek: { label: "DeepSeek", type: "website", host: "deepseek.com" },
+    qwen: { label: "Qwen", type: "website", host: "qwen.ai" },
+    mistral: { label: "Mistral", type: "website", host: "chat.mistral.ai" },
+    kimi: { label: "Kimi", type: "website", host: "kimi.moonshot.cn" },
+    moonshot: { label: "Moonshot", type: "website", host: "moonshot.cn" },
+    grok: { label: "Grok", type: "website", host: "grok.com" },
+    huggingchat: {
+      label: "HuggingChat",
+      type: "website",
+      host: "huggingchat.com",
+    },
+    poe: { label: "Poe", type: "website", host: "poe.com" },
+    you: { label: "You.com", type: "website", host: "you.com" },
+    phind: { label: "Phind", type: "website", host: "phind.com" },
+    characterai: {
+      label: "Character AI",
+      type: "website",
+      host: "character.ai",
+    },
+    pi: { label: "Pi", type: "website", host: "pi.ai" },
+    metaai: { label: "Meta AI", type: "website", host: "meta.ai" },
+    amazonq: {
+      label: "Amazon Q",
+      type: "website",
+      host: "chat.console.aws.amazon.com",
+    },
+    ernie: { label: "Ernie", type: "website", host: "yiyan.baidu.com" },
+    doubao: { label: "Doubao", type: "website", host: "doubao.com" },
+    yichat: { label: "01.AI", type: "website", host: "01.ai" },
+    coherecoral: {
+      label: "Cohere Coral",
+      type: "website",
+      host: "coral.cohere.com",
+    },
+    groq: { label: "Groq", type: "website", host: "chat.groq.com" },
+    fireworks: { label: "Fireworks", type: "website", host: "fireworks.ai" },
+    together: { label: "Together", type: "website", host: "together.ai" },
+  };
 
   const FALLBACK_PROVIDERS = {
     gemini: {
@@ -122,6 +180,8 @@
       '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>',
     features:
       '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14l-5-4.87 6.91-1.01z"/></svg>',
+    permissions:
+      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><path d="M12 1v6m0 6v6"/><path d="M4.22 4.22l4.24 4.24m2.12 2.12l4.24 4.24M1 12h6m6 0h6M4.22 19.78l4.24-4.24m2.12-2.12l4.24-4.24"/></svg>',
     interface:
       '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>',
     data: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4"/><path d="M14 2v5h5"/><path d="M3 15h6"/><path d="M6 12v6"/></svg>',
@@ -131,6 +191,7 @@
     providers: "AI",
     search: "Search",
     features: "Features",
+    permissions: "Permissions",
     interface: "Interface",
     data: "Data",
   };
@@ -483,6 +544,70 @@
     ).join("");
   };
 
+  /* ── Section 3B: Permissions ─────────────────────────────────────────────── */
+
+  const renderPermissions = async () => {
+    const container = byId("pn-settings-permissions-list");
+    if (!container) return;
+    const enabledPlatforms = state.settings.enabledPlatforms || {};
+    const websites = [];
+    const apis = [];
+
+    // Categorize platforms
+    for (const [key, meta] of Object.entries(PLATFORM_METADATA)) {
+      const isEnabled = enabledPlatforms[key] !== false; // Default: enabled
+      const toggle = toggleHTML(`pn-perm-${key}`, isEnabled, meta.label);
+
+      const row = `<div class="pn-settings-row" data-platform-key="${esc(key)}">
+        <div class="pn-settings-row-copy">
+          <span class="pn-settings-row-label">${esc(meta.label)}</span>
+          <span class="pn-settings-row-host">${esc(meta.host)}</span>
+        </div>
+        ${toggle}
+      </div>`;
+
+      if (meta.type === "website") {
+        websites.push(row);
+      } else {
+        apis.push(row);
+      }
+    }
+
+    // Add quick action buttons
+    const quickActions = `
+    <div class="pn-settings-section">
+      <h4 class="pn-settings-section-title">Quick Actions</h4>
+      <div class="pn-settings-quick-actions">
+        <button class="pn-settings-action-btn" type="button" id="pn-perm-disable-all-websites">
+          Disable All Websites
+        </button>
+        <button class="pn-settings-action-btn" type="button" id="pn-perm-enable-all-websites">
+          Enable All Websites
+        </button>
+      </div>
+    </div>`;
+
+    // Build HTML with sections
+    let html = quickActions;
+
+    if (websites.length > 0) {
+      html += `<div class="pn-settings-section">
+        <h4 class="pn-settings-section-title">Chat Websites</h4>
+        ${websites.join("")}
+      </div>`;
+    }
+
+    if (apis.length > 0) {
+      html += `<div class="pn-settings-section">
+        <h4 class="pn-settings-section-title">AI APIs</h4>
+        <p class="pn-settings-section-note">These are typically disabled automatically and should remain enabled for API-based features.</p>
+        ${apis.join("")}
+      </div>`;
+    }
+
+    container.innerHTML = html;
+  };
+
   /* ── Section 4: Interface ────────────────────────────────────────────────── */
 
   const renderInterface = () => {
@@ -584,6 +709,7 @@
     await renderProviders();
     renderEmbeddings();
     renderFeatures();
+    await renderPermissions();
     renderInterface();
     renderData();
   };
@@ -632,6 +758,22 @@
     });
     await persistSettings(next);
     setStatus("Saved");
+  };
+
+  const readAndSavePermissions = async () => {
+    const next = deepClone(state.settings);
+    next.enabledPlatforms = next.enabledPlatforms || {};
+
+    // Update all platform toggles
+    for (const key of Object.keys(PLATFORM_METADATA)) {
+      const el = byId(`pn-perm-${key}`);
+      if (el) {
+        next.enabledPlatforms[key] = el.checked;
+      }
+    }
+
+    await persistSettings(next);
+    setStatus("Permissions updated");
   };
 
   const bindEvents = () => {
@@ -697,6 +839,33 @@
         handleDanger(dangerBtn);
         return;
       }
+      // Permission quick actions
+      if (e.target.id === "pn-perm-disable-all-websites") {
+        const next = deepClone(state.settings);
+        next.enabledPlatforms = next.enabledPlatforms || {};
+        for (const [key, meta] of Object.entries(PLATFORM_METADATA)) {
+          if (meta.type === "website") {
+            next.enabledPlatforms[key] = false;
+          }
+        }
+        await persistSettings(next);
+        await renderPermissions();
+        setStatus("All websites disabled");
+        return;
+      }
+      if (e.target.id === "pn-perm-enable-all-websites") {
+        const next = deepClone(state.settings);
+        next.enabledPlatforms = next.enabledPlatforms || {};
+        for (const [key, meta] of Object.entries(PLATFORM_METADATA)) {
+          if (meta.type === "website") {
+            next.enabledPlatforms[key] = true;
+          }
+        }
+        await persistSettings(next);
+        await renderPermissions();
+        setStatus("All websites enabled");
+        return;
+      }
     });
 
     root.addEventListener("input", (e) => {
@@ -726,6 +895,10 @@
       }
       if (e.target.closest("[data-settings-section='features']")) {
         await readAndSaveFeatures();
+        return;
+      }
+      if (e.target.closest("[data-settings-section='permissions']")) {
+        await readAndSavePermissions();
         return;
       }
       if (e.target.closest("[data-settings-section='interface']")) {
@@ -776,9 +949,16 @@
         // without a storage round-trip. Then do a full sync to get the reindex state.
         if (uiState.embeddingStatus) {
           Object.assign(uiState.embeddingStatus, {
-            status: String(message.status || uiState.embeddingStatus.status || ""),
+            status: String(
+              message.status || uiState.embeddingStatus.status || "",
+            ),
             progress: Number(message.progress) || 0,
-            activeModelId: String(message.activeModelId || message.modelId || uiState.embeddingStatus.activeModelId || ""),
+            activeModelId: String(
+              message.activeModelId ||
+                message.modelId ||
+                uiState.embeddingStatus.activeModelId ||
+                "",
+            ),
             downloadedModelIds: Array.isArray(message.downloadedModelIds)
               ? message.downloadedModelIds
               : uiState.embeddingStatus.downloadedModelIds,

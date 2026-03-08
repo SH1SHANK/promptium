@@ -31,6 +31,33 @@
       library: true,
     },
   });
+  const SAVE_MODAL_PREVIEW_LIMIT = 320;
+  const SAVE_PROMPT_MAX_LENGTH = 50000;
+
+  /**
+   * Sanitizes raw prompt text before storage or display:
+   * - Strips non-printable control characters (keeps \t, \n, \r)
+   * - Normalises line endings to \n
+   * - Collapses more than two consecutive blank lines to two
+   * - Trims leading / trailing whitespace
+   * - Enforces a hard max-length cap
+   */
+  const sanitizePromptText = (raw) => {
+    let s = String(raw || "");
+    // Strip null bytes and non-printable ASCII control chars (keep \t \n \r)
+    s = s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
+    // Normalise CRLF / CR → LF
+    s = s.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    // Collapse runs of 3+ blank lines to two
+    s = s.replace(/\n{3,}/g, "\n\n");
+    // Trim
+    s = s.trim();
+    // Hard cap to avoid storage bloat
+    if (s.length > SAVE_PROMPT_MAX_LENGTH) {
+      s = s.slice(0, SAVE_PROMPT_MAX_LENGTH);
+    }
+    return s;
+  };
 
   const formatSaveBackendFeedback = (savedPrompt) => {
     const backend = String(savedPrompt?._aiMeta?.paraphrase || "")
@@ -217,6 +244,261 @@
     hidden.value = tags.join(", ");
   };
 
+  const clearSaveModalSuggestions = (scope = document) => {
+    const suggestions = scope.querySelector("#pn-save-tag-suggestions");
+    if (suggestions) {
+      suggestions.replaceChildren();
+      suggestions.classList.add("pn-hidden");
+    }
+  };
+
+  const setSaveModalDuplicateWarning = (scope = document, match = null) => {
+    const warning = scope.querySelector("#pn-save-duplicate-warning");
+    if (!warning) return;
+
+    warning.replaceChildren();
+    if (!match) {
+      warning.classList.add("pn-hidden");
+      return;
+    }
+
+    const strong = document.createElement("strong");
+    strong.textContent = `Similar to \"${String(match.title || "Untitled Prompt").trim()}\"`;
+    const text = document.createElement("span");
+    text.textContent =
+      " You can still save it, but this likely already exists in your library.";
+    warning.appendChild(strong);
+    warning.appendChild(text);
+    warning.classList.remove("pn-hidden");
+  };
+
+  const renderSaveTagSuggestions = (scope = document, tags = []) => {
+    const suggestions = scope.querySelector("#pn-save-tag-suggestions");
+    if (!suggestions) return;
+
+    suggestions.replaceChildren();
+    const uniqueTags = Array.from(
+      new Set(
+        (Array.isArray(tags) ? tags : [])
+          .map((tag) =>
+            String(tag || "")
+              .trim()
+              .toLowerCase(),
+          )
+          .filter(Boolean),
+      ),
+    ).slice(0, 4);
+
+    if (!uniqueTags.length) {
+      suggestions.classList.add("pn-hidden");
+      return;
+    }
+
+    const label = document.createElement("span");
+    label.className = "pn-save-modal__suggestions-label";
+    label.textContent = "Suggested tags";
+    suggestions.appendChild(label);
+
+    uniqueTags.forEach((tag) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "pn-save-modal__suggestion-chip";
+      chip.textContent = tag;
+      chip.addEventListener("click", () => {
+        addTagBadge(tag);
+        chip.remove();
+        if (!suggestions.querySelector(".pn-save-modal__suggestion-chip")) {
+          suggestions.classList.add("pn-hidden");
+        }
+      });
+      suggestions.appendChild(chip);
+    });
+
+    suggestions.classList.remove("pn-hidden");
+  };
+
+  const deriveLocalPromptTitle = (text) => {
+    const compact = String(text || "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!compact) return "";
+    const firstSentence = compact.split(/[.!?]/)[0]?.trim() || compact;
+    return firstSentence.slice(0, 80).trim();
+  };
+
+  const TEMPLATE_TOKEN_PATTERN = /\[(?!\[)([^\[\]\n]+?)\]/g;
+
+  const renderSaveModalPreviewTokens = (container, text) => {
+    if (!container) return { count: 0, variables: [] };
+
+    const source = String(text || "");
+    const fragment = document.createDocumentFragment();
+    let tokenCount = 0;
+    let lastIndex = 0;
+    const variables = [];
+
+    // Reset lastIndex so the global regex works correctly on repeated calls
+    TEMPLATE_TOKEN_PATTERN.lastIndex = 0;
+    let match = TEMPLATE_TOKEN_PATTERN.exec(source);
+
+    while (match) {
+      const fullMatch = String(match[0] || "");
+      const rawInner = String(match[1] || "").trim();
+      const startIndex = match.index;
+
+      if (startIndex > lastIndex) {
+        fragment.appendChild(
+          document.createTextNode(source.slice(lastIndex, startIndex)),
+        );
+      }
+
+      if (rawInner) {
+        const isOptional = rawInner.endsWith("?");
+        const varName = isOptional
+          ? rawInner.slice(0, -1).trim()
+          : rawInner;
+
+        const token = document.createElement("span");
+        token.className = `pn-save-modal__template-token${isOptional ? " pn-save-modal__template-token--optional" : " pn-save-modal__template-token--required"}`;
+        token.title = isOptional
+          ? `Optional fill-in: ${varName}`
+          : `Required fill-in: ${varName}`;
+
+        // Dot icon
+        const icon = document.createElement("span");
+        icon.className = "pn-save-modal__token-icon";
+        icon.setAttribute("aria-hidden", "true");
+
+        // Variable name label
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = varName;
+
+        token.appendChild(icon);
+        token.appendChild(nameSpan);
+
+        // Append "(opt)" indicator for optional variables
+        if (isOptional) {
+          const optLabel = document.createElement("span");
+          optLabel.className = "pn-save-modal__token-opt";
+          optLabel.textContent = "opt";
+          token.appendChild(optLabel);
+        }
+
+        fragment.appendChild(token);
+        tokenCount += 1;
+        variables.push({ name: varName, optional: isOptional });
+      } else {
+        fragment.appendChild(document.createTextNode(fullMatch));
+      }
+
+      lastIndex = startIndex + fullMatch.length;
+      match = TEMPLATE_TOKEN_PATTERN.exec(source);
+    }
+
+    if (lastIndex < source.length) {
+      fragment.appendChild(document.createTextNode(source.slice(lastIndex)));
+    }
+
+    container.replaceChildren(fragment);
+    return { count: tokenCount, variables };
+  };
+
+  /**
+   * Renders a summary row of fill-in variable pills below the preview section.
+   * Clears and hides the container when no variables are provided.
+   */
+  const renderFillInList = (scope = document, variables = []) => {
+    const container = scope.querySelector("#pn-save-fillins");
+    if (!container) return;
+
+    container.replaceChildren();
+
+    if (!Array.isArray(variables) || !variables.length) {
+      container.classList.add("pn-hidden");
+      return;
+    }
+
+    // Deduplicate by name (keep first occurrence)
+    const seen = new Set();
+    const unique = variables.filter(({ name }) => {
+      const key = String(name || "").toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    unique.forEach(({ name, optional }) => {
+      const badge = document.createElement("span");
+      badge.className = `pn-save-modal__fillin-badge${optional ? " pn-save-modal__fillin-badge--optional" : ""}`;
+      badge.title = optional ? `Optional fill-in: ${name}` : `Required fill-in: ${name}`;
+
+      const icon = document.createElement("span");
+      icon.className = "pn-save-modal__fillin-icon";
+      icon.setAttribute("aria-hidden", "true");
+
+      const nameSpan = document.createElement("span");
+      nameSpan.textContent = String(name || "");
+
+      badge.appendChild(icon);
+      badge.appendChild(nameSpan);
+
+      if (optional) {
+        const optSpan = document.createElement("span");
+        optSpan.className = "pn-save-modal__fillin-opt";
+        optSpan.textContent = "opt";
+        badge.appendChild(optSpan);
+      }
+
+      container.appendChild(badge);
+    });
+
+    container.classList.remove("pn-hidden");
+  };
+
+  const updateSaveModalPreview = (scope = document, text = "") => {
+    const preview = scope.querySelector("#pn-save-preview-text");
+    const meta = scope.querySelector("#pn-save-preview-meta");
+    if (!preview || !meta) return;
+
+    const normalized = String(text || "").trim();
+    const truncated =
+      normalized.length > SAVE_MODAL_PREVIEW_LIMIT
+        ? `${normalized.slice(0, SAVE_MODAL_PREVIEW_LIMIT)}…`
+        : normalized;
+
+    if (!truncated) {
+      preview.textContent = "Nothing captured from the composer yet.";
+      meta.textContent = "No prompt text found in the current composer";
+      renderFillInList(scope, []);
+      return;
+    }
+
+    const { count: tokenCount, variables } = renderSaveModalPreviewTokens(preview, truncated);
+    const charLabel = normalized.length.toLocaleString();
+    meta.textContent = `${charLabel} chars${
+      tokenCount ? ` · ${tokenCount} fill-in blank${tokenCount === 1 ? "" : "s"}` : ""
+    }`;
+
+    renderFillInList(scope, variables);
+  };
+
+  const maybeSuggestSaveModalTags = async (scope = document, text = "") => {
+    if (!String(text || "").trim()) {
+      clearSaveModalSuggestions(scope);
+      return;
+    }
+
+    try {
+      const response = await window.AIBridge?.suggestTags?.(text);
+      const suggestions = Array.isArray(response?.tags)
+        ? response.tags.map((tag) => String(tag || "").trim()).filter(Boolean)
+        : [];
+      renderSaveTagSuggestions(scope, suggestions);
+    } catch (_error) {
+      clearSaveModalSuggestions(scope);
+    }
+  };
+
   /** Adds a single tag badge to the badge container and syncs to hidden input. */
   const addTagBadge = (tag) => {
     const normalized = String(tag || "")
@@ -280,21 +562,45 @@
     modal.innerHTML = `
     <div class="pn-save-modal__backdrop" data-modal-close></div>
     <div class="pn-save-modal__panel">
-      <h3 id="pn-save-modal-title" class="pn-save-modal__title">Save Prompt</h3>
+      <div class="pn-save-modal__header">
+        <div class="pn-save-modal__header-info">
+          <div class="pn-save-modal__title-row">
+            <span class="pn-save-modal__header-icon" aria-hidden="true"></span>
+            <h3 id="pn-save-modal-title" class="pn-save-modal__title">Save Prompt</h3>
+          </div>
+          <p class="pn-save-modal__subtitle">Capture the prompt from the current chat composer to your library.</p>
+        </div>
+        <button id="pn-save-close" class="pn-save-modal__icon-btn" type="button" aria-label="Close save prompt dialog">×</button>
+      </div>
+      <section class="pn-save-modal__preview" aria-label="Prompt preview">
+        <div class="pn-save-modal__preview-header">
+          <span class="pn-save-modal__eyebrow">Captured prompt</span>
+          <span id="pn-save-preview-meta" class="pn-save-modal__preview-meta"></span>
+        </div>
+        <p id="pn-save-preview-text" class="pn-save-modal__preview-text"></p>
+        <div id="pn-save-fillins" class="pn-save-modal__fillins pn-hidden"></div>
+      </section>
       <label class="pn-save-modal__field">
         <span>Title</span>
-        <input id="pn-save-title" type="text" placeholder="Optional title (auto-generated if blank)" />
+        <div class="pn-save-modal__input-row">
+          <input id="pn-save-title" type="text" placeholder="Optional — auto-generated if left blank" />
+          <button id="pn-save-generate-title" class="pn-btn pn-btn--ghost pn-save-modal__mini-btn" type="button">Suggest</button>
+        </div>
+        <span class="pn-save-modal__hint">Leave blank to use the first line as the title.</span>
       </label>
       <label class="pn-save-modal__field">
         <span>Tags</span>
         <div class="pn-tag-badges" id="pn-tag-badges-wrap">
-          <input id="pn-save-tags-input" class="pn-tag-badges__input" type="text" placeholder="Type a tag and press Space" />
+          <input id="pn-save-tags-input" class="pn-tag-badges__input" type="text" placeholder="Type a tag and press Space or Enter…" />
         </div>
+        <span class="pn-save-modal__hint">Press Space, Enter, or comma to add. Backspace removes the last badge.</span>
         <input id="pn-save-tags-hidden" type="hidden" />
       </label>
+      <div id="pn-save-tag-suggestions" class="pn-save-modal__suggestions pn-hidden"></div>
+      <div id="pn-save-duplicate-warning" class="pn-save-modal__warning pn-hidden"></div>
       <div class="pn-save-modal__actions">
         <button id="pn-save-cancel" class="pn-btn pn-btn--ghost" type="button">Cancel</button>
-        <button id="pn-save-confirm" class="pn-btn pn-btn--primary" type="button">Save</button>
+        <button id="pn-save-confirm" class="pn-btn pn-btn--primary" type="button">Save Prompt</button>
       </div>
     </div>
   `;
@@ -311,7 +617,7 @@
     const tagsHidden = modal.querySelector("#pn-save-tags-hidden");
     const badgesWrap = modal.querySelector("#pn-tag-badges-wrap");
 
-    pendingPromptText = String(currentText || "").trim();
+    pendingPromptText = sanitizePromptText(currentText);
 
     if (titleInput) {
       titleInput.value = "";
@@ -329,7 +635,18 @@
       badgesWrap.querySelectorAll(".pn-tag-badge").forEach((b) => b.remove());
     }
 
+    clearSaveModalSuggestions(modal);
+    setSaveModalDuplicateWarning(modal, null);
+    updateSaveModalPreview(modal, pendingPromptText);
+
+    if (titleInput) {
+      titleInput.value = deriveLocalPromptTitle(pendingPromptText);
+      titleInput.select();
+    }
+
     modal.classList.remove("pn-hidden");
+    tagsInput?.focus();
+    void maybeSuggestSaveModalTags(modal, pendingPromptText);
   };
 
   /** Hides the save prompt modal and clears pending input text state. */
@@ -359,6 +676,19 @@
       await closeSaveModal();
       return;
     }
+
+    const existingPrompts = await window.Store.getPrompts();
+    const duplicate = window.PromptDuplicate?.findDuplicate
+      ? window.PromptDuplicate.findDuplicate(
+          { title, text: pendingPromptText },
+          existingPrompts,
+          0.85,
+        )
+      : null;
+    setSaveModalDuplicateWarning(
+      modal,
+      duplicate?.duplicate ? duplicate.match : null,
+    );
 
     const saved = await window.Store.savePrompt({
       title,
@@ -396,8 +726,13 @@
     const tagBadgeInput = modal.querySelector("#pn-save-tags-input");
     const badgeWrap = modal.querySelector("#pn-tag-badges-wrap");
     const titleInput = modal.querySelector("#pn-save-title");
+    const closeButton = modal.querySelector("#pn-save-close");
+    const suggestTitleButton = modal.querySelector("#pn-save-generate-title");
 
     cancelButton?.addEventListener("click", () => {
+      void closeSaveModal();
+    });
+    closeButton?.addEventListener("click", () => {
       void closeSaveModal();
     });
 
@@ -420,6 +755,34 @@
       confirmButton?.click();
     });
 
+    titleInput?.addEventListener("input", () => {
+      setSaveModalDuplicateWarning(modal, null);
+    });
+
+    suggestTitleButton?.addEventListener("click", () => {
+      void (async () => {
+        if (!titleInput || !suggestTitleButton) return;
+        const fallbackTitle = deriveLocalPromptTitle(pendingPromptText);
+        const originalLabel = suggestTitleButton.textContent;
+
+        suggestTitleButton.disabled = true;
+        suggestTitleButton.textContent = "Thinking...";
+        try {
+          const response =
+            await window.AIBridge?.generatePromptTitle?.(pendingPromptText);
+          const aiTitle = String(response?.title || "").trim();
+          titleInput.value = aiTitle || fallbackTitle;
+        } catch (_error) {
+          titleInput.value = fallbackTitle;
+        } finally {
+          suggestTitleButton.disabled = false;
+          suggestTitleButton.textContent = originalLabel || "Suggest";
+          titleInput.focus();
+          titleInput.select();
+        }
+      })();
+    });
+
     modal.addEventListener("keydown", (event) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
@@ -433,6 +796,8 @@
           e.preventDefault();
           addTagBadge(val);
           tagBadgeInput.value = "";
+          clearSaveModalSuggestions(modal);
+          setSaveModalDuplicateWarning(modal, null);
         }
         if (e.key === "Backspace" && !tagBadgeInput.value) {
           const badges = modal.querySelectorAll(
@@ -449,13 +814,16 @@
         if (val) {
           addTagBadge(val);
           tagBadgeInput.value = "";
+          clearSaveModalSuggestions(modal);
         }
       });
     }
 
     if (badgeWrap && tagBadgeInput) {
       badgeWrap.addEventListener("click", (e) => {
-        if (e.target === badgeWrap) tagBadgeInput.focus();
+        const target = e.target instanceof Element ? e.target : null;
+        if (target?.closest(".pn-tag-badge__remove")) return;
+        tagBadgeInput.focus();
       });
     }
 
@@ -540,7 +908,7 @@
       return;
     }
 
-    const text = String(input.value || input.textContent || "").trim();
+    const text = sanitizePromptText(input.value || input.textContent || "");
 
     if (!text) {
       await showNotification("Cannot save an empty prompt.");

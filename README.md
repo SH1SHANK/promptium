@@ -2,6 +2,16 @@
 
 A Chrome extension for prompt management, semantic search, template variables, AI-assisted optimization, cross-LLM continuation, and conversation export. Operates entirely locally with no server backend.
 
+## Documentation
+
+- [docs/README.md](./docs/README.md) - documentation index and folder map
+- [docs/guides/SETUP.md](./docs/guides/SETUP.md) - detailed setup, loading, validation, and troubleshooting guide
+- [docs/reference/LOCALMODELS.md](./docs/reference/LOCALMODELS.md) - local embedding models, semantic search runtime, and fallback behavior
+- [docs/reference/AI_PROVIDERS.md](./docs/reference/AI_PROVIDERS.md) - provider configuration, supported models, key handling, and request routing
+- [CONTRIBUTING.md](./CONTRIBUTING.md) - contribution workflow and validation expectations
+- [SECURITY.md](./SECURITY.md) - vulnerability reporting and security boundaries
+- [docs/project/CHANGELOG.md](./docs/project/CHANGELOG.md) - release and change history
+
 ## Overview
 
 Promptium provides a unified interface for managing and deploying prompts across supported AI platforms (ChatGPT, Claude, Gemini, and 27 others). Features include a searchable prompt library, fill-in templates with optional variables, conversation bookmarks, multi-format export, and the ability to continue conversations across different LLM platforms.
@@ -92,13 +102,13 @@ cd promptium
 pnpm install
 ```
 
-2. Build Tailwind CSS:
+1. Build Tailwind CSS:
 
 ```bash
 pnpm build:sidepanel-css
 ```
 
-3. Load in Chrome:
+1. Load in Chrome:
    - Navigate to `chrome://extensions/`
    - Enable **Developer mode** (top right)
    - Click **Load unpacked** and select the `promptium` directory
@@ -176,7 +186,7 @@ Cleared when the browser closes. Never synced across devices.
 
 ### File Structure
 
-```
+```text
 promptium/
   manifest.json              Extension configuration
   package.json               Dependencies

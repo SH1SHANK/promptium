@@ -1128,7 +1128,8 @@ body.pn-sidepanel
 
 .pn-settings-panel {
   display: none;
-  animation: pnSettingsFadeIn var(--settings-section-dur) var(--settings-section-ease) both;
+  animation: pnSettingsFadeIn var(--settings-section-dur)
+    var(--settings-section-ease) both;
 }
 
 .pn-settings-panel.is-active {
@@ -1299,8 +1300,13 @@ body.pn-sidepanel
 }
 
 @keyframes pnPulse {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 .pn-settings-provider-chevron {
@@ -1348,7 +1354,9 @@ body.pn-sidepanel
   border-radius: 9px;
   background: var(--bg-surface);
   padding: 3px;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .pn-settings-key-row:focus-within {
@@ -1386,7 +1394,9 @@ body.pn-sidepanel
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
   flex-shrink: 0;
 }
 
@@ -1469,7 +1479,9 @@ body.pn-sidepanel
   background-repeat: no-repeat;
   background-position: right 10px center;
   padding-right: 28px;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .pn-settings-model-select:focus {
@@ -1600,7 +1612,9 @@ body.pn-sidepanel
   border: 1px solid var(--border-subtle);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.02);
-  transition: border-color 0.18s ease, background 0.15s ease;
+  transition:
+    border-color 0.18s ease,
+    background 0.15s ease;
   min-height: 40px;
 }
 
@@ -1610,7 +1624,11 @@ body.pn-sidepanel
 
 .pn-settings-embed-row.is-active {
   border-color: color-mix(in srgb, var(--accent) 30%, var(--border-default));
-  background: color-mix(in srgb, var(--accent-glow) 30%, rgba(255, 255, 255, 0.02));
+  background: color-mix(
+    in srgb,
+    var(--accent-glow) 30%,
+    rgba(255, 255, 255, 0.02)
+  );
 }
 
 .pn-settings-embed-dot {
@@ -1660,7 +1678,10 @@ body.pn-sidepanel
   font-weight: 600;
   cursor: pointer;
   flex-shrink: 0;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .pn-settings-embed-action:hover {
@@ -1697,8 +1718,13 @@ body.pn-sidepanel
 }
 
 @keyframes pnEmbedRowPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.72; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.72;
+  }
 }
 
 /* ── Progress bar inline ────────────────────────────────────────────────── */
@@ -1741,7 +1767,8 @@ body.pn-sidepanel
   justify-content: space-between;
   gap: 8px;
   padding: 8px 10px;
-  border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--border-default));
+  border: 1px solid
+    color-mix(in srgb, var(--warning) 30%, var(--border-default));
   border-radius: 9px;
   background: color-mix(in srgb, var(--warning) 8%, transparent);
   animation: pnSettingsFadeIn 180ms ease both;
@@ -1793,7 +1820,9 @@ body.pn-sidepanel
   background-repeat: no-repeat;
   background-position: right 10px center;
   padding-right: 28px;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .pn-settings-select:focus {
@@ -1946,4 +1975,50 @@ body.pn-sidepanel
 
 .pn-settings-status.is-error {
   color: var(--danger);
+}
+
+/* ── Permissions section ────────────────────────────────────────────────── */
+.pn-settings-row-host {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+}
+
+.pn-settings-quick-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.pn-settings-action-btn {
+  padding: 8px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.pn-settings-action-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--border-focus);
+}
+
+.pn-settings-action-btn:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.pn-settings-section-note {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 6px 10px;
+  margin: -8px 0 8px;
+  line-height: 1.4;
 }
