@@ -2537,8 +2537,6 @@ const PENDING_PANEL_ACTION_KEY = "promptiumPendingPanelAction";
 const PANEL_MODE_SESSION_KEY = "promptiumPanelMode";
 const FALLBACK_PANEL_WIDTH = 420;
 const FALLBACK_PANEL_HEIGHT = 720;
-const FALLBACK_PANEL_RIGHT_OFFSET = 24;
-const FALLBACK_PANEL_TOP_OFFSET = 56;
 const SUPPORTED_DOC_PATTERNS = [
   "*://*.chatgpt.com/*",
   "*://*.claude.ai/*",
@@ -2554,7 +2552,12 @@ const ALLOWED_LLM_HOSTS = new Set([
   "copilot.microsoft.com",
 ]);
 
+// Detect Arc browser and store the result
 const isArc = navigator.userAgent.includes("Arc");
+
+// Track the popup window ID for Arc/browsers without side panel support
+let popupWindowId = null;
+
 const isSidePanelSupported = () =>
   Boolean(chrome.sidePanel && typeof chrome.sidePanel.open === "function");
 let usePopupMode = isArc || !isSidePanelSupported();
@@ -2571,6 +2574,9 @@ const setPanelMode = async (mode) => {
     .set({ [PANEL_MODE_SESSION_KEY]: String(mode || "sidepanel") })
     .catch(() => {});
 };
+
+const shouldUsePopupMode = () =>
+  isArc || !isSidePanelSupported();
 
 const getSidePanelUrl = (route = "") => {
   const base = chrome.runtime.getURL(SIDE_PANEL_PATH);
@@ -2661,9 +2667,13 @@ const focusExistingPanel = async (route = "") => {
   return { ok: true, tab, reused: true };
 };
 
-const createPopupPanel = async ({ route = "", focus = true, windowId } = {}) => {
-  await setPanelMode("popup");
-  const { left, top } = await resolvePopupPlacement(windowId);
+const createPopupPanel = async ({ route = "", focus = true } = {}) => {
+  // Calculate position for top-right corner
+  const screenWidth = globalThis.screen?.width || 1920;
+  const screenHeight = globalThis.screen?.height || 1080;
+  const left = Math.max(0, screenWidth - FALLBACK_PANEL_WIDTH - 20);
+  const top = 40;
+
   const win = await chrome.windows.create({
     url: getSidePanelUrl(route),
     type: "popup",
@@ -2673,12 +2683,37 @@ const createPopupPanel = async ({ route = "", focus = true, windowId } = {}) => 
     top,
     focused: focus,
   });
-  fallbackPopupWindowId = typeof win?.id === "number" ? win.id : null;
-  return { ok: true, mode: "popup", tab: win?.tabs?.[0], reused: false };
+
+  // Track the window ID
+  if (win?.id) {
+    popupWindowId = win.id;
+  }
+
+  return { ok: true, mode: "popup", tab: win?.tabs?.[0], windowId: win?.id, reused: false };
 };
 
-const openPopupPanel = async ({ route = "", focus = true, windowId } = {}) => {
-  await setPanelMode("popup");
+const openPopupPanel = async ({ route = "", focus = true } = {}) => {
+  // Check if we have a tracked popup window that's still open
+  if (popupWindowId) {
+    try {
+      const win = await chrome.windows.get(popupWindowId);
+      if (win) {
+        // Existing popup window found, focus it
+        await chrome.windows.update(popupWindowId, { focused: true });
+        return {
+          ok: true,
+          mode: "popup",
+          windowId: popupWindowId,
+          reused: true,
+        };
+      }
+    } catch (_error) {
+      // Window no longer exists, clear the ID
+      popupWindowId = null;
+    }
+  }
+
+  // Fallback: search for existing panel tab (for backwards compatibility)
   const existing = await focusExistingPanel(route);
   if (existing) {
     return {
@@ -2688,7 +2723,8 @@ const openPopupPanel = async ({ route = "", focus = true, windowId } = {}) => {
       reused: true,
     };
   }
-  return await createPopupPanel({ route, focus, windowId });
+
+  return await createPopupPanel({ route, focus });
 };
 
 const openPromptiumPanel = async ({
@@ -2697,7 +2733,8 @@ const openPromptiumPanel = async ({
   route = "",
   pendingAction = null,
 } = {}) => {
-  if (!usePopupMode && isSidePanelSupported()) {
+  // If we should use popup mode (Arc or no side panel support), skip side panel attempt
+  if (!shouldUsePopupMode() && isSidePanelSupported()) {
     try {
       if (tabId && windowId) {
         await chrome.sidePanel.open({ tabId, windowId });
@@ -2846,6 +2883,13 @@ chrome.action.onClicked.addListener((tab) => {
       );
     },
   );
+});
+
+// Clean up tracked popup window ID when window is closed
+chrome.windows.onRemoved.addListener((windowId) => {
+  if (windowId === popupWindowId) {
+    popupWindowId = null;
+  }
 });
 
 /** Handles extension install lifecycle and applies initial storage and side panel setup. */
