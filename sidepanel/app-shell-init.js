@@ -767,6 +767,32 @@
   };
 
   const init = async () => {
+    // Detect if running in popup mode (Arc or browsers without side panel support)
+    const isPopupMode = !chrome.sidePanel || typeof chrome.sidePanel.open !== "function";
+
+    // Add close button for popup mode
+    if (isPopupMode) {
+      const header = document.querySelector(".pn-header-actions");
+      if (header) {
+        const closeBtn = document.createElement("button");
+        closeBtn.id = "popup-close-btn";
+        closeBtn.className = "pn-btn pn-btn--ghost pn-icon-btn pn-popup-close";
+        closeBtn.type = "button";
+        closeBtn.title = "Close";
+        closeBtn.setAttribute("aria-label", "Close");
+        closeBtn.innerHTML = `
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        `;
+        closeBtn.addEventListener("click", () => {
+          window.close();
+        });
+        header.appendChild(closeBtn);
+      }
+    }
+
     window.PromptsUI.setCallbacks({
       onOpenImprove: (promptId, text, tags, options = {}) =>
         window.ImproveUI.open(promptId, text, tags, options),
