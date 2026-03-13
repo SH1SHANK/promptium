@@ -2534,6 +2534,7 @@ const handleAIMessage = async (message, sendResponse) => {
 const SIDE_PANEL_PATH = "sidepanel/sidepanel.html";
 const SIDEPANEL_SESSION_KEY = BRAND_KEYS.sidePanelPayload;
 const PENDING_PANEL_ACTION_KEY = "promptiumPendingPanelAction";
+const PANEL_MODE_SESSION_KEY = "promptiumPanelMode";
 const FALLBACK_PANEL_WIDTH = 420;
 const FALLBACK_PANEL_HEIGHT = 720;
 const SUPPORTED_DOC_PATTERNS = [
@@ -2559,6 +2560,20 @@ let popupWindowId = null;
 
 const isSidePanelSupported = () =>
   Boolean(chrome.sidePanel && typeof chrome.sidePanel.open === "function");
+let usePopupMode = isArc || !isSidePanelSupported();
+let fallbackPopupWindowId = null;
+
+chrome.windows.onRemoved.addListener((windowId) => {
+  if (windowId === fallbackPopupWindowId) {
+    fallbackPopupWindowId = null;
+  }
+});
+
+const setPanelMode = async (mode) => {
+  await chrome.storage.session
+    .set({ [PANEL_MODE_SESSION_KEY]: String(mode || "sidepanel") })
+    .catch(() => {});
+};
 
 const shouldUsePopupMode = () =>
   isArc || !isSidePanelSupported();
@@ -2567,6 +2582,39 @@ const getSidePanelUrl = (route = "") => {
   const base = chrome.runtime.getURL(SIDE_PANEL_PATH);
   const clean = String(route || "").replace(/^#/, "").trim();
   return clean ? `${base}#${clean}` : base;
+};
+
+const resolvePopupPlacement = async (windowId) => {
+  const screenWidth = Number(globalThis?.screen?.width || 0);
+  const screenHeight = Number(globalThis?.screen?.height || 0);
+  let left = screenWidth
+    ? screenWidth - FALLBACK_PANEL_WIDTH - FALLBACK_PANEL_RIGHT_OFFSET
+    : 0;
+  let top = FALLBACK_PANEL_TOP_OFFSET;
+
+  if (!screenWidth || !screenHeight) {
+    const anchorWindow =
+      (windowId ? await chrome.windows.get(windowId).catch(() => null) : null) ||
+      (await chrome.windows.getLastFocused().catch(() => null));
+    if (anchorWindow) {
+      const anchorLeft = Number(anchorWindow.left || 0);
+      const anchorTop = Number(anchorWindow.top || 0);
+      const anchorWidth = Number(anchorWindow.width || FALLBACK_PANEL_WIDTH);
+      left =
+        anchorLeft +
+        anchorWidth -
+        FALLBACK_PANEL_WIDTH -
+        FALLBACK_PANEL_RIGHT_OFFSET;
+      top = anchorTop + FALLBACK_PANEL_TOP_OFFSET;
+    }
+  }
+
+  const maxLeft = Math.max(0, screenWidth - FALLBACK_PANEL_WIDTH);
+  const maxTop = Math.max(0, screenHeight - FALLBACK_PANEL_HEIGHT);
+  return {
+    left: Math.max(0, Math.min(Math.round(left), maxLeft || Math.round(left))),
+    top: Math.max(0, Math.min(Math.round(top), maxTop || Math.round(top))),
+  };
 };
 
 const stashPendingPanelAction = async (action = null) => {
@@ -2578,11 +2626,36 @@ const stashPendingPanelAction = async (action = null) => {
 
 const focusExistingPanel = async (route = "") => {
   const base = chrome.runtime.getURL(SIDE_PANEL_PATH);
+  if (Number.isInteger(fallbackPopupWindowId)) {
+    const knownWindow = await chrome.windows
+      .get(fallbackPopupWindowId, { populate: true })
+      .catch(() => null);
+    if (knownWindow?.id) {
+      const panelTab =
+        knownWindow.tabs?.find((tab) =>
+          String(tab?.url || "").startsWith(base),
+        ) || knownWindow.tabs?.[0];
+      await chrome.windows
+        .update(knownWindow.id, { focused: true })
+        .catch(() => {});
+      if (panelTab?.id) {
+        await chrome.tabs
+          .update(panelTab.id, { active: true, url: getSidePanelUrl(route) })
+          .catch(() => {});
+      }
+      return { ok: true, tab: panelTab, reused: true };
+    }
+    fallbackPopupWindowId = null;
+  }
+
   const tabs = await chrome.tabs
     .query({ url: `${base}*` })
     .catch(() => []);
   if (!tabs.length) return null;
   const tab = tabs[0];
+  if (tab.windowId) {
+    fallbackPopupWindowId = tab.windowId;
+  }
   if (tab.windowId) {
     await chrome.windows.update(tab.windowId, { focused: true }).catch(() => {});
   }
@@ -2678,9 +2751,10 @@ const openPromptiumPanel = async ({
           await chrome.sidePanel.open({ tabId: tab.id, windowId: tab.windowId });
         }
       }
+      await setPanelMode("sidepanel");
       return { ok: true, mode: "sidepanel" };
     } catch (_error) {
-      // Fallback to popup
+      usePopupMode = true;
     }
   }
 
@@ -2699,10 +2773,10 @@ const openPromptiumPanel = async ({
     }
 
     await stashPendingPanelAction(pendingAction);
-    return await createPopupPanel({ route });
+    return await createPopupPanel({ route, windowId });
   }
 
-  return await openPopupPanel({ route });
+  return await openPopupPanel({ route, windowId });
 };
 
 /** Ensures prompts and chatHistory keys exist in storage without overwriting existing data. */

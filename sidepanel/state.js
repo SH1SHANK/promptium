@@ -7,6 +7,7 @@
   const KEYS = Object.freeze({
     SIDEPANEL_SESSION_KEY: "promptiumSidePanelPayload",
     PENDING_PANEL_ACTION_KEY: "promptiumPendingPanelAction",
+    PANEL_MODE_KEY: "promptiumPanelMode",
     SETTINGS_KEY: "promptiumSettings",
     GEMINI_KEY: "promptiumGeminiKey",
     OPENAI_KEY: "promptiumOpenAIKey",

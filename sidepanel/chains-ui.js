@@ -25,8 +25,7 @@
 
   const byIdSafe = (id) =>
     window.byId ? window.byId(id) : document.getElementById(id);
-  const showToast =
-    window.showToast || (async () => {});
+  const showToast = window.showToast || (async () => {});
 
   const clampText = (value, limit = 12000) =>
     String(value || "")
@@ -61,7 +60,10 @@
   const setMode = (mode) => {
     localState.mode = mode === "editor" ? "editor" : "list";
     getListView()?.classList.toggle("pn-hidden", localState.mode !== "list");
-    getEditorView()?.classList.toggle("pn-hidden", localState.mode !== "editor");
+    getEditorView()?.classList.toggle(
+      "pn-hidden",
+      localState.mode !== "editor",
+    );
   };
 
   const loadChains = async () => {
@@ -143,11 +145,12 @@
     return localState.activeRun;
   };
 
-  const getEditableGuard = (run) =>
-    Boolean(run && run.status === "running");
+  const getEditableGuard = (run) => Boolean(run && run.status === "running");
 
   const filterChains = (chains, filter) => {
-    const query = String(filter || "").trim().toLowerCase();
+    const query = String(filter || "")
+      .trim()
+      .toLowerCase();
     if (!query) return chains;
     return chains.filter((chain) => {
       const titleMatch = String(chain.title || "")
@@ -259,8 +262,7 @@
           onAction: () => {
             void openNewChain();
           },
-        }) ||
-          document.createElement("div"),
+        }) || document.createElement("div"),
       );
       return;
     }
@@ -594,8 +596,12 @@
     const generateBtn = document.createElement("button");
     generateBtn.type = "button";
     generateBtn.className = "pn-btn pn-btn--ghost";
-    generateBtn.textContent = chain.steps?.length ? "Regenerate Steps" : "Generate Steps";
-    const hasActiveRun = Boolean(run && run.status !== "completed" && run.status !== "failed");
+    generateBtn.textContent = chain.steps?.length
+      ? "Regenerate Steps"
+      : "Generate Steps";
+    const hasActiveRun = Boolean(
+      run && run.status !== "completed" && run.status !== "failed",
+    );
     generateBtn.disabled = isEditingLocked || hasActiveRun;
     generateBtn.addEventListener("click", () => {
       void generateSteps();
@@ -621,14 +627,12 @@
       stepsContainer.appendChild(
         window.createEmptyState?.({
           title: "No steps yet",
-          message:
-            "Generate steps from your goal, or add them manually.",
+          message: "Generate steps from your goal, or add them manually.",
           actionLabel: "Add Step",
           onAction: () => {
             addStepAfter(null);
           },
-        }) ||
-          document.createElement("div"),
+        }) || document.createElement("div"),
       );
     } else {
       steps.forEach((step, index) => {
@@ -917,7 +921,11 @@
     }
 
     try {
-      const response = await window.AIBridge.improvePrompt(step.prompt, [], "general");
+      const response = await window.AIBridge.improvePrompt(
+        step.prompt,
+        [],
+        "general",
+      );
       if (response?.ok && response.text) {
         step.prompt = clampText(response.text, 12000);
         scheduleAutosave();
@@ -974,17 +982,21 @@
     }
 
     try {
-      const response = await window.AIBridge.generatePromptChain(goal, "", "full");
+      const response = await window.AIBridge.generatePromptChain(
+        goal,
+        "",
+        "full",
+      );
       if (!response?.ok || !Array.isArray(response.steps)) {
-        await showToast(response?.error || "Step generation failed. Try again.");
+        await showToast(
+          response?.error || "Step generation failed. Try again.",
+        );
         return;
       }
 
       const nextSteps = response.steps.map((step, index) => ({
         id: crypto.randomUUID(),
-        title:
-          clampText(step.title || "", 80) ||
-          `Step ${index + 1}`,
+        title: clampText(step.title || "", 80) || `Step ${index + 1}`,
         prompt: clampText(step.prompt || "", 12000),
         statusDraft: "pending",
       }));
@@ -992,7 +1004,9 @@
       chain.title = normalizeChainTitle(response.title || chain.title, goal);
       const filtered = nextSteps.filter((step) => step.prompt);
       if (!filtered.length) {
-        await showToast("No usable steps returned. Refine the goal and try again.");
+        await showToast(
+          "No usable steps returned. Refine the goal and try again.",
+        );
         return;
       }
       chain.steps = filtered;
@@ -1012,7 +1026,9 @@
   const prepareRunContext = async () => {
     const context = await window.getActiveTabContext?.();
     if (!context?.tabId) {
-      await showToast("No active tab found. Open a supported LLM tab and retry.");
+      await showToast(
+        "No active tab found. Open a supported LLM tab and retry.",
+      );
       return null;
     }
     if (!context.supported) {
@@ -1102,7 +1118,10 @@
   const requestPause = async (_reason = "") => {
     const run = localState.activeRun;
     if (!run || run.status !== "running") return;
-    if (run.execution?.waitPhase === "awaiting" || run.execution?.waitPhase === "streaming") {
+    if (
+      run.execution?.waitPhase === "awaiting" ||
+      run.execution?.waitPhase === "streaming"
+    ) {
       run.execution.pauseAfterStep = true;
       await setActiveRun(run);
       await renderEditor();
@@ -1212,7 +1231,11 @@
     const run = localState.activeRun;
     if (!run || run.status !== "running") return;
     if (!run.steps[run.currentStepIndex]) return;
-    if (run.execution?.waitPhase !== "awaiting" && run.execution?.waitPhase !== "streaming") return;
+    if (
+      run.execution?.waitPhase !== "awaiting" &&
+      run.execution?.waitPhase !== "streaming"
+    )
+      return;
 
     const fingerprint = await fetchConversationFingerprint(run.tabId);
     if (!fingerprint) {
@@ -1222,9 +1245,7 @@
       stopRunPolling();
       await renderEditor();
       if (shouldToast()) {
-        await showToast(
-          "Chain paused — open a supported LLM tab to resume.",
-        );
+        await showToast("Chain paused — open a supported LLM tab to resume.");
       }
       return;
     }
@@ -1257,7 +1278,9 @@
       return;
     }
     if (!run.tabId) {
-      await showToast("No active tab found. Open a supported LLM tab and retry.");
+      await showToast(
+        "No active tab found. Open a supported LLM tab and retry.",
+      );
       return;
     }
 
@@ -1304,14 +1327,18 @@
     const completed = chain.steps.slice(0, run.currentStepIndex);
     const nextSteps = ai.steps.map((step, index) => ({
       id: crypto.randomUUID(),
-      title: clampText(step.title || "", 80) || `Step ${completed.length + index + 1}`,
+      title:
+        clampText(step.title || "", 80) ||
+        `Step ${completed.length + index + 1}`,
       prompt: clampText(step.prompt || "", 12000),
       statusDraft: "pending",
     }));
 
     const merged = [...completed, ...nextSteps].filter((step) => step.prompt);
     if (merged.length === completed.length) {
-      await showToast("No new steps generated. Refine the branch request and try again.");
+      await showToast(
+        "No new steps generated. Refine the branch request and try again.",
+      );
       return;
     }
     chain.steps = merged;

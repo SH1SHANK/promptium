@@ -293,6 +293,25 @@
     }
   };
 
+  const isPopupMode = async () => {
+    if (typeof chrome?.sidePanel === "undefined") {
+      return true;
+    }
+
+    try {
+      const snapshot = await chrome.storage.session.get([KEYS.PANEL_MODE_KEY]);
+      return snapshot?.[KEYS.PANEL_MODE_KEY] === "popup";
+    } catch (_error) {
+      return false;
+    }
+  };
+
+  const syncPopupCloseButton = async () => {
+    const closeBtn = byId("panel-close-btn");
+    if (!closeBtn) return;
+    closeBtn.classList.toggle("hidden", !(await isPopupMode()));
+  };
+
   const isTabEnabledBySettings = (tabName) => {
     const tabs = state.settings?.visibleTabs || {};
     if (tabName === "prompts") return tabs.prompts !== false;
@@ -490,6 +509,9 @@
 
     byId("refresh-btn")?.addEventListener("click", () => {
       void performWorkspaceRefresh();
+    });
+    byId("panel-close-btn")?.addEventListener("click", () => {
+      window.close();
     });
 
     document.getElementById("pn-smart-close")?.addEventListener("click", () => {
@@ -842,6 +864,7 @@
     });
 
     await bindShellEvents();
+    await syncPopupCloseButton();
     bindModalScrollLock();
     window.PromptsUI.bindSearchHandlers();
     window.PromptForm.bindEvents();
