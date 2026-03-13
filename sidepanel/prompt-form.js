@@ -50,6 +50,24 @@
       max > 0 ? `${value.length}/${max}` : String(value.length);
   };
 
+  const updateTokenCount = (counterId, inputId) => {
+    const counter = byIdSafe(counterId);
+    const input = byIdSafe(inputId);
+    if (!counter || !input || !window.TokenCounter) return;
+    const text = String(input.value || "");
+    if (!text) {
+      counter.textContent = "";
+      counter.className = "pn-token-count pn-hidden";
+      return;
+    }
+    const provider = String(state.settings?.activeProvider || "").toLowerCase();
+    const { count, isExact } = window.TokenCounter.count(text, provider);
+    const warn = count > window.TokenCounter.TOKEN_WARN_THRESHOLD;
+    counter.textContent = window.TokenCounter.format(count, isExact);
+    counter.title = window.TokenCounter.tooltip(isExact);
+    counter.className = `pn-token-count${warn ? " pn-token-count--warn" : ""}`;
+  };
+
   const autoGrowTextarea = (textareaId) => {
     const textarea = byIdSafe(textareaId);
     if (!(textarea instanceof HTMLTextAreaElement)) return;
@@ -70,6 +88,8 @@
     updateCounter("pn-count-prompt-text", "prompt-text");
     updateCounter("pn-count-template-title", "pn-template-title");
     updateCounter("pn-count-template-text", "pn-template-text");
+    updateTokenCount("pn-token-prompt-text", "prompt-text");
+    updateTokenCount("pn-token-template-text", "pn-template-text");
     autoGrowTextarea("prompt-text");
     autoGrowTextarea("pn-template-text");
   };
@@ -809,7 +829,7 @@
       const prompts = await window.Store.getPrompts();
       const index = prompts.findIndex((p) => p.id === editingPromptId);
       if (index === -1) {
-        await showToast("Prompt not found — it may have been deleted.");
+        await showToast("Prompt not found. Refresh your library and try again.");
         return false;
       }
       const updated = {
@@ -830,7 +850,7 @@
         await showToast(
           isQuota
             ? "Storage quota exceeded. Delete older prompts or chat history, then try again."
-            : "Update failed.",
+            : "Update failed. Try again.",
         );
         return false;
       }
@@ -848,7 +868,7 @@
           if (window.AppShell?.switchTab)
             await window.AppShell.switchTab("history");
         } else {
-          await showToast("Save failed.");
+          await showToast("Save failed. Try again.");
         }
         return false;
       }

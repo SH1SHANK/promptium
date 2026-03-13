@@ -69,6 +69,16 @@ const autoGrowTextarea = (textareaId) => {
   textarea.style.overflowY = nextHeight > 420 ? 'auto' : 'hidden';
 };
 
+const renderSkeletonList = (container, count = 4) => {
+  if (!container) return;
+  container.innerHTML = '';
+  for (let i = 0; i < count; i += 1) {
+    const skel = document.createElement('div');
+    skel.className = 'pn-skeleton';
+    container.appendChild(skel);
+  }
+};
+
 const scheduleAddModalTextareaSizing = () => {
   requestAnimationFrame(() => {
     autoGrowTextarea('prompt-text');
@@ -542,18 +552,31 @@ const createPromptCard = async (prompt, activeFilter, canInject, options = {}) =
   const actions = document.createElement('div');
   actions.className = 'pn-card-actions';
 
-  const injectNow = async (text, options = {}) => {
+  const injectNow = async (text, options = {}, button = null) => {
     const asIsMode = Boolean(options.asIsMode);
-    const response = await sendToActiveTab({ action: 'injectPrompt', text });
-    if (!response?.ok) {
-      await showToast(response?.error || 'Inject failed.');
-      return false;
+    if (button) {
+      button.classList.add('pn-loading-state');
+      button.disabled = true;
     }
-    if (asIsMode) {
-      await showToast('Injected — fill in the [brackets] in the chat');
+    try {
+      const response = await sendToActiveTab({ action: 'injectPrompt', text });
+      if (!response?.ok) {
+        await showToast(
+          response?.error || 'Inject failed. Check the active tab and try again.'
+        );
+        return false;
+      }
+      if (asIsMode) {
+        await showToast('Injected — fill in the [brackets] in the chat');
+      }
+      window.close();
+      return true;
+    } finally {
+      if (button) {
+        button.classList.remove('pn-loading-state');
+        button.disabled = false;
+      }
     }
-    window.close();
-    return true;
   };
 
   // Inject button
@@ -572,13 +595,13 @@ const createPromptCard = async (prompt, activeFilter, canInject, options = {}) =
     injectButton.addEventListener('click', () => {
       void (async () => {
         if (!hasVars) {
-          await injectNow(normalizedText, { asIsMode: false });
+          await injectNow(normalizedText, { asIsMode: false }, injectButton);
           return;
         }
         const rawText = window.TemplateParser?.fill
           ? window.TemplateParser.fill(normalizedText, {})
           : normalizedText;
-        await injectNow(rawText, { asIsMode: true });
+        await injectNow(rawText, { asIsMode: true }, injectButton);
       })();
     });
   }
@@ -598,7 +621,7 @@ const createPromptCard = async (prompt, activeFilter, canInject, options = {}) =
         void (async () => {
           await showTemplateFillForm(
             { title: prompt.title, text: normalizedText },
-            (filledText) => injectNow(filledText, { asIsMode: false })
+            (filledText) => injectNow(filledText, { asIsMode: false }, quickInjectButton)
           );
         })();
       });
@@ -619,7 +642,7 @@ const createPromptCard = async (prompt, activeFilter, canInject, options = {}) =
         if (saved) {
           await showToast('Template saved to library.');
         } else {
-          await showToast('Template save failed.');
+          await showToast('Template save failed. Try again.');
         }
         }
       }
@@ -641,9 +664,15 @@ const createPromptCard = async (prompt, activeFilter, canInject, options = {}) =
         title: 'Delete this prompt from your library.',
         tone: 'danger',
         onSelect: async () => {
+          const confirmed = await (window.PnDialog || window).confirm(
+            `Delete \"${prompt.title || 'Untitled prompt'}\"?`,
+            { title: 'Delete Prompt', confirmLabel: 'Delete', danger: true }
+          );
+          if (!confirmed) return;
+
           const deleted = await window.Store.deletePrompt(prompt.id);
           if (!deleted) {
-            await showToast('Delete failed.');
+            await showToast('Delete failed. Try again.');
             return;
           }
           await renderPrompts(activeFilter);
@@ -692,7 +721,7 @@ const createHistoryCard = async (entry) => {
     void (async () => {
       const result = await window.Exporter.exportChat(entry, 'pdf');
       if (!result.ok) {
-        await showToast(result.error || 'PDF export failed.');
+        await showToast(result.error || 'PDF export failed. Try again.');
       }
     })();
   });
@@ -704,9 +733,15 @@ const createHistoryCard = async (entry) => {
   deleteButton.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
   deleteButton.addEventListener('click', () => {
     void (async () => {
+      const confirmed = await (window.PnDialog || window).confirm(
+        `Delete \"${entry.title || 'Untitled chat'}\"?`,
+        { title: 'Delete History', confirmLabel: 'Delete', danger: true }
+      );
+      if (!confirmed) return;
+
       const deleted = await window.Store.deleteChatFromHistory(entry.id);
       if (!deleted) {
-        await showToast('Delete failed.');
+        await showToast('Delete failed. Try again.');
         return;
       }
       await renderHistory();
@@ -757,6 +792,7 @@ const renderPrompts = async (filter = '') => {
     return;
   }
 
+  renderSkeletonList(container, 4);
   const promptsRaw = await window.Store.getPrompts();
   const prompts = promptsRaw.map((prompt) => ({ ...prompt, text: normalizePromptText(prompt.text) }));
   const filtered = await filterPrompts(filter, prompts);
@@ -845,6 +881,7 @@ const renderHistory = async () => {
     return;
   }
 
+  renderSkeletonList(container, 3);
   const history = await window.Store.getChatHistory();
   const reversed = [...history].reverse();
   container.innerHTML = '';
@@ -1153,7 +1190,7 @@ const persistPrompt = async (payload) => {
     if (window.Store?.isQuotaError?.(storageError)) {
       await showToast('Storage quota exceeded. Delete older prompts or history items, then retry.');
     } else {
-      await showToast('Save failed.');
+      await showToast('Save failed. Try again.');
     }
     return false;
   }

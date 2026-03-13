@@ -63,12 +63,13 @@
     const code = String(v || "")
       .trim()
       .toLowerCase();
-    if (code === "no_ai_available") return "No AI available";
+    if (code === "no_ai_available")
+      return "No AI available. Add an API key in Settings and try again.";
     if (code.includes("quota") || code.includes("429"))
-      return "Rate limited — try again shortly";
+      return "Rate limited — try again in a minute.";
     if (code.includes("model_not_loaded") || code.includes("embedding model"))
-      return "Model not loaded";
-    return "Continue Chat failed";
+      return "Model not loaded. Open Settings and download the model.";
+    return "Continue failed. Try again.";
   };
 
   /* ——— UI Updates ——— */
@@ -88,7 +89,7 @@
     const messages = normalizeMessages(payload?.messages);
 
     if (!messages.length) {
-      summary.textContent = "No conversation loaded yet.";
+      summary.textContent = "Select a chat to continue.";
       setAdvisory("");
       return;
     }
@@ -133,14 +134,37 @@
     const container = byId("pn-continue-targets");
     if (!container) return;
 
+    const messageCount = normalizeMessages(localState.payload?.messages).length;
+    container.innerHTML = "";
+
+    if (!messageCount) {
+      container.appendChild(createEmptyState({
+        title: "No chat loaded",
+        message: "Open a chat tab or select messages to continue.",
+        actionLabel: "Load active chat",
+        onAction: () => {
+          void openFromActiveTab();
+        }
+      }));
+      return;
+    }
+
     const sourcePlatform = String(
       localState.payload?.platform || "",
     ).toLowerCase();
     const targets = getEligibleTargets(sourcePlatform);
-    container.innerHTML = "";
 
     if (!targets.length) {
-      container.innerHTML = `<p class="pn-sv-api-hint">No platforms enabled. Check Settings → LLM Platforms.</p>`;
+      container.appendChild(createEmptyState({
+        title: "No platforms enabled",
+        message: "Enable LLM platforms in Settings to continue.",
+        actionLabel: "Open Settings",
+        onAction: () => {
+          if (window.AppShell?.switchTab) {
+            void window.AppShell.switchTab("settings");
+          }
+        }
+      }));
       return;
     }
 
@@ -199,7 +223,7 @@
     if (!payload?.messages?.length) {
       payload = await loadFromActiveTab();
       if (!payload) {
-        await showToast("No conversation found to continue.");
+        await showToast("No conversation found. Open a chat tab and try again.");
         return;
       }
       localState.payload = payload;
@@ -209,7 +233,9 @@
 
     const llmUrl = window.Bridge?.LLM_URLS?.[target];
     if (!llmUrl) {
-      await showToast("Unsupported platform.");
+      await showToast(
+        "Unsupported platform. Switch to a supported LLM tab and retry.",
+      );
       return;
     }
 
@@ -328,7 +354,7 @@
   const openFromActiveTab = async () => {
     const payload = await loadFromActiveTab();
     if (!payload) {
-      await showToast("No conversation found to continue.");
+      await showToast("No conversation found. Open a chat tab and try again.");
       return false;
     }
     await openFromPayload(payload);
@@ -352,7 +378,7 @@
   const openPendingContinuation = async () => {
     const pending = localState.pendingHandoff;
     if (!pending?.text || !pending?.target || !pending?.llmUrl) {
-      await showToast("No handoff preview available.");
+      await showToast("No handoff preview available. Generate one and try again.");
       return;
     }
 
@@ -365,7 +391,9 @@
       .sendMessage({ action: "openLlmTab", url: pending.llmUrl })
       .catch(() => null);
     if (!opened?.ok) {
-      await showToast(opened?.error || "Could not open target platform.");
+      await showToast(
+        opened?.error || "Could not open target platform. Use Copy instead.",
+      );
       return;
     }
 
@@ -380,14 +408,14 @@
   const copyPendingContinuation = async () => {
     const text = String(localState.pendingHandoff?.text || "").trim();
     if (!text) {
-      await showToast("No handoff text to copy.");
+      await showToast("No handoff text to copy. Generate a handoff first.");
       return;
     }
     try {
       await navigator.clipboard.writeText(text);
       await showToast("Handoff copied ✓");
     } catch (_) {
-      await showToast("Copy failed");
+      await showToast("Copy failed. Try again.");
     }
   };
 

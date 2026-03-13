@@ -4,6 +4,10 @@
  * Purpose: Shared constants used across multiple extension contexts.
  */
 
+if (typeof chrome !== 'undefined' && chrome?.storage && !chrome.storage.session) {
+  chrome.storage.session = chrome.storage.local;
+}
+
 const PLATFORM_LABELS = {
   chatgpt: 'ChatGPT',
   claude: 'Claude',

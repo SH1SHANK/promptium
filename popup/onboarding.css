@@ -18,6 +18,11 @@
   --pn-ob-glass-bg: rgba(255, 255, 255, 0.03);
   --pn-ob-glass-border: rgba(255, 255, 255, 0.08);
   --pn-ob-surface: rgba(20, 21, 30, 0.9);
+  --pn-ob-dur-fast: var(--motion-fast, 150ms);
+  --pn-ob-dur-panel: var(--motion-panel, 200ms);
+  --pn-ob-dur-slow: var(--motion-slow, 240ms);
+  --pn-ob-ease: var(--motion-ease, cubic-bezier(0.2, 0, 0.2, 1));
+  --pn-ob-spring: var(--motion-spring, cubic-bezier(0.22, 1, 0.36, 1));
 }
 
 /* ===========================
@@ -35,7 +40,7 @@
   background: #08090d;
   overflow: hidden;
   border-radius: inherit;
-  animation: overlayReveal 0.45s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: overlayReveal var(--pn-ob-dur-panel) var(--pn-ob-ease) forwards;
 }
 
 /* Subtle depth gradient in the background */
@@ -53,7 +58,7 @@
 }
 
 #pn-onboarding.pn-ob-exit {
-  animation: overlayExit 0.35s cubic-bezier(0.4, 0, 1, 1) forwards;
+  animation: overlayExit var(--pn-ob-dur-panel) var(--pn-ob-ease) forwards;
 }
 
 @keyframes overlayReveal {
@@ -96,8 +101,8 @@
   z-index: 0;
   animation: glowBreathe 5s ease-in-out infinite;
   transition:
-    left 0.75s cubic-bezier(0.4, 0, 0.2, 1),
-    top 0.75s cubic-bezier(0.4, 0, 0.2, 1);
+    left var(--pn-ob-dur-panel) var(--pn-ob-ease),
+    top var(--pn-ob-dur-panel) var(--pn-ob-ease);
   transform: translate(-50%, -50%);
 }
 
@@ -117,8 +122,8 @@
   z-index: 0;
   animation: glowBreathe 6s ease-in-out 1.5s infinite;
   transition:
-    left 0.9s cubic-bezier(0.4, 0, 0.2, 1),
-    top 0.9s cubic-bezier(0.4, 0, 0.2, 1);
+    left var(--pn-ob-dur-panel) var(--pn-ob-ease),
+    top var(--pn-ob-dur-panel) var(--pn-ob-ease);
   transform: translate(-50%, -50%);
 }
 
@@ -166,12 +171,12 @@
 
 .pn-onboarding-card.active {
   pointer-events: auto;
-  animation: cardSlideUp 0.42s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: cardSlideUp var(--pn-ob-dur-panel) var(--pn-ob-spring) forwards;
 }
 
 .pn-onboarding-card.exit {
   pointer-events: none;
-  animation: cardSlideOut 0.22s cubic-bezier(0.4, 0, 1, 1) forwards;
+  animation: cardSlideOut var(--pn-ob-dur-fast) var(--pn-ob-ease) forwards;
 }
 
 @keyframes cardSlideUp {
@@ -209,7 +214,7 @@
 }
 
 .pn-onboarding-card.active .pn-ob-visual {
-  animation: fadeScale 0.45s cubic-bezier(0.22, 1, 0.36, 1) 60ms forwards;
+  animation: fadeScale var(--pn-ob-dur-panel) var(--pn-ob-spring) 60ms forwards;
 }
 
 @keyframes fadeScale {
@@ -251,7 +256,8 @@
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: charIn 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation: charIn var(--pn-ob-dur-panel) cubic-bezier(0.34, 1.56, 0.64, 1)
+    forwards;
 }
 
 @keyframes charIn {
@@ -280,7 +286,7 @@
   opacity: 0;
   transform: translateY(6px);
   filter: blur(4px);
-  animation: wordIn 0.5s ease forwards;
+  animation: wordIn var(--pn-ob-dur-panel) ease forwards;
 }
 
 @keyframes wordIn {
@@ -404,8 +410,8 @@
 .pn-ob-hint.typing {
   visibility: visible;
   animation:
-    typeOut 0.8s steps(30, end) forwards,
-    blinkCursor 0.8s step-end 3;
+    typeOut var(--pn-ob-dur-slow) steps(30, end) forwards,
+    blinkCursor var(--pn-ob-dur-slow) step-end 3;
 }
 
 .pn-ob-hint.typed {
@@ -464,7 +470,7 @@
 }
 
 .pn-onboarding-card.active .pn-onboarding-primary {
-  animation: fadeUp 0.4s ease 520ms forwards;
+  animation: fadeUp var(--pn-ob-dur-panel) ease var(--pn-ob-dur-panel) forwards;
 }
 
 .pn-onboarding-primary::before {
@@ -493,7 +499,7 @@
     transparent
   );
   transform: skewX(-15deg);
-  transition: left 0.5s ease;
+  transition: left var(--pn-ob-dur-fast) ease;
 }
 
 .pn-onboarding-primary:hover {
@@ -550,7 +556,7 @@
 }
 
 .pn-onboarding-card.active .pn-ob-skip {
-  animation: fadeIn 0.3s ease 650ms forwards;
+  animation: fadeIn var(--pn-ob-dur-panel) ease var(--pn-ob-dur-panel) forwards;
 }
 
 .pn-ob-skip:hover {
@@ -591,9 +597,9 @@
   border-radius: 3px;
   background: rgba(255, 255, 255, 0.1);
   transition:
-    width 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-    background 0.3s ease,
-    opacity 0.3s ease;
+    width var(--pn-ob-dur-panel) cubic-bezier(0.4, 0, 0.2, 1),
+    background var(--pn-ob-dur-panel) ease,
+    opacity var(--pn-ob-dur-panel) ease;
   opacity: 0;
   transform: scale(0);
   overflow: hidden;
@@ -602,7 +608,8 @@
 .pn-ob-dot.visible {
   opacity: 1;
   transform: scale(1);
-  animation: scaleIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation: scaleIn var(--pn-ob-dur-panel) cubic-bezier(0.34, 1.56, 0.64, 1)
+    forwards;
 }
 
 .pn-ob-dot.active {
@@ -622,14 +629,14 @@
     transparent 100%
   );
   border-radius: inherit;
-  animation: dotShimmer 1.8s ease infinite;
+  animation: dotShimmer var(--pn-ob-dur-slow) ease infinite;
 }
 
 .pn-ob-dot.visited {
   opacity: 0.6;
   transform: scale(1);
   background: rgba(var(--pn-ob-accent-rgb), 0.35);
-  animation: dotVisitedPulse 0.35s ease forwards;
+  animation: dotVisitedPulse var(--pn-ob-dur-panel) ease forwards;
 }
 
 @keyframes scaleIn {
@@ -726,7 +733,7 @@
 }
 
 .pn-ob-logo-svg.animate .logo-fill {
-  animation: fadeIn 0.25s ease 0.65s forwards;
+  animation: fadeIn var(--pn-ob-dur-panel) ease var(--pn-ob-dur-panel) forwards;
 }
 
 .pn-ob-logo-ring {
@@ -738,7 +745,7 @@
 }
 
 .pn-ob-logo-svg.animate .pn-ob-logo-ring {
-  animation: ringExpand 0.9s ease 0.1s forwards;
+  animation: ringExpand var(--pn-ob-dur-panel) ease var(--pn-ob-dur-fast) forwards;
 }
 
 /* Sparkles around logo */
@@ -774,7 +781,7 @@
 }
 
 .pn-ob-sparkle.reveal {
-  animation: sparkleIn 0.4s ease forwards;
+  animation: sparkleIn var(--pn-ob-dur-panel) ease forwards;
 }
 
 @keyframes sparkleIn {
@@ -884,7 +891,8 @@
 }
 
 .pn-ob-fill-badge.reveal {
-  animation: slideInRight 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: slideInRight var(--pn-ob-dur-panel) cubic-bezier(0.22, 1, 0.36, 1)
+    forwards;
 }
 
 @keyframes underlineGrow {
@@ -1003,7 +1011,7 @@
 }
 
 .pn-ob-platform-count.reveal {
-  animation: slideInRight 0.3s ease forwards;
+  animation: slideInRight var(--pn-ob-dur-panel) ease forwards;
 }
 
 .pn-ob-connect-line {
@@ -1025,7 +1033,7 @@
 }
 
 .pn-ob-connect-line.reveal path {
-  animation: strokeDraw 0.45s ease forwards;
+  animation: strokeDraw var(--pn-ob-dur-panel) ease forwards;
 }
 
 @keyframes platformIn {
@@ -1090,8 +1098,8 @@
   border-color: rgba(var(--pn-ob-accent-rgb), 0.22);
 }
 .pn-ob-format-tag[data-fmt="PDF"] {
-  color: rgba(248, 113, 113, 0.85);
-  border-color: rgba(248, 113, 113, 0.2);
+  color: rgba(var(--danger-rgb, 239, 68, 68), 0.85);
+  border-color: rgba(var(--danger-rgb, 239, 68, 68), 0.2);
 }
 .pn-ob-format-tag[data-fmt="JSON"] {
   color: rgba(250, 204, 21, 0.8);
@@ -1111,7 +1119,8 @@
 }
 
 .pn-ob-format-tag.reveal {
-  animation: tagReveal 0.35s cubic-bezier(0.34, 1.4, 0.64, 1) forwards;
+  animation: tagReveal var(--pn-ob-dur-panel) cubic-bezier(0.34, 1.4, 0.64, 1)
+    forwards;
 }
 
 @keyframes tagReveal {
@@ -1170,7 +1179,8 @@
 }
 
 .pn-ob-search-bar.reveal {
-  animation: slideFromTop 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: slideFromTop var(--pn-ob-dur-panel) cubic-bezier(0.22, 1, 0.36, 1)
+    forwards;
 }
 
 .pn-ob-search-icon {
@@ -1189,8 +1199,8 @@
 
 .pn-ob-search-bar.typing .pn-ob-search-query {
   animation:
-    searchType 0.6s steps(20, end) 0.2s forwards,
-    blinkCursor 0.8s step-end 4;
+    searchType var(--pn-ob-dur-slow) steps(20, end) var(--pn-ob-dur-fast) forwards,
+    blinkCursor var(--pn-ob-dur-slow) step-end 4;
 }
 
 .pn-ob-search-bar.typed .pn-ob-search-query {
@@ -1223,7 +1233,7 @@
 }
 
 .pn-ob-search-results.reveal {
-  animation: fadeIn 0.3s ease 0.7s forwards;
+  animation: fadeIn var(--pn-ob-dur-panel) ease var(--pn-ob-dur-panel) forwards;
 }
 
 .pn-ob-result-row {
@@ -1241,7 +1251,8 @@
 }
 
 .pn-ob-result-row.reveal {
-  animation: resultSlideIn 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: resultSlideIn var(--pn-ob-dur-panel) cubic-bezier(0.22, 1, 0.36, 1)
+    forwards;
 }
 
 .pn-ob-result-score {
@@ -1285,7 +1296,7 @@
 }
 
 .pn-ob-ai-badge.reveal {
-  animation: fadeScale 0.3s ease 80ms forwards;
+  animation: fadeScale var(--pn-ob-dur-panel) ease 80ms forwards;
 }
 
 .pn-ob-ai-dot {
@@ -1298,7 +1309,7 @@
 }
 
 .pn-ob-ai-dot.blink {
-  animation: greenBlink 0.4s step-end 2;
+  animation: greenBlink var(--pn-ob-dur-panel) step-end 2;
 }
 
 .pn-ob-ai-text .char {
@@ -1308,7 +1319,8 @@
   background: inherit;
   -webkit-background-clip: text;
   background-clip: text;
-  animation: charIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation: charIn var(--pn-ob-dur-panel) cubic-bezier(0.34, 1.56, 0.64, 1)
+    forwards;
 }
 
 @keyframes greenBlink {
@@ -1330,7 +1342,7 @@
 }
 
 .pn-ob-waveform.reveal {
-  animation: fadeIn 0.3s ease 400ms forwards;
+  animation: fadeIn var(--pn-ob-dur-panel) ease var(--pn-ob-dur-panel) forwards;
 }
 
 .pn-waveform-bar {
@@ -1346,15 +1358,15 @@
   height: 8px;
 }
 .pn-waveform-bar:nth-child(2) {
-  animation-delay: 0.2s;
+  animation-delay: var(--pn-ob-dur-fast);
   height: 14px;
 }
 .pn-waveform-bar:nth-child(3) {
-  animation-delay: 0.4s;
+  animation-delay: var(--pn-ob-dur-panel);
   height: 20px;
 }
 .pn-waveform-bar:nth-child(4) {
-  animation-delay: 0.2s;
+  animation-delay: var(--pn-ob-dur-fast);
   height: 14px;
 }
 .pn-waveform-bar:nth-child(5) {
@@ -1397,7 +1409,8 @@
 }
 
 .pn-ob-check-svg.animate .check-circle {
-  animation: strokeDraw 0.55s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: strokeDraw var(--pn-ob-dur-panel) cubic-bezier(0.4, 0, 0.2, 1)
+    forwards;
 }
 
 .pn-ob-check-svg .check-mark {
@@ -1411,7 +1424,7 @@
 }
 
 .pn-ob-check-svg.animate .check-mark {
-  animation: strokeDraw 0.3s ease 0.45s forwards;
+  animation: strokeDraw var(--pn-ob-dur-panel) ease var(--pn-ob-dur-panel) forwards;
 }
 
 .pn-ob-check-svg .check-fill {
@@ -1420,7 +1433,7 @@
 }
 
 .pn-ob-check-svg.animate .check-fill {
-  animation: fadeIn 0.25s ease 0.65s forwards;
+  animation: fadeIn var(--pn-ob-dur-panel) ease var(--pn-ob-dur-panel) forwards;
 }
 
 .pn-ob-check-ripple {
@@ -1435,7 +1448,8 @@
 }
 
 .pn-ob-check-ripple.animate {
-  animation: rippleExpand 0.7s ease 0.65s forwards;
+  animation: rippleExpand var(--pn-ob-dur-panel) ease var(--pn-ob-dur-panel)
+    forwards;
 }
 
 /* Second ripple ring */
@@ -1451,7 +1465,8 @@
 }
 
 .pn-ob-check-ripple-2.animate {
-  animation: rippleExpand 0.7s ease 0.9s forwards;
+  animation: rippleExpand var(--pn-ob-dur-panel) ease var(--pn-ob-dur-panel)
+    forwards;
 }
 
 @keyframes rippleExpand {

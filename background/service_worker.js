@@ -23,6 +23,10 @@ import {
   validateProviderKey,
 } from "../utils/provider-client.js";
 
+if (chrome?.storage && !chrome.storage.session) {
+  chrome.storage.session = chrome.storage.local;
+}
+
 // ─── AI State ────────────────────────────────────────────────────────────────
 
 const AI = {
@@ -47,6 +51,33 @@ const BRAND_KEYS = {
 const CONTINUATION_WORD_LIMIT = 300;
 const CONTINUATION_LONG_THRESHOLD = 20;
 const CONTEXT_MENU_SAVE_ID = "promptium-save-selection";
+
+// ─── Usage Logging ────────────────────────────────────────────────────────────
+
+const USAGE_LOG_KEY = "promptiumUsageLog";
+const USAGE_LOG_MAX = 1000;
+
+const logApiUsage = async (feature, provider, inputTokens, outputTokens = 0) => {
+  try {
+    const snap = await chrome.storage.local.get([USAGE_LOG_KEY]);
+    const log = Array.isArray(snap?.[USAGE_LOG_KEY]) ? snap[USAGE_LOG_KEY] : [];
+    log.push({
+      ts: Date.now(),
+      feature: String(feature || "other"),
+      provider: String(provider || "unknown").toLowerCase(),
+      inputTokens: Math.round(Math.max(0, Number(inputTokens) || 0)),
+      outputTokens: Math.round(Math.max(0, Number(outputTokens) || 0)),
+    });
+    if (log.length > USAGE_LOG_MAX) log.splice(0, log.length - USAGE_LOG_MAX);
+    await chrome.storage.local.set({ [USAGE_LOG_KEY]: log });
+  } catch (_) {
+    // Non-fatal
+  }
+};
+
+// Rough cl100k_base approximation: 1 token ≈ 4 chars
+const estimateTokensFromText = (text) =>
+  Math.ceil(String(text || "").length / 4);
 const EMBEDDING_META_FALLBACK = Object.freeze({
   activeModelId: String(getDefaultEmbeddingModel()?.id || "all-minilm-l6-v2"),
   downloadedModelIds: [],
@@ -484,6 +515,60 @@ const parseClarityFromText = (rawText, sourceText = "") => {
   return { score, explanation };
 };
 
+const parseChainFromText = (rawText, goal = "") => {
+  const text = String(rawText || "").trim();
+  const direct = safeJsonParse(text);
+  const parsed =
+    direct && typeof direct === "object"
+      ? direct
+      : safeJsonParse(text.match(/\{[\s\S]*\}/)?.[0] || "") ||
+        safeJsonParse(text.match(/\[[\s\S]*\]/)?.[0] || "");
+
+  let title = "";
+  let stepsRaw = [];
+
+  if (Array.isArray(parsed)) {
+    stepsRaw = parsed;
+  } else if (parsed && typeof parsed === "object") {
+    title = String(parsed.title || "").trim();
+    stepsRaw = Array.isArray(parsed.steps) ? parsed.steps : [];
+  }
+
+  const steps = stepsRaw
+    .map((step, index) => {
+      if (typeof step === "string") {
+        return {
+          title: `Step ${index + 1}`,
+          prompt: clampText(step, 12000),
+        };
+      }
+      if (!step || typeof step !== "object") return null;
+      const prompt = clampText(
+        step.prompt || step.text || step.instruction || "",
+        12000,
+      );
+      const stepTitle = clampText(step.title || step.name || "", 80);
+      if (!prompt) return null;
+      return {
+        title: stepTitle || `Step ${index + 1}`,
+        prompt,
+      };
+    })
+    .filter(Boolean);
+
+  if (!steps.length) {
+    return {
+      title: title || deriveFallbackTitle(goal),
+      steps: [],
+    };
+  }
+
+  return {
+    title: title || deriveFallbackTitle(goal),
+    steps,
+  };
+};
+
 const getAiRuntimeSettings = async () => {
   const DEFAULT_RUNTIME_SETTINGS = Object.freeze({
     activeProvider: PROVIDER_IDS.GEMINI,
@@ -505,6 +590,7 @@ const getAiRuntimeSettings = async () => {
     },
     visibleTabs: {
       prompts: true,
+      chains: true,
       export: true,
       history: true,
       tags: true,
@@ -557,6 +643,7 @@ const getAiRuntimeSettings = async () => {
     const source = asObject(value);
     return {
       prompts: source.prompts !== false,
+      chains: source.chains !== false,
       export: source.export !== false,
       history: source.history !== false,
       tags: source.tags !== false,
@@ -692,6 +779,7 @@ const getProviderApiKey = async (providerId = PROVIDER_IDS.GEMINI) => {
 
 const runWithConfiguredBackend = async ({
   feature = "",
+  inputText = "",
   cloudTask,
   forceProvider = "",
   forceGemini = false,
@@ -738,6 +826,15 @@ const runWithConfiguredBackend = async ({
         ? noGeminiMessage
         : noCloudMessage;
     throw new Error(String(routed?.error || fallbackMessage));
+  }
+
+  // Log usage (fire and forget — non-fatal)
+  if (feature) {
+    const usedProvider = String(routed.backend || runtime.activeProvider || "unknown").toLowerCase();
+    const inputTokens = estimateTokensFromText(inputText);
+    const outputText = String(routed.text || routed.improved || routed.title || routed.summary || routed.handoff || "");
+    const outputTokens = estimateTokensFromText(outputText);
+    void logApiUsage(feature, usedProvider, inputTokens, outputTokens);
   }
 
   return routed;
@@ -1481,6 +1578,7 @@ async function suggestTags(promptText) {
   try {
     const result = await runWithConfiguredBackend({
       feature: "autoTags",
+      inputText: source,
       cloudTask: ({ providerId, apiKey, modelId }) =>
         suggestTagsViaCloudStrict({
           providerId,
@@ -1628,7 +1726,8 @@ async function getSmartSuggestions(conversationText) {
     const userMessage = `Conversation:\n${safeConversation}\n\nSaved prompts:\n${promptList}`;
 
     const routed = await runWithConfiguredBackend({
-      feature: "improvePrompt",
+      feature: "suggestions",
+      inputText: userMessage,
       cloudTask: ({ providerId, apiKey, modelId }) =>
         callProviderTextTask({
           providerId,
@@ -1824,6 +1923,7 @@ async function buildContinuationHandoff(
   try {
     const result = await runWithConfiguredBackend({
       feature: "continueSummary",
+      inputText: safeMessages.map((m) => String(m?.content || m?.text || "")).join(" "),
       forceProvider,
       geminiApiKey: key,
       cloudTask: ({ providerId, apiKey, modelId }) =>
@@ -1919,10 +2019,103 @@ async function scorePromptClarityViaCloudStrict({
   return parseClarityFromText(raw, source);
 }
 
+const generatePromptChainViaCloudStrict = async ({
+  providerId,
+  apiKey,
+  modelId,
+  goal,
+  context = "",
+  mode = "full",
+}) => {
+  const sourceGoal = clampText(goal, 3200);
+  if (!sourceGoal) {
+    throw new Error("Empty goal provided.");
+  }
+
+  const contextBlock = clampText(context, 5200);
+  const modeLabel = String(mode || "full").trim().toLowerCase();
+  const baseRules = [
+    "You are Promptium, a prompt-chain planner.",
+    "Break the goal into 3-7 sequential prompts a user would send to an LLM.",
+    "Each step must be actionable, self-contained, and build toward the goal.",
+    "Return strict JSON only in this shape:",
+    '{"title":"Short chain title","steps":[{"title":"Step 1 title","prompt":"Step 1 prompt"}]}',
+    "No markdown. No prose. No extra keys.",
+    "Keep titles under 60 characters and prompts under 1200 characters.",
+  ];
+
+  if (modeLabel === "branch") {
+    baseRules.push(
+      "You are revising the remaining steps based on the conversation context.",
+    );
+    baseRules.push("Do not repeat steps that are already complete.");
+  }
+
+  const systemPrompt = baseRules.join("\n");
+  const userPrompt = [
+    `Goal:\n${sourceGoal}`,
+    contextBlock ? `\nContext so far:\n${contextBlock}` : "",
+  ]
+    .join("\n")
+    .trim();
+
+  const raw = await callProviderTextTask({
+    providerId,
+    apiKey,
+    modelId,
+    systemPrompt,
+    userPrompt,
+  });
+
+  const parsed = parseChainFromText(raw, sourceGoal);
+  if (!parsed.steps.length) {
+    throw new Error("No steps generated.");
+  }
+  return parsed;
+};
+
+const generatePromptChain = async (goal, context = "", mode = "full") => {
+  const sourceGoal = clampText(goal, 3200);
+  if (!sourceGoal) {
+    return { ok: false, error: "Empty goal provided." };
+  }
+
+  try {
+    const result = await runWithConfiguredBackend({
+      feature: "chain",
+      inputText: sourceGoal,
+      cloudTask: ({ providerId, apiKey, modelId }) =>
+        generatePromptChainViaCloudStrict({
+          providerId,
+          apiKey,
+          modelId,
+          goal: sourceGoal,
+          context,
+          mode,
+        }),
+      noCloudMessage: "No cloud API key found in Settings.",
+    });
+
+    return {
+      ok: true,
+      title: String(result?.title || "").trim(),
+      steps: Array.isArray(result?.steps) ? result.steps : [],
+      backend: result.backend,
+      advisory: result?.advisory || undefined,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: String(error?.message || "Failed to generate chain."),
+    };
+  }
+};
+
 const improvePrompt = async (text, tags = [], style = "general") => {
   try {
     const result = await runWithConfiguredBackend({
       feature: "improvePrompt",
+      inputText: text,
       cloudTask: ({ providerId, apiKey, modelId }) =>
         improvePromptViaCloudStrict({
           providerId,
@@ -1956,7 +2149,8 @@ const generatePromptTitle = async (text) => {
 
   try {
     const result = await runWithConfiguredBackend({
-      feature: "",
+      feature: "title",
+      inputText: source,
       cloudTask: ({ providerId, apiKey, modelId }) =>
         generatePromptTitleViaCloudStrict({
           providerId,
@@ -1993,6 +2187,7 @@ const paraphrasePrompt = async (text) => {
   try {
     const result = await runWithConfiguredBackend({
       feature: "polish",
+      inputText: source,
       cloudTask: ({ providerId, apiKey, modelId }) =>
         paraphrasePromptViaCloudStrict({
           providerId,
@@ -2033,6 +2228,7 @@ const scorePromptClarity = async (text) => {
   try {
     const result = await runWithConfiguredBackend({
       feature: "polish",
+      inputText: source,
       cloudTask: ({ providerId, apiKey, modelId }) =>
         scorePromptClarityViaCloudStrict({
           providerId,
@@ -2285,6 +2481,17 @@ const handleAIMessage = async (message, sendResponse) => {
         sendResponse(await preparePromptForSave(message.payload || {}));
         return true;
 
+      // Generate a structured prompt chain from a goal.
+      case "AI_GENERATE_CHAIN":
+        sendResponse(
+          await generatePromptChain(
+            message?.goal || "",
+            message?.context || "",
+            message?.mode || "full",
+          ),
+        );
+        return true;
+
       // Summarize a conversation for handoff.
       case "AI_CONTINUE_SUMMARY":
         sendResponse(
@@ -2326,6 +2533,9 @@ const handleAIMessage = async (message, sendResponse) => {
 
 const SIDE_PANEL_PATH = "sidepanel/sidepanel.html";
 const SIDEPANEL_SESSION_KEY = BRAND_KEYS.sidePanelPayload;
+const PENDING_PANEL_ACTION_KEY = "promptiumPendingPanelAction";
+const FALLBACK_PANEL_WIDTH = 420;
+const FALLBACK_PANEL_HEIGHT = 680;
 const SUPPORTED_DOC_PATTERNS = [
   "*://*.chatgpt.com/*",
   "*://*.claude.ai/*",
@@ -2341,9 +2551,121 @@ const ALLOWED_LLM_HOSTS = new Set([
   "copilot.microsoft.com",
 ]);
 
+const isSidePanelSupported = () =>
+  Boolean(chrome.sidePanel && typeof chrome.sidePanel.open === "function");
+
+const getSidePanelUrl = (route = "") => {
+  const base = chrome.runtime.getURL(SIDE_PANEL_PATH);
+  const clean = String(route || "").replace(/^#/, "").trim();
+  return clean ? `${base}#${clean}` : base;
+};
+
+const stashPendingPanelAction = async (action = null) => {
+  if (!action) return;
+  await chrome.storage.session
+    .set({ [PENDING_PANEL_ACTION_KEY]: action })
+    .catch(() => {});
+};
+
+const focusExistingPanel = async (route = "") => {
+  const base = chrome.runtime.getURL(SIDE_PANEL_PATH);
+  const tabs = await chrome.tabs
+    .query({ url: `${base}*` })
+    .catch(() => []);
+  if (!tabs.length) return null;
+  const tab = tabs[0];
+  if (tab.windowId) {
+    await chrome.windows.update(tab.windowId, { focused: true }).catch(() => {});
+  }
+  if (tab.id) {
+    await chrome.tabs
+      .update(tab.id, { active: true, url: getSidePanelUrl(route) })
+      .catch(() => {});
+  }
+  return { ok: true, tab, reused: true };
+};
+
+const createPopupPanel = async ({ route = "", focus = true } = {}) => {
+  const win = await chrome.windows.create({
+    url: getSidePanelUrl(route),
+    type: "popup",
+    width: FALLBACK_PANEL_WIDTH,
+    height: FALLBACK_PANEL_HEIGHT,
+    focused: focus,
+  });
+  return { ok: true, mode: "popup", tab: win?.tabs?.[0], reused: false };
+};
+
+const openPopupPanel = async ({ route = "", focus = true } = {}) => {
+  const existing = await focusExistingPanel(route);
+  if (existing) {
+    return {
+      ok: true,
+      mode: "popup",
+      tab: existing.tab,
+      reused: true,
+    };
+  }
+  return await createPopupPanel({ route, focus });
+};
+
+const openPromptiumPanel = async ({
+  tabId,
+  windowId,
+  route = "",
+  pendingAction = null,
+} = {}) => {
+  if (isSidePanelSupported()) {
+    try {
+      if (tabId && windowId) {
+        await chrome.sidePanel.open({ tabId, windowId });
+      } else if (windowId) {
+        await chrome.sidePanel.open({ windowId });
+      } else if (tabId) {
+        await chrome.sidePanel.open({ tabId });
+      } else {
+        const [tab] = await chrome.tabs.query({
+          active: true,
+          currentWindow: true,
+        });
+        if (tab?.id && tab.windowId) {
+          await chrome.sidePanel.open({ tabId: tab.id, windowId: tab.windowId });
+        }
+      }
+      return { ok: true, mode: "sidepanel" };
+    } catch (_error) {
+      // Fallback to popup
+    }
+  }
+
+  if (pendingAction) {
+    const existing = await focusExistingPanel(route);
+    if (existing?.reused) {
+      const actionName =
+        pendingAction?.type === "showContinuation"
+          ? "showContinuation"
+          : "showExport";
+      await chrome.runtime.sendMessage({ action: actionName }).catch(() => {});
+      await chrome.storage.session
+        .remove([PENDING_PANEL_ACTION_KEY])
+        .catch(() => {});
+      return { ok: true, mode: "popup", tab: existing.tab, reused: true };
+    }
+
+    await stashPendingPanelAction(pendingAction);
+    return await createPopupPanel({ route });
+  }
+
+  return await openPopupPanel({ route });
+};
+
 /** Ensures prompts and chatHistory keys exist in storage without overwriting existing data. */
 const initializeStorageKeys = async () => {
-  const state = await chrome.storage.local.get(["prompts", "chatHistory"]);
+  const state = await chrome.storage.local.get([
+    "prompts",
+    "chatHistory",
+    "promptChains",
+  ]);
   const updates = {};
 
   if (!Array.isArray(state.prompts)) {
@@ -2352,6 +2674,10 @@ const initializeStorageKeys = async () => {
 
   if (!Array.isArray(state.chatHistory)) {
     updates.chatHistory = [];
+  }
+
+  if (!Array.isArray(state.promptChains)) {
+    updates.promptChains = [];
   }
 
   if (Object.keys(updates).length > 0) {
@@ -2426,14 +2752,17 @@ const bootstrapEmbeddingOnInstall = async () => {
 // Manually open the side panel when the user clicks the extension action icon.
 // This often works more reliably than the declarative setPanelBehavior API.
 chrome.action.onClicked.addListener((tab) => {
-  if (tab && tab.windowId) {
-    chrome.sidePanel.open({ windowId: tab.windowId }).catch((error) => {
+  if (!tab?.windowId) {
+    return;
+  }
+  void openPromptiumPanel({ windowId: tab.windowId, tabId: tab.id }).catch(
+    (error) => {
       console.error(
-        "[Promptium][ServiceWorker] Failed to open side panel on action click.",
+        "[Promptium][ServiceWorker] Failed to open Promptium panel on action click.",
         error,
       );
-    });
-  }
+    },
+  );
 });
 
 /** Handles extension install lifecycle and applies initial storage and side panel setup. */
@@ -2456,10 +2785,19 @@ const openSidePanelForActiveTab = async () => {
     if (!tab?.id || !tab.windowId) {
       return { ok: false, error: "No active tab available." };
     }
-    await chrome.sidePanel.open({ tabId: tab.id, windowId: tab.windowId });
-    return { ok: true, tab };
+    const opened = await openPromptiumPanel({
+      tabId: tab.id,
+      windowId: tab.windowId,
+    });
+    if (!opened?.ok) {
+      return { ok: false, error: "Failed to open Promptium panel." };
+    }
+    return { ok: true, tab, mode: opened.mode };
   } catch (error) {
-    return { ok: false, error: error?.message || "Failed to open side panel." };
+    return {
+      ok: false,
+      error: error?.message || "Failed to open Promptium panel.",
+    };
   }
 };
 
@@ -2525,25 +2863,32 @@ const handleOpenSidePanel = async (_sender, payload = null) => {
 const handleOpenContinuationPanel = async (sender) => {
   const tabId = sender?.tab?.id;
   const windowId = sender?.tab?.windowId;
-  if (!tabId || !windowId) {
-    const opened = await openSidePanelForActiveTab();
-    if (!opened.ok) {
-      return { ok: false, error: opened.error };
-    }
-    await chrome.runtime.sendMessage({ action: "showContinuation" }).catch((error) => {
-      console.warn("[Promptium][ServiceWorker] Failed to notify continuation view.", error);
-    });
-    return { ok: true };
-  }
-
   try {
-    await chrome.sidePanel.open({ tabId, windowId });
-    await chrome.runtime.sendMessage({ action: "showContinuation" }).catch((error) => {
-      console.warn("[Promptium][ServiceWorker] Failed to notify continuation view.", error);
+    const opened = await openPromptiumPanel({
+      tabId,
+      windowId,
+      route: "continue",
+      pendingAction: { type: "showContinuation" },
     });
+    if (!opened?.ok) {
+      return { ok: false, error: "Failed to open Promptium panel." };
+    }
+    if (opened.mode === "sidepanel") {
+      await chrome.runtime.sendMessage({ action: "showContinuation" }).catch(
+        (error) => {
+          console.warn(
+            "[Promptium][ServiceWorker] Failed to notify continuation view.",
+            error,
+          );
+        },
+      );
+    }
     return { ok: true };
   } catch (error) {
-    return { ok: false, error: error?.message || "Failed to open side panel." };
+    return {
+      ok: false,
+      error: error?.message || "Failed to open Promptium panel.",
+    };
   }
 };
 
@@ -2554,15 +2899,23 @@ const onRuntimeMessage = (message, sender, sendResponse) => {
     return false;
   }
 
-  let sidePanelPromise = null;
+  let panelOpenPromise = null;
 
   if (message?.action === "OPEN_SIDEPANEL") {
+    const tabId = sender?.tab?.id;
     const windowId = sender?.tab?.windowId;
-    if (windowId) {
+    if (isSidePanelSupported() && windowId) {
       // Must be called synchronously to consume gesture
-      sidePanelPromise = chrome.sidePanel
-        .open({ windowId, tabId: sender.tab.id })
+      panelOpenPromise = chrome.sidePanel
+        .open({ windowId, tabId })
         .catch((err) => err);
+    } else {
+      panelOpenPromise = openPromptiumPanel({
+        tabId,
+        windowId,
+        route: "export",
+        pendingAction: { type: "showExport" },
+      }).catch((err) => err);
     }
   }
 
@@ -2616,20 +2969,27 @@ const onRuntimeMessage = (message, sender, sendResponse) => {
           respond({ ok: false, error: "No tab ID" });
           return;
         }
-
-        try {
-          await chrome.sidePanel.open({ windowId, tabId });
-        } catch (err) {
+        const opened = await openPromptiumPanel({
+          tabId,
+          windowId,
+          route: "export",
+          pendingAction: { type: "showExport" },
+        });
+        if (!opened?.ok) {
           respond({
             ok: false,
-            error: err?.message || "Failed to open side panel.",
+            error: "Failed to open Promptium panel.",
           });
           return;
         }
-
-        await chrome.runtime.sendMessage({ action: "showExport" }).catch((error) => {
-          console.warn("[Promptium][ServiceWorker] Failed to notify export view.", error);
-        });
+        if (opened.mode === "sidepanel") {
+          await chrome.runtime.sendMessage({ action: "showExport" }).catch((error) => {
+            console.warn(
+              "[Promptium][ServiceWorker] Failed to notify export view.",
+              error,
+            );
+          });
+        }
 
         respond({ ok: true });
         return;
@@ -2642,16 +3002,15 @@ const onRuntimeMessage = (message, sender, sendResponse) => {
           respond({ ok: false, error: "No tab ID" });
           return;
         }
-
-        try {
-          await chrome.sidePanel.open({ windowId, tabId });
-          respond({ ok: true });
-        } catch (err) {
+        const opened = await openPromptiumPanel({ tabId, windowId });
+        if (!opened?.ok) {
           respond({
             ok: false,
-            error: err?.message || "Failed to open side panel.",
+            error: "Failed to open Promptium panel.",
           });
+          return;
         }
+        respond({ ok: true });
         return;
       }
 
@@ -2673,15 +3032,17 @@ const onRuntimeMessage = (message, sender, sendResponse) => {
 
         // Wait for the synchronous side panel open attempt to settle
         let openError = null;
-        if (sidePanelPromise) {
-          const result = await sidePanelPromise;
+        if (panelOpenPromise) {
+          const result = await panelOpenPromise;
           if (result instanceof Error) {
             openError = result.message;
+          } else if (result?.ok === false) {
+            openError = result?.error || "Panel open failed.";
           }
         }
 
         if (openError) {
-          respond({ ok: false, error: `SidePanel Error: ${openError}` });
+          respond({ ok: false, error: `Panel Error: ${openError}` });
           return;
         }
 
@@ -2764,9 +3125,9 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       },
     });
 
-    await chrome.sidePanel
-      .open({ tabId: tab.id, windowId: tab.windowId })
-      .catch(() => {});
+    await openPromptiumPanel({ tabId: tab.id, windowId: tab.windowId }).catch(
+      () => {},
+    );
     await chrome.tabs
       .sendMessage(tab.id, {
         action: "notifyPromptium",

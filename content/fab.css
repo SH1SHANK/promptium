@@ -1,14 +1,14 @@
 /* File: content/fab.css | Naming convention: all style classes use the pn- prefix to avoid collisions. */
 :root {
-  --pn-fab-accent: #2dd4bf;
+  --pn-fab-accent: #36d6c3;
   --pn-fab-accent-strong: #14b8a6;
   --pn-fab-accent-alt: #4f46e5;
-  --pn-fab-accent-rgb: 45, 212, 191;
+  --pn-fab-accent-rgb: 54, 214, 195;
   --pn-fab-text-rgb: 238, 242, 255;
   --pn-fab-trigger-bg: #0f172a;
   --pn-fab-trigger-bg-hover: #16213a;
   --pn-fab-trigger-bg-open: #111827;
-  --pn-fab-trigger-border: rgba(45, 212, 191, 0.4);
+  --pn-fab-trigger-border: rgba(54, 214, 195, 0.4);
   --pn-fab-surface: rgba(16, 16, 20, 0.9);
   --pn-fab-border: rgba(255, 255, 255, 0.12);
   --pn-fab-text: #eef2ff;
@@ -29,7 +29,7 @@
   flex-direction: column !important;
   align-items: flex-end !important;
   gap: 10px !important;
-  animation: pn-fab-root-in 0.28s cubic-bezier(0.2, 0.9, 0.2, 1) !important;
+  animation: pn-fab-root-in 0.2s cubic-bezier(0.2, 0.9, 0.2, 1) !important;
 }
 
 #pn-fab-root.pn-fab-left {
@@ -81,7 +81,7 @@
 
 #pn-fab-trigger .pn-fab-logo {
   transition:
-    transform 0.28s cubic-bezier(0.2, 0.9, 0.2, 1),
+    transform 0.2s cubic-bezier(0.2, 0.9, 0.2, 1),
     stroke 0.2s ease;
 }
 
@@ -233,7 +233,7 @@
 }
 
 .pn-fab-action[data-action="save-prompt"] {
-  border-left-color: rgba(45, 212, 191, 0.55);
+  border-left-color: rgba(var(--pn-fab-accent-rgb), 0.55);
 }
 
 .pn-fab-action[data-action="export"] {
@@ -298,7 +298,7 @@
 
 .pn-fab-action[data-action="save-prompt"] .pn-fab-icon {
   color: #91efe2;
-  background: rgba(45, 212, 191, 0.18);
+  background: rgba(var(--pn-fab-accent-rgb), 0.18);
 }
 
 .pn-fab-action[data-action="export"] .pn-fab-icon {
@@ -402,7 +402,7 @@
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   font-family: "Outfit", "Avenir Next", "Segoe UI", sans-serif;
-  animation: pn-selection-bar-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: pn-selection-bar-in 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 #pn-selection-fab.pn-hidden {

@@ -276,10 +276,11 @@
         !isPromptTab || visibleTabs.prompts === false,
       );
     if (searchWrap) {
-      const isPromptOrTagsTab =
+      const isSearchTab =
         (isPromptTab && visibleTabs.prompts !== false) ||
-        (state.activeTab === "tags" && visibleTabs.tags !== false);
-      searchWrap.classList.toggle("hidden", !isPromptOrTagsTab);
+        (state.activeTab === "tags" && visibleTabs.tags !== false) ||
+        (state.activeTab === "chains" && visibleTabs.chains !== false);
+      searchWrap.classList.toggle("hidden", !isSearchTab);
     }
     if (historyBtn) {
       const standalone = ["history", "settings", "export", "continue"].includes(
@@ -295,6 +296,7 @@
   const isTabEnabledBySettings = (tabName) => {
     const tabs = state.settings?.visibleTabs || {};
     if (tabName === "prompts") return tabs.prompts !== false;
+    if (tabName === "chains") return tabs.chains !== false;
     if (tabName === "export") return tabs.export !== false;
     if (tabName === "history") return tabs.history !== false;
     if (tabName === "tags") return tabs.tags !== false;
@@ -356,11 +358,41 @@
 
     refreshHeaderControls();
 
+    const searchInput = document.getElementById("prompt-search");
+    if (searchInput) {
+      searchInput.placeholder =
+        state.activeTab === "chains"
+          ? "Search chains by title, goal, or steps"
+          : "Search prompts by title, text, or tags";
+    }
+
+    const searchBadge = document.getElementById("pn-search-mode-badge");
+    const searchSpark = document.getElementById("pn-search-spark");
+    const modelFeedback = document.getElementById("pn-model-feedback");
+    const hideSearchMeta = state.activeTab === "chains";
+    [searchBadge, searchSpark, modelFeedback].forEach((node) => {
+      if (!node) return;
+      if (hideSearchMeta) {
+        node.dataset.pnPrevHidden = node.classList.contains("pn-hidden")
+          ? "1"
+          : "0";
+        node.classList.add("pn-hidden");
+        return;
+      }
+      if (!node.dataset.pnPrevHidden) return;
+      node.classList.toggle("pn-hidden", node.dataset.pnPrevHidden === "1");
+      delete node.dataset.pnPrevHidden;
+    });
+
     if (
       state.activeTab === "prompts" &&
       window.PromptsUI?.resetTemplateFilter
     ) {
       window.PromptsUI.resetTemplateFilter();
+    }
+
+    if (state.activeTab === "chains") {
+      await window.ChainsUI?.render?.(window.PromptsUI?.getSearchValue?.() || "");
     }
 
     if (state.activeTab === "export") {
@@ -375,6 +407,7 @@
 
   const performWorkspaceRefresh = async () => {
     await window.PromptsUI.render(window.PromptsUI.getSearchValue());
+    await window.ChainsUI?.render?.(window.PromptsUI.getSearchValue());
     await window.HistoryUI.render();
     await window.TagsUI.render();
     await showToast("Workspace synced.");
@@ -405,6 +438,16 @@
       void (async () => {
         await window.PromptsUI.render(window.PromptsUI.getSearchValue());
         await window.TagsUI.render();
+      })();
+    });
+
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName !== "local" || !changes.promptChains) {
+        return;
+      }
+
+      void (async () => {
+        await window.ChainsUI?.render?.(window.PromptsUI?.getSearchValue?.() || "");
       })();
     });
 
@@ -455,6 +498,24 @@
 
     byId("pn-prompts-continue-chat")?.addEventListener("click", () => {
       void handleShowContinuation();
+    });
+
+    byId("pn-prompts-new-chain")?.addEventListener("click", () => {
+      void (async () => {
+        if (window.ChainsUI?.openNewChain) {
+          await window.ChainsUI.openNewChain();
+          await switchTab("chains");
+        }
+      })();
+    });
+
+    byId("pn-chains-new")?.addEventListener("click", () => {
+      void (async () => {
+        if (window.ChainsUI?.openNewChain) {
+          await window.ChainsUI.openNewChain();
+          await switchTab("chains");
+        }
+      })();
     });
 
     window.addEventListener("keydown", (event) => {
@@ -589,6 +650,31 @@
       return true;
     } catch (_error) {
       return false;
+    }
+  };
+
+  const consumePendingPanelAction = async () => {
+    try {
+      const snapshot = await chrome.storage.session.get([
+        KEYS.PENDING_PANEL_ACTION_KEY,
+      ]);
+      const rawAction = snapshot?.[KEYS.PENDING_PANEL_ACTION_KEY];
+      if (!rawAction) {
+        return null;
+      }
+      await chrome.storage.session
+        .remove([KEYS.PENDING_PANEL_ACTION_KEY])
+        .catch(() => {});
+
+      const normalized =
+        typeof rawAction === "string" ? { type: rawAction } : rawAction;
+      if (!normalized?.type) {
+        return null;
+      }
+      state.pendingActions.push(normalized);
+      return normalized;
+    } catch (_error) {
+      return null;
     }
   };
 
@@ -738,6 +824,7 @@
     window.ExportActionsUI.bindEvents();
     window.ContinuationUI?.bindEvents?.();
     window.ImproveUI.bindEvents();
+    window.ChainsUI?.bindEvents?.();
 
     await window.SettingsAI.load();
     window.SettingsAI.renderControls();
@@ -796,6 +883,7 @@
       // non-fatal
     }
 
+    const pendingPanelAction = await consumePendingPanelAction();
     const hasSelectionPayload = Boolean(state.exportPayload?.messages?.length);
     const route = String(window.location.hash || "")
       .replace(/^#/, "")
@@ -803,6 +891,7 @@
       .toLowerCase();
     const routableTabs = new Set([
       "prompts",
+      "chains",
       "history",
       "export",
       "tags",
@@ -811,12 +900,17 @@
     ]);
     const initialTab = routableTabs.has(route)
       ? route
-      : hasSelectionPayload
+      : pendingPanelAction?.type === "showExport"
         ? "export"
-        : "prompts";
+        : pendingPanelAction?.type === "showContinuation"
+          ? "continue"
+          : hasSelectionPayload
+            ? "export"
+            : "prompts";
     await switchTab(initialTab);
 
     await window.PromptsUI.render("");
+    await window.ChainsUI?.render?.("");
     await window.HistoryUI.render();
     await window.TagsUI.render();
     await window.ExportPayloadUI.renderPreview();

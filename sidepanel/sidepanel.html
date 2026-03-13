@@ -26,7 +26,7 @@
         ></span>
         <button
           id="back-btn"
-          class="pn-btn pn-btn--ghost pn-icon-btn hidden pn-mr-auto"
+          class="hidden pn-btn pn-btn--ghost pn-icon-btn pn-mr-auto"
           type="button"
           title="Back"
           aria-label="Back"
@@ -186,6 +186,7 @@
       <button class="tab pn-tab active" data-tab="prompts" type="button">
         Prompts
       </button>
+      <button class="tab pn-tab" data-tab="chains" type="button">Chains</button>
       <button class="tab pn-tab" data-tab="tags" type="button">Tags</button>
     </nav>
 
@@ -230,6 +231,29 @@
             <path d="M12 8l4 4-4 4" />
           </svg>
           Continue Chat
+        </button>
+        <button
+          id="pn-prompts-new-chain"
+          type="button"
+          class="pn-btn pn-btn--ghost pn-btn--block pn-continue-shortcut"
+          title="Build and run a multi-step prompt chain"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M7 7h10" />
+            <path d="M7 12h6" />
+            <path d="M7 17h10" />
+            <circle cx="18" cy="12" r="3" />
+          </svg>
+          New Chain
         </button>
         <div
           id="pn-template-filters"
@@ -315,6 +339,43 @@
           class="pn-template-fill-panel pn-hidden"
         ></div>
         <div id="prompt-list" class="pn-list"></div>
+      </section>
+
+      <section class="tab-content pn-tab-content" data-tab="chains">
+        <div id="pn-chain-list-view" class="pn-chain-view">
+          <div class="pn-chain-header">
+            <div class="pn-chain-header-copy">
+              <h3 class="pn-section-title">Prompt Chains</h3>
+              <p class="pn-card-meta">
+                Multi-step prompt sequences you can run step by step.
+              </p>
+            </div>
+            <button
+              id="pn-chains-new"
+              type="button"
+              class="pn-btn pn-btn--primary"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              New Chain
+            </button>
+          </div>
+          <div id="pn-chain-list" class="pn-list"></div>
+        </div>
+        <div id="pn-chain-editor-view" class="pn-chain-view pn-hidden">
+          <div id="pn-chain-editor"></div>
+        </div>
       </section>
 
       <section class="tab-content pn-tab-content" data-tab="history">
@@ -571,7 +632,7 @@
           <div class="pn-continue-head">
             <h3 class="pn-sv-hero__title">Continue Chat</h3>
             <p id="pn-continue-summary" class="pn-continue-summary">
-              No conversation loaded yet.
+              Select a chat to continue.
             </p>
             <p id="pn-continue-advisory" class="pn-sv-api-hint pn-hidden"></p>
           </div>
@@ -813,6 +874,9 @@
             <div class="pn-settings-panel" data-settings-section="data">
               <div id="pn-settings-data-content"></div>
             </div>
+            <div class="pn-settings-panel" data-settings-section="usage">
+              <div id="pn-settings-usage-content"></div>
+            </div>
           </div>
           <p
             id="pn-settings-ui-status"
@@ -901,6 +965,7 @@
                 <span id="pn-count-prompt-text" class="pn-field-counter"
                   >0</span
                 >
+                <span id="pn-token-prompt-text" class="pn-token-count pn-hidden"></span>
               </span>
               <textarea
                 id="prompt-text"
@@ -958,7 +1023,7 @@
             </button>
             <button
               id="confirm-duplicate"
-              class="pn-btn pn-btn-warn hidden"
+              class="hidden pn-btn pn-btn-warn"
               type="button"
             >
               Save Anyway
@@ -1014,6 +1079,7 @@
               <span id="pn-count-template-text" class="pn-field-counter"
                 >0</span
               >
+              <span id="pn-token-template-text" class="pn-token-count pn-hidden"></span>
             </span>
             <div class="pn-textarea-wrap">
               <textarea
@@ -1223,6 +1289,7 @@
     <script src="../utils/pn-dialog.js"></script>
     <script src="../utils/tags.js"></script>
     <script src="../utils/storage.js"></script>
+    <script src="../utils/chains-storage.js"></script>
     <script src="../utils/prompt-duplicate.js"></script>
     <script src="../utils/template-parser.js"></script>
     <script src="../utils/smart-name.js"></script>
@@ -1230,6 +1297,8 @@
     <script src="../utils/bridge.js"></script>
     <script src="../utils/continuation.js"></script>
     <script src="../utils/templates.js"></script>
+    <script src="../utils/token-counter.js"></script>
+    <script src="../utils/usage-tracker.js"></script>
     <script src="../utils/ai.js"></script>
     <script src="../utils/ai-bridge.js"></script>
     <script src="../utils/session-storage.js"></script>
@@ -1237,6 +1306,7 @@
     <script src="../sidepanel/state.js"></script>
     <script src="../sidepanel/template-fill.js"></script>
     <script src="../sidepanel/prompts-ui.js"></script>
+    <script src="../sidepanel/chains-ui.js"></script>
     <script src="../sidepanel/prompt-form.js"></script>
     <script src="../sidepanel/tags-ui.js"></script>
     <script src="../sidepanel/history-ui.js"></script>
@@ -1246,6 +1316,7 @@
     <script src="../sidepanel/export-payload-ui.js"></script>
     <script src="../sidepanel/export-actions-ui.js"></script>
     <script src="../sidepanel/improve-ui.js"></script>
+    <script src="../sidepanel/usage-ui.js"></script>
     <script src="../sidepanel/app-shell-init.js"></script>
   </body>
 </html>

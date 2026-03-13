@@ -91,7 +91,17 @@ const render = async () => {
     return;
   }
 
+  container.querySelectorAll('.pn-skeleton').forEach((node) => node.remove());
+  const skeletons = [];
+  for (let i = 0; i < 3; i += 1) {
+    const skel = document.createElement('div');
+    skel.className = 'pn-skeleton';
+    skeletons.push(skel);
+    container.appendChild(skel);
+  }
+
   const prompts = await window.Store.getPrompts();
+  skeletons.forEach((node) => node.remove());
   const tags = await collectTags(prompts);
   const quickFilterTags = tags.slice(0, 8);
   const manageTags = [...tags].sort((left, right) => left.tag.localeCompare(right.tag));
@@ -186,7 +196,7 @@ const render = async () => {
         if (nextValue === null) return;
         const normalized = String(nextValue || '').trim();
         if (!normalized) {
-          await showToast('Tag name cannot be empty.');
+          await showToast('Enter a tag name to continue.');
           return;
         }
         await renameTag(item.tag, normalized);

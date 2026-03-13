@@ -13,6 +13,7 @@
     "permissions",
     "interface",
     "data",
+    "usage",
   ];
   const PROVIDER_ORDER = ["gemini", "openai", "anthropic", "openrouter"];
 
@@ -185,6 +186,7 @@
     interface:
       '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>',
     data: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4"/><path d="M14 2v5h5"/><path d="M3 15h6"/><path d="M6 12v6"/></svg>',
+    usage: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="12" width="4" height="10"/><rect x="9" y="7" width="4" height="15"/><rect x="16" y="3" width="4" height="19"/></svg>',
   };
 
   const NAV_LABELS = {
@@ -194,6 +196,7 @@
     permissions: "Permissions",
     interface: "Interface",
     data: "Data",
+    usage: "Usage",
   };
 
   const VALIDATION_SESSION_KEY = "promptiumProviderValidationState";
@@ -341,6 +344,10 @@
     panels.forEach((p) =>
       p.classList.toggle("is-active", p.dataset.settingsSection === sectionId),
     );
+    // Load usage dashboard asynchronously when the section becomes active
+    if (sectionId === "usage") {
+      void window.UsageUI?.renderUsage?.();
+    }
   };
 
   /* ── Section 1: AI Providers ─────────────────────────────────────────────── */
@@ -493,7 +500,7 @@
       fill.style.width = `${Math.max(0, Number(reindex.progress || 0))}%`;
     if (text) {
       text.textContent = reindex.error
-        ? String(reindex.error)
+        ? "Indexing failed. Try again or switch models."
         : reindex.running
           ? `Re-indexing prompts… ${Math.round(Number(reindex.progress || 0))}%`
           : "";
@@ -585,6 +592,12 @@
       key: "continueSummary",
       label: "Continue Chat summarisation",
       desc: "Summarise conversations to carry context forward.",
+    },
+    {
+      id: "setting-feat-smart-suggestions",
+      key: "smartSuggestions",
+      label: "Smart prompt suggestions",
+      desc: "Show relevant prompts from your library while you type in a chat.",
     },
   ];
 
@@ -707,6 +720,7 @@
     <div class="pn-settings-section">
       <h4 class="pn-settings-section-title">Visible Tabs</h4>
       <div class="pn-settings-row">${tabRowCopy("Prompts")}${toggleHTML("pn-sui-tab-prompts", s.visibleTabs?.prompts !== false, "Prompts tab")}</div>
+      <div class="pn-settings-row">${tabRowCopy("Chains")}${toggleHTML("pn-sui-tab-chains", s.visibleTabs?.chains !== false, "Chains tab")}</div>
       <div class="pn-settings-row">${tabRowCopy("Export")}${toggleHTML("pn-sui-tab-export", s.visibleTabs?.export !== false, "Export tab")}</div>
       <div class="pn-settings-row">${tabRowCopy("History")}${toggleHTML("pn-sui-tab-history", s.visibleTabs?.history !== false, "History tab")}</div>
       <div class="pn-settings-row">${tabRowCopy("Tags")}${toggleHTML("pn-sui-tab-tags", s.visibleTabs?.tags !== false, "Tags tab")}</div>
@@ -800,6 +814,7 @@
         density.value === "compact" ? "compact" : "comfortable";
     next.visibleTabs = {
       prompts: byId("pn-sui-tab-prompts")?.checked !== false,
+      chains: byId("pn-sui-tab-chains")?.checked !== false,
       export: byId("pn-sui-tab-export")?.checked !== false,
       history: byId("pn-sui-tab-history")?.checked !== false,
       tags: byId("pn-sui-tab-tags")?.checked !== false,
@@ -1069,7 +1084,10 @@
       pid,
       key,
       model,
-    ).catch(() => ({ ok: false, message: "Validation failed." }));
+    ).catch(() => ({
+      ok: false,
+      message: "Validation failed. Check the key and try again.",
+    }));
     uiState.providerValidation[pid] = {
       status: result?.ok ? "connected" : "invalid",
       message: String(result?.message || result?.error || "").trim(),
@@ -1080,7 +1098,7 @@
       await window.SessionStorage?.setStoredProviderKey?.(pid, key);
       setStatus("Provider connected");
     } else {
-      setStatus("Invalid key", true);
+      setStatus("Invalid key. Check it and try again.", true);
     }
     await renderProviders();
   };
@@ -1124,7 +1142,7 @@
         modelId,
       ).catch(() => null);
       if (!result?.ok) {
-        setStatus(result?.error || "Re-index failed", true);
+        setStatus(result?.error || "Re-index failed. Try again.", true);
         return;
       }
       uiState.pendingEmbeddingId = "";
@@ -1136,7 +1154,7 @@
         modelId,
       ).catch(() => null);
       if (!result?.ok) {
-        setStatus(result?.error || "Model switch failed", true);
+        setStatus(result?.error || "Model switch failed. Try again.", true);
         return;
       }
       const next = deepClone(state.settings);
@@ -1247,7 +1265,7 @@
       await renderAll();
       setStatus("Data imported");
     } catch (err) {
-      setStatus("Import failed: " + (err?.message || "Invalid file"), true);
+      setStatus("Import failed. Check the file and try again.", true);
     }
   };
 

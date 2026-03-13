@@ -9,7 +9,7 @@
 const byId = (id) => document.getElementById(id);
 const TOAST_DURATION_SUCCESS_MS = 2500;
 const TOAST_DURATION_ERROR_MS = 4000;
-const TOAST_MAX_LENGTH = 40;
+const TOAST_MAX_LENGTH = 80;
 const toastQueue = [];
 let activeToast = null;
 

@@ -529,6 +529,19 @@ const wrapExportPreviewSheet = (bodyMarkup, extraClass = '') => `
   </section>
 `;
 
+const buildEmptyPreviewState = ({ title, message, actionLabel, onAction }) => ({
+  kind: 'empty',
+  title,
+  message,
+  actionLabel,
+  onAction
+});
+
+const buildHtmlPreviewState = (html) => ({
+  kind: 'html',
+  html
+});
+
 const getMarkdownParser = async () => {
   if (state.markdownParser) return state.markdownParser;
   state.markdownParser = window.ExportPreviewRenderer.createMarkdownParser(window.markdownit);
@@ -539,7 +552,16 @@ const buildVisualPreviewMarkup = async () => {
   const payload = getActivePayload();
 
   if (!payload || !payload.messages.length) {
-    return '<div class="pn-empty">No selected messages found. Select messages in chat and click Export Selected.</div>';
+    return buildEmptyPreviewState({
+      title: 'No messages selected',
+      message: 'Select a message range in your chat to generate an export preview.',
+      actionLabel: 'Select Messages',
+      onAction: () => {
+        if (typeof callbacks.onSelectMessages === 'function') {
+          void callbacks.onSelectMessages();
+        }
+      }
+    });
   }
 
   const parser = await getMarkdownParser();
@@ -588,23 +610,23 @@ const buildVisualPreviewMarkup = async () => {
     }
   }
 
-  return wrapExportPreviewSheet(`
+  return buildHtmlPreviewState(wrapExportPreviewSheet(`
       <header class="pn-export-head">
         ${platformTitle}
         ${platformLine}
         ${dateLine}
       </header>
       <div class="pn-export-list">${rows.join('')}</div>
-    `);
+    `));
 };
 
 const buildMarkdownPreviewMarkup = async () => {
   const markdown = await buildMarkdown();
-  return wrapExportPreviewSheet(`
+  return buildHtmlPreviewState(wrapExportPreviewSheet(`
     <article class="pn-export-card pn-export-card--single">
       <pre class="pn-export-raw pn-export-raw--markdown">${escapeHtml(markdown)}</pre>
     </article>
-  `);
+  `));
 };
 
 const buildExporterChatPayload = () => {
@@ -654,21 +676,37 @@ const buildExporterPrefs = () => {
 const buildTextPreviewMarkup = async (format) => {
   const chat = buildExporterChatPayload();
   if (!chat) {
-    return '<div class="pn-empty">No messages selected.</div>';
+    return buildEmptyPreviewState({
+      title: 'No messages selected',
+      message: 'Select a message range in your chat to generate an export preview.',
+      actionLabel: 'Select Messages',
+      onAction: () => {
+        if (typeof callbacks.onSelectMessages === 'function') {
+          void callbacks.onSelectMessages();
+        }
+      }
+    });
   }
   if (!window.Exporter?.toTXT || !window.Exporter?.toJSON || !window.Exporter?.toNotion || !window.Exporter?.toObsidian) {
-    return '<div class="pn-empty">Preview renderer unavailable.</div>';
+    return buildEmptyPreviewState({
+      title: 'Preview renderer unavailable',
+      message: 'Reload the panel to finish loading preview tools.',
+      actionLabel: 'Reload panel',
+      onAction: () => {
+        window.location.reload();
+      }
+    });
   }
 
   const prefs = buildExporterPrefs();
   const parser = await getMarkdownParser();
   if (format === 'json') {
     const jsonText = await window.Exporter.toJSON(chat, prefs);
-    return wrapExportPreviewSheet(`
+    return buildHtmlPreviewState(wrapExportPreviewSheet(`
       <article class="pn-export-card pn-export-card--single">
         <pre class="pn-code-block pn-code-block--json"><code class="pn-code language-json">${window.ExportPreviewRenderer.highlightCodeForPreview(jsonText, 'json')}</code></pre>
       </article>
-    `);
+    `));
   }
 
   if (format === 'notion' || format === 'obsidian') {
@@ -678,19 +716,19 @@ const buildTextPreviewMarkup = async (format) => {
     const html = window.ExportPreviewRenderer?.renderMarkdownDocument
       ? window.ExportPreviewRenderer.renderMarkdownDocument(parser, markdownText)
       : escapeHtml(markdownText).replaceAll('\n', '<br />');
-    return wrapExportPreviewSheet(`
+    return buildHtmlPreviewState(wrapExportPreviewSheet(`
       <article class="pn-export-card pn-export-card--single pn-markdown-body">
         ${html}
       </article>
-    `);
+    `));
   }
 
   const plainText = await window.Exporter.toTXT(chat, prefs);
-  return wrapExportPreviewSheet(`
+  return buildHtmlPreviewState(wrapExportPreviewSheet(`
     <article class="pn-export-card pn-export-card--single">
       <pre class="pn-export-raw pn-export-raw--txt">${escapeHtml(plainText)}</pre>
     </article>
-  `);
+  `));
 };
 
 const buildFormatAwarePreviewMarkup = async () => {
@@ -896,7 +934,22 @@ const renderPreview = async () => {
     return;
   }
 
-  preview.innerHTML = await buildFormatAwarePreviewMarkup();
+  preview.innerHTML =
+    '<div class="pn-export-loading pn-loading-state">Loading preview…</div>';
+
+  const previewResult = await buildFormatAwarePreviewMarkup();
+  if (previewResult?.kind === 'empty') {
+    preview.innerHTML = '';
+    preview.appendChild(createEmptyState(previewResult));
+    await renderMeta();
+    return;
+  }
+
+  if (previewResult?.kind === 'html') {
+    preview.innerHTML = previewResult.html;
+  } else {
+    preview.innerHTML = previewResult || '';
+  }
   await renderMeta();
 };
 

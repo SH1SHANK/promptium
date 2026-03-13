@@ -134,6 +134,7 @@ const normalizeFeatureFlags = (value = {}, legacy = {}) => {
       source.improvePrompt !== false && fallback.improvePrompt !== false,
     continueSummary:
       source.continueSummary !== false && fallback.continueSummary !== false,
+    smartSuggestions: source.smartSuggestions !== false,
   };
 };
 
@@ -422,7 +423,7 @@ const updateEmbeddingProgress = () => {
   if (progress) progress.value = Number(reindex.progress || 0);
   if (!text) return;
   if (reindex.error) {
-    text.textContent = reindex.error;
+    text.textContent = "Indexing failed. Try again or switch models.";
     return;
   }
   text.textContent = reindex.running
@@ -448,6 +449,7 @@ const renderFeaturePane = () => {
   assign("setting-density-comfortable", settings.cardDensity === "comfortable");
   assign("setting-density-compact", settings.cardDensity === "compact");
   assign("setting-tab-prompts", settings.visibleTabs.prompts);
+  assign("setting-tab-chains", settings.visibleTabs.chains);
   assign("setting-tab-export", settings.visibleTabs.export);
   assign("setting-tab-history", settings.visibleTabs.history);
   assign("setting-tab-tags", settings.visibleTabs.tags);
@@ -510,6 +512,7 @@ const applyInterfaceSettings = (settingsInput = state.settings) => {
   state.settings = settings;
   document.body.classList.toggle("pn-density-compact", settings.cardDensity === "compact");
   document.querySelector('.tab[data-tab="prompts"]')?.classList.toggle("hidden", !settings.visibleTabs.prompts);
+  document.querySelector('.tab[data-tab="chains"]')?.classList.toggle("hidden", !settings.visibleTabs.chains);
   document.querySelector('.tab[data-tab="tags"]')?.classList.toggle("hidden", !settings.visibleTabs.tags);
   window.AppShell?.refreshHeaderControls?.();
 };
@@ -528,6 +531,7 @@ const readFeatureSettings = () => {
       : "circle";
   next.cardDensity = byId("setting-density-compact")?.checked ? "compact" : "comfortable";
   next.visibleTabs.prompts = byId("setting-tab-prompts")?.checked !== false;
+  next.visibleTabs.chains = byId("setting-tab-chains")?.checked !== false;
   next.visibleTabs.export = byId("setting-tab-export")?.checked !== false;
   next.visibleTabs.history = byId("setting-tab-history")?.checked !== false;
   next.visibleTabs.tags = byId("setting-tab-tags")?.checked !== false;
@@ -545,7 +549,7 @@ const saveFromPanel = async () => {
     await persistSettings(readFeatureSettings());
     setSettingsStatus("Saved");
   } catch (_error) {
-    setSettingsStatus("Save failed", true);
+    setSettingsStatus("Save failed. Try again.", true);
   }
 };
 
@@ -575,7 +579,10 @@ const testProviderKey = async () => {
   const model = state.settings.providerModels?.[provider.id] || provider.models?.[0]?.id || "";
   const result = await window.AIBridge
     .validateProviderKey(provider.id, key, model)
-    .catch(() => ({ ok: false, message: "Validation failed." }));
+    .catch(() => ({
+      ok: false,
+      message: "Validation failed. Check the key and try again.",
+    }));
   uiState.providerValidation[provider.id] = {
     status: result?.ok ? "connected" : "invalid",
     message: String(result?.message || result?.error || "").trim(),
@@ -583,7 +590,7 @@ const testProviderKey = async () => {
   await persistValidationState();
   if (!result?.ok) {
     await renderProviderEditor();
-    setSettingsStatus("Invalid key", true);
+    setSettingsStatus("Invalid key. Check it and try again.", true);
     return;
   }
   uiState.providerDraftKeys[provider.id] = key;
@@ -621,7 +628,7 @@ const confirmEmbeddingSwitch = async () => {
   byId("pn-embedding-confirm")?.classList.add("pn-hidden");
   const result = await window.AIBridge.switchEmbeddingModel(modelId).catch(() => null);
   if (!result?.ok) {
-    setSettingsStatus(result?.error || "Model switch failed", true);
+    setSettingsStatus(result?.error || "Model switch failed. Try again.", true);
     return;
   }
   const next = deepClone(state.settings);

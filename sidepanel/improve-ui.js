@@ -46,20 +46,20 @@
   const normalizeImproveError = (rawMessage = "") => {
     const normalized = String(rawMessage || "").trim();
     const lower = normalized.toLowerCase();
-    if (!lower) return "Could not improve prompt.";
+    if (!lower) return "Could not improve prompt. Try again.";
     if (lower === "no_provider_available") {
-      return "Cloud API key not configured";
+      return "Add an API key in Settings to continue.";
     }
     if (lower === "feature_disabled") {
-      return "Improve Prompt is disabled in Settings";
+      return "Enable Improve Prompt in Settings.";
     }
     if (
       /provider api key is missing|no cloud api key|invalid api key/.test(lower)
     ) {
-      return "Cloud API key not configured";
+      return "Add an API key in Settings to continue.";
     }
     if (/network request failed|provider network error|timed out/.test(lower)) {
-      return "Network issue contacting AI provider. Retry.";
+      return "Network issue contacting AI provider. Try again.";
     }
     return normalized;
   };
@@ -316,6 +316,85 @@
     }
   };
 
+  // ── Word-level diff (LCS) ─────────────────────────────────────────────────
+
+  const DIFF_TOKEN_LIMIT = 750;
+
+  const diffTokenize = (text) =>
+    String(text || "").match(/\S+|\s+/g) || [];
+
+  /**
+   * Returns an array of ops: { type: "eq"|"add"|"del", val: string }.
+   * "add" = present only in newText, "del" = present only in origText.
+   * Returns null if inputs are too long to diff efficiently.
+   */
+  const computeWordDiff = (origText, newText) => {
+    const a = diffTokenize(origText);
+    const b = diffTokenize(newText);
+    if (a.length > DIFF_TOKEN_LIMIT || b.length > DIFF_TOKEN_LIMIT) return null;
+
+    const m = a.length;
+    const n = b.length;
+    const W = n + 1;
+    // Uint16 safe because values ≤ DIFF_TOKEN_LIMIT ≤ 65535
+    const dp = new Uint16Array((m + 1) * W);
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        if (a[i - 1] === b[j - 1]) {
+          dp[i * W + j] = dp[(i - 1) * W + (j - 1)] + 1;
+        } else {
+          const up = dp[(i - 1) * W + j];
+          const lf = dp[i * W + (j - 1)];
+          dp[i * W + j] = up > lf ? up : lf;
+        }
+      }
+    }
+
+    const ops = [];
+    let i = m;
+    let j = n;
+    while (i > 0 || j > 0) {
+      if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
+        ops.push({ type: "eq", val: a[i - 1] });
+        i--;
+        j--;
+      } else if (
+        j > 0 &&
+        (i === 0 || dp[i * W + (j - 1)] >= dp[(i - 1) * W + j])
+      ) {
+        ops.push({ type: "add", val: b[j - 1] });
+        j--;
+      } else {
+        ops.push({ type: "del", val: a[i - 1] });
+        i--;
+      }
+    }
+    ops.reverse();
+    return ops;
+  };
+
+  /**
+   * Renders one side of the diff into a DocumentFragment.
+   * side="del" → left/original pane: shows equal + deleted tokens.
+   * side="add" → right/improved pane: shows equal + added tokens.
+   */
+  const renderDiffSide = (ops, side) => {
+    const frag = document.createDocumentFragment();
+    for (const op of ops) {
+      if (op.type === "eq") {
+        frag.appendChild(document.createTextNode(op.val));
+      } else if (op.type === side) {
+        const el = document.createElement(side === "add" ? "ins" : "del");
+        el.className = side === "add" ? "pn-diff-add" : "pn-diff-del";
+        el.textContent = op.val;
+        frag.appendChild(el);
+      }
+    }
+    return frag;
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+
   const showDiff = () => {
     const loading = document.getElementById("pn-improve-loading");
     const diff = document.getElementById("pn-improve-diff");
@@ -330,19 +409,57 @@
     diff?.classList.remove("pn-hidden");
     setButtonsDisabled(false);
 
-    if (origEl) origEl.textContent = improveModalState.originalText;
-    if (newEl) newEl.textContent = improveModalState.improvedText;
+    const diffOps = computeWordDiff(
+      improveModalState.originalText,
+      improveModalState.improvedText,
+    );
+    if (origEl) {
+      origEl.textContent = "";
+      origEl.appendChild(
+        diffOps
+          ? renderDiffSide(diffOps, "del")
+          : document.createTextNode(improveModalState.originalText),
+      );
+    }
+    if (newEl) {
+      newEl.textContent = "";
+      newEl.appendChild(
+        diffOps
+          ? renderDiffSide(diffOps, "add")
+          : document.createTextNode(improveModalState.improvedText),
+      );
+    }
 
     const origLen = improveModalState.originalText.length;
     const newLen = improveModalState.improvedText.length;
     const charDiff = newLen - origLen;
     const diffLabel = charDiff > 0 ? `+${charDiff}` : `${charDiff}`;
 
-    if (origCount) origCount.textContent = `${origLen} chars`;
+    const provider = String(state.settings?.activeProvider || "").toLowerCase();
+    const tcOrig = window.TokenCounter?.count(improveModalState.originalText, provider);
+    const tcNew = window.TokenCounter?.count(improveModalState.improvedText, provider);
+
+    if (origCount) {
+      if (tcOrig && window.TokenCounter) {
+        origCount.textContent = window.TokenCounter.format(tcOrig.count, tcOrig.isExact);
+        origCount.title = window.TokenCounter.tooltip(tcOrig.isExact);
+      } else {
+        origCount.textContent = `${origLen} chars`;
+      }
+    }
     if (newCount) {
-      newCount.textContent = `${newLen} chars (${diffLabel})`;
-      newCount.classList.toggle("pn-improve-count--positive", charDiff > 0);
-      newCount.classList.toggle("pn-improve-count--negative", charDiff < 0);
+      if (tcOrig && tcNew && window.TokenCounter) {
+        const tokenDiff = tcNew.count - tcOrig.count;
+        const tokenDiffLabel = tokenDiff >= 0 ? `+${tokenDiff}` : `${tokenDiff}`;
+        newCount.textContent = `${window.TokenCounter.format(tcNew.count, tcNew.isExact)} (${tokenDiffLabel})`;
+        newCount.classList.toggle("pn-improve-count--positive", tokenDiff > 0);
+        newCount.classList.toggle("pn-improve-count--negative", tokenDiff < 0);
+        newCount.title = window.TokenCounter.tooltip(tcNew.isExact);
+      } else {
+        newCount.textContent = `${newLen} chars (${diffLabel})`;
+        newCount.classList.toggle("pn-improve-count--positive", charDiff > 0);
+        newCount.classList.toggle("pn-improve-count--negative", charDiff < 0);
+      }
     }
 
     const backendLabel = formatBackendLabel(improveModalState.runtimeBackend);
@@ -447,7 +564,7 @@
       if (shouldSave) {
         const saved = await saveImprovedTextToLibrary(improvedText, tags);
         if (!saved) {
-          await showToast("Optimized prompt save failed.");
+          await showToast("Save failed. Try again.");
           return;
         }
         if (typeof callbacks.onLibraryChanged === "function") {
@@ -467,7 +584,9 @@
         if (injected) {
           await showToast("Injected and saved to library.");
         } else {
-          await showToast("Saved to library. Injection failed.");
+          await showToast(
+            "Saved to library. Keep the target tab open and retry injection.",
+          );
         }
         return;
       }
@@ -518,7 +637,7 @@
 
       setTimeout(() => toast.remove(), UI_FEEDBACK_MS.IMPROVE_UNDO);
     } else {
-      showToast("Optimized prompt save failed.");
+      showToast("Save failed. Try again.");
     }
   };
 

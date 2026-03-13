@@ -72,7 +72,7 @@
 
     if (!context.tabId) {
       await window.ExportPayloadUI.setStatus(
-        "No active tab available for message selection.",
+        "Open a supported LLM tab, then try selecting messages again.",
         true,
       );
       return;
@@ -83,7 +83,7 @@
       .catch(() => null);
     if (!response?.ok) {
       await window.ExportPayloadUI.setStatus(
-        "Selection request failed on active tab.",
+        "Selection request failed. Reload the chat tab and try again.",
         true,
       );
       return;
@@ -509,7 +509,7 @@
           try {
             const messages = await getBridgeMessagesFromExport();
             if (!messages.length) {
-              await showToast("No conversation found to bridge.");
+              await showToast("No conversation found. Open a chat and try again.");
               return;
             }
 
@@ -522,7 +522,7 @@
             await showToast(`Opening ${target.label}...`);
           } catch (error) {
             console.error("[Promptium] Bridge failed from export tab.", error);
-            await showToast("Could not bridge conversation.");
+            await showToast("Bridge failed. Open a chat tab and try again.");
           } finally {
             button.disabled = false;
             button.textContent = original;

@@ -347,7 +347,7 @@ body.pn-sidepanel .pn-sv-autosave-hint {
   padding: 6px 10px;
   color: var(--text-secondary);
   border-radius: 8px;
-  transition: opacity 0.2s ease;
+  transition: opacity var(--settings-section-dur, 200ms) var(--settings-section-ease, cubic-bezier(0.2, 0, 0.2, 1));
 }
 
 body.pn-sidepanel .pn-sv-autosave-hint.pn-status-ok {
@@ -764,7 +764,7 @@ body.pn-sidepanel .pn-export-advanced-toggle::-webkit-details-marker {
 
 body.pn-sidepanel .pn-export-advanced-toggle svg {
   color: var(--text-muted);
-  transition: transform 0.2s ease;
+  transition: transform var(--settings-section-dur, 200ms) var(--settings-section-ease, cubic-bezier(0.2, 0, 0.2, 1));
 }
 
 body.pn-sidepanel .pn-export-advanced[open] .pn-export-advanced-toggle svg {
@@ -1279,7 +1279,7 @@ body.pn-sidepanel
   height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
-  transition: background-color 0.4s ease;
+  transition: background-color var(--motion-fast) var(--motion-ease);
 }
 
 .pn-settings-status-dot--connected {
@@ -1637,7 +1637,7 @@ body.pn-sidepanel
   border-radius: 50%;
   flex-shrink: 0;
   background: var(--text-muted);
-  transition: background-color 0.4s ease;
+  transition: background-color var(--motion-fast) var(--motion-ease);
 }
 
 .pn-settings-embed-row.is-active .pn-settings-embed-dot {
@@ -1750,7 +1750,7 @@ body.pn-sidepanel
   height: 100%;
   border-radius: 2px;
   background: var(--accent);
-  transition: width 0.3s ease;
+  transition: width var(--motion-panel) var(--motion-ease);
   width: 0;
 }
 
@@ -1993,7 +1993,7 @@ body.pn-sidepanel
   padding: 6px 10px;
   color: var(--text-secondary);
   border-radius: 8px;
-  transition: opacity 0.2s ease;
+  transition: opacity var(--settings-section-dur, 200ms) var(--settings-section-ease, cubic-bezier(0.2, 0, 0.2, 1));
   min-height: 0;
 }
 

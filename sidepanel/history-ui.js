@@ -41,7 +41,7 @@ const createHistoryCard = async (entry) => {
       const result = await window.Exporter.exportChat(entry, 'md');
 
       if (!result?.ok) {
-        await showToast(result?.error || 'Markdown export failed.');
+        await showToast(result?.error || 'Markdown export failed. Try again.');
       }
     })();
   });
@@ -56,7 +56,7 @@ const createHistoryCard = async (entry) => {
       const result = await window.Exporter.exportChat(entry, 'pdf');
 
       if (!result?.ok) {
-        await showToast(result?.error || 'PDF export failed.');
+        await showToast(result?.error || 'PDF export failed. Try again.');
       }
     })();
   });
@@ -68,10 +68,16 @@ const createHistoryCard = async (entry) => {
 
   deleteButton.addEventListener('click', () => {
     void (async () => {
+      const confirmed = await (window.PnDialog || window).confirm(
+        `Delete \"${entry.title || 'Untitled chat'}\"?`,
+        { title: 'Delete History', confirmLabel: 'Delete', danger: true }
+      );
+      if (!confirmed) return;
+
       const deleted = await window.Store.deleteChatFromHistory(entry.id);
 
       if (!deleted) {
-        await showToast('Delete failed.');
+        await showToast('Delete failed. Try again.');
         return;
       }
 
@@ -95,6 +101,13 @@ const render = async () => {
 
   if (!container) {
     return;
+  }
+
+  container.innerHTML = '';
+  for (let i = 0; i < 4; i += 1) {
+    const skel = document.createElement('div');
+    skel.className = 'pn-skeleton';
+    container.appendChild(skel);
   }
 
   const history = await window.Store.getChatHistory();

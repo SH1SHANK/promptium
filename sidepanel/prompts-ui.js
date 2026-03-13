@@ -463,13 +463,13 @@
       useButton.addEventListener("click", () => {
         void (async () => {
           if (!hasVars) {
-            await doInject(prompt.text, false);
+            await doInject(prompt.text, false, useButton);
             return;
           }
           const rawText = window.TemplateParser?.fill
             ? window.TemplateParser.fill(prompt.text, {})
             : prompt.text;
-          await doInject(rawText, true);
+          await doInject(rawText, true, useButton);
         })();
       });
     }
@@ -498,7 +498,7 @@
           window.TemplateFill.showFillForm(
             { title: prompt.title, text: prompt.text },
             (filledText) => {
-              void doInject(filledText, false);
+              void doInject(filledText, false, fillButton);
             },
             () => {},
           );
@@ -610,23 +610,41 @@
     const actions = document.createElement("div");
     actions.className = "pn-card-actions";
 
-    const doInject = async (textToInject, injectedAsIs = false) => {
-      const response = await sendToActiveTab({
-        action: "injectPrompt",
-        text: textToInject,
-      });
-
-      if (!response?.ok) {
-        await showToast(response?.error || "Inject failed.");
-        return;
+    const doInject = async (
+      textToInject,
+      injectedAsIs = false,
+      button = null,
+    ) => {
+      if (button) {
+        button.classList.add("pn-loading-state");
+        button.disabled = true;
       }
+      try {
+        const response = await sendToActiveTab({
+          action: "injectPrompt",
+          text: textToInject,
+        });
 
-      if (injectedAsIs) {
-        await showToast("Injected — fill in the [brackets] in the chat");
-        return;
+        if (!response?.ok) {
+          await showToast(
+            response?.error ||
+              "Inject failed. Check the active tab and try again.",
+          );
+          return;
+        }
+
+        if (injectedAsIs) {
+          await showToast("Injected — fill in the [brackets] in the chat");
+          return;
+        }
+
+        await showToast("Injected. Undo in chat.");
+      } finally {
+        if (button) {
+          button.classList.remove("pn-loading-state");
+          button.disabled = false;
+        }
       }
-
-      await showToast("Injected. Undo in chat.");
     };
 
     await buildInjectActions({
@@ -653,7 +671,7 @@
               if (saved) {
                 await showToast("Template saved to library.");
               } else {
-                await showToast("Template save failed.");
+                await showToast("Template save failed. Try again.");
               }
             },
           },
@@ -695,10 +713,16 @@
             title: "Delete this prompt from your library.",
             tone: "danger",
             onSelect: async () => {
+              const confirmed = await (window.PnDialog || window).confirm(
+                `Delete \"${prompt.title || "Untitled prompt"}\"?`,
+                { title: "Delete Prompt", confirmLabel: "Delete", danger: true },
+              );
+              if (!confirmed) return;
+
               const deleted = await window.Store.deletePrompt(prompt.id);
 
               if (!deleted) {
-                await showToast("Delete failed.");
+                await showToast("Delete failed. Try again.");
                 return;
               }
 
@@ -737,6 +761,18 @@
     card.appendChild(text);
     if (clarity) card.appendChild(clarity);
     card.appendChild(tagsWrap);
+
+    // Token count badge
+    if (window.TokenCounter && prompt.text) {
+      const provider = String(state.settings?.activeProvider || "").toLowerCase();
+      const { count, isExact } = window.TokenCounter.count(prompt.text, provider);
+      const tokenBadge = document.createElement("span");
+      tokenBadge.className = `pn-token-count${count > window.TokenCounter.TOKEN_WARN_THRESHOLD ? " pn-token-count--warn" : ""}`;
+      tokenBadge.textContent = window.TokenCounter.format(count, isExact);
+      tokenBadge.title = window.TokenCounter.tooltip(isExact);
+      card.appendChild(tokenBadge);
+    }
+
     card.appendChild(actions);
     bindHoverPreview(card);
     return card;
@@ -1142,6 +1178,10 @@
     semanticUiState.mode = "idle";
     semanticUiState.reason = "";
     refreshSearchModeBadge();
+    if (state.activeTab === "chains" && window.ChainsUI?.render) {
+      void window.ChainsUI.render("");
+      return;
+    }
     void render("");
   };
 
@@ -1157,6 +1197,13 @@
       clearTimeout(state._searchDebounce);
       state._searchDebounce = setTimeout(() => {
         const query = String(target?.value || "");
+        if (state.activeTab === "chains" && window.ChainsUI?.render) {
+          semanticUiState.mode = "idle";
+          semanticUiState.reason = "";
+          refreshSearchModeBadge();
+          void window.ChainsUI.render(query);
+          return;
+        }
         void render(query);
       }, UI_FEEDBACK_MS.SEARCH_DEBOUNCE);
     });
@@ -1262,7 +1309,7 @@
       .sendMessage(context.tabId, { action: "scrapeForBridge" })
       .catch(() => null);
     if (!response?.messages?.length) {
-      await showToast("No conversation found to bridge.");
+      await showToast("No conversation found. Open a chat and try again.");
       return;
     }
 
@@ -1340,7 +1387,9 @@
           );
         } catch (error) {
           console.error("[Promptium] Continue here failed.", error);
-          await showToast("Could not continue in current LLM.");
+          await showToast(
+            "Continue failed. Try again or pick another LLM.",
+          );
         } finally {
           continueHereButton.disabled = false;
           continueHereButton.classList.remove("is-loading");
@@ -1397,7 +1446,9 @@
             await bridgeFromPrompts(target.key, target.label, currentPlatform);
           } catch (error) {
             console.error("[Promptium] Bridge picker action failed.", error);
-            await showToast("Could not continue in selected LLM.");
+            await showToast(
+              "Continue failed. Try again or choose another LLM.",
+            );
           }
         })();
       });

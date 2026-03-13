@@ -970,7 +970,7 @@
         .sendMessage({ action: "SET_SIDEPANEL_PAYLOAD", payload })
         .catch(() => null);
       if (!persisted?.ok) {
-        await showNotification("Export staging failed.");
+        await showNotification("Export staging failed. Try again.");
         return;
       }
 

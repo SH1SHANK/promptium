@@ -6,6 +6,7 @@
 
   const KEYS = Object.freeze({
     SIDEPANEL_SESSION_KEY: "promptiumSidePanelPayload",
+    PENDING_PANEL_ACTION_KEY: "promptiumPendingPanelAction",
     SETTINGS_KEY: "promptiumSettings",
     GEMINI_KEY: "promptiumGeminiKey",
     OPENAI_KEY: "promptiumOpenAIKey",
@@ -33,6 +34,7 @@
       autoTags: true,
       improvePrompt: true,
       continueSummary: true,
+      smartSuggestions: true,
     },
     fabPosition: "bottom-right",
     fabStyle: "circle",
@@ -45,6 +47,7 @@
     },
     visibleTabs: {
       prompts: true,
+      chains: true,
       export: true,
       history: true,
       tags: true,

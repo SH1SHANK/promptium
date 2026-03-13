@@ -55,6 +55,10 @@ const AIBridge = {
     return this._send({ type: 'AI_PREPARE_PROMPT_SAVE', payload });
   },
 
+  async generatePromptChain(goal, context = '', mode = 'full') {
+    return this._send({ type: 'AI_GENERATE_CHAIN', goal, context, mode });
+  },
+
   async routeTask(task, payload = {}) {
     return this._send({ type: 'AI_ROUTE_TASK', task, ...payload });
   },

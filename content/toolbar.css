@@ -14,7 +14,11 @@
   --pn-accent-glow: rgba(var(--pn-accent-rgb), 0.16);
   --pn-text-primary: #f0f0f4;
   --pn-text-secondary: #9ca3b5;
-  --pn-danger: #f87171;
+  --pn-danger: #ef4444;
+  --pn-danger-rgb: 239, 68, 68;
+  --pn-motion-fast: 150ms;
+  --pn-motion-ease: cubic-bezier(0.2, 0, 0.2, 1);
+  --pn-motion-panel: 200ms;
 }
 
 .pn-btn {
@@ -28,10 +32,10 @@
   min-height: 32px;
   cursor: pointer;
   transition:
-    border-color 160ms ease,
-    background 160ms ease,
-    box-shadow 160ms ease,
-    transform 160ms ease;
+    border-color var(--pn-motion-fast) var(--pn-motion-ease),
+    background var(--pn-motion-fast) var(--pn-motion-ease),
+    box-shadow var(--pn-motion-fast) var(--pn-motion-ease),
+    transform var(--pn-motion-fast) var(--pn-motion-ease);
   font-family: -apple-system, "Segoe UI", sans-serif;
 }
 
@@ -200,10 +204,10 @@
   line-height: 1;
   cursor: pointer;
   transition:
-    border-color 160ms ease,
-    background 160ms ease,
-    color 160ms ease,
-    transform 160ms ease;
+    border-color var(--pn-motion-fast) var(--pn-motion-ease),
+    background var(--pn-motion-fast) var(--pn-motion-ease),
+    color var(--pn-motion-fast) var(--pn-motion-ease),
+    transform var(--pn-motion-fast) var(--pn-motion-ease);
 }
 
 .pn-save-modal__icon-btn:hover {
@@ -385,7 +389,7 @@
 }
 
 .pn-tag-badge__remove:hover {
-  background: rgba(248, 113, 113, 0.3);
+  background: rgba(239, 68, 68, 0.3);
   color: #ffd1d1;
 }
 
@@ -433,9 +437,9 @@
   font-size: 11px;
   cursor: pointer;
   transition:
-    border-color 160ms ease,
-    background 160ms ease,
-    color 160ms ease;
+    border-color var(--pn-motion-fast) var(--pn-motion-ease),
+    background var(--pn-motion-fast) var(--pn-motion-ease),
+    color var(--pn-motion-fast) var(--pn-motion-ease);
 }
 
 .pn-save-modal__suggestion-chip:hover {
@@ -448,8 +452,8 @@
   margin: -2px 0 12px;
   padding: 10px 11px;
   border-radius: 12px;
-  border: 1px solid rgba(248, 113, 113, 0.28);
-  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(var(--pn-danger-rgb), 0.28);
+  background: rgba(var(--pn-danger-rgb), 0.08);
   color: #fecaca;
   font-size: 12px;
   line-height: 1.45;
@@ -676,7 +680,7 @@
 }
 
 .pn-injected-flash {
-  animation: pn-flash-bg 600ms ease-out !important;
+  animation: pn-flash-bg 200ms ease-out !important;
   border-radius: 4px;
 }
 
@@ -716,7 +720,7 @@
 
 .pn-continuation-banner--error {
   border-left-color: var(--pn-danger);
-  border-color: rgba(248, 113, 113, 0.3);
+  border-color: rgba(var(--pn-danger-rgb), 0.3);
 }
 
 .pn-continuation-banner--out {

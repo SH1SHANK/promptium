@@ -70,12 +70,12 @@
       z-index: -1;
     }
     .pn-inline-select:hover {
-      border-color: rgba(45, 212, 191, 0.8);
-      background: rgba(45, 212, 191, 0.1);
+      border-color: rgba(54, 214, 195, 0.8);
+      background: rgba(54, 214, 195, 0.1);
     }
     .pn-inline-select.pn-checked {
-      background: rgba(45, 212, 191, 0.18);
-      border-color: rgba(45, 212, 191, 0.9);
+      background: rgba(54, 214, 195, 0.18);
+      border-color: rgba(54, 214, 195, 0.9);
     }
     .pn-inline-check {
       position: absolute;
@@ -88,12 +88,12 @@
       border-radius: 3px;
       border: 1.5px solid rgba(255, 255, 255, 0.6);
       box-sizing: border-box;
-      transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+      transition: background 150ms cubic-bezier(0.2, 0, 0.2, 1), border-color 150ms cubic-bezier(0.2, 0, 0.2, 1), box-shadow 150ms cubic-bezier(0.2, 0, 0.2, 1);
     }
     .pn-inline-check:checked + .pn-inline-mark {
-      background: #2dd4bf;
-      border-color: #2dd4bf;
-      box-shadow: 0 0 6px rgba(45, 212, 191, 0.4);
+      background: #36d6c3;
+      border-color: #36d6c3;
+      box-shadow: 0 0 6px rgba(54, 214, 195, 0.4);
     }
   `;
 
@@ -1237,6 +1237,44 @@
     sendResponse({ ok: true, platform });
   };
 
+  /** Returns assistant message fingerprint for prompt-chain execution. */
+  const handleGetConversationFingerprint = async (platform, sendResponse) => {
+    try {
+      const selectors =
+        exportSelectionState.selectors ||
+        (await window.Platform.getSelectors(platform));
+      if (!selectors?.botMsg) {
+        sendResponse({ ok: false, error: "Selectors unavailable." });
+        return;
+      }
+
+      const botNodes = Array.from(document.querySelectorAll(selectors.botMsg));
+      if (!botNodes.length) {
+        sendResponse({
+          ok: true,
+          assistantCount: 0,
+          lastAssistantText: "",
+        });
+        return;
+      }
+
+      const sorted = await sortContentNodesByDomOrder(botNodes);
+      const last = sorted[sorted.length - 1];
+      const text = String(last?.innerText || last?.textContent || "").trim();
+
+      sendResponse({
+        ok: true,
+        assistantCount: botNodes.length,
+        lastAssistantText: text,
+      });
+    } catch (error) {
+      sendResponse({
+        ok: false,
+        error: String(error?.message || "Fingerprint failed."),
+      });
+    }
+  };
+
   /** Handles side-panel export open requests that should include every visible message. */
   const handleOpenSidePanelAll = async (sendResponse) => {
     sendResponse(await openSidePanelWithAllMessages());
@@ -1294,6 +1332,11 @@
 
         if (msg?.action === "getPlatform") {
           await handleGetPlatform(platform, respond);
+          return;
+        }
+
+        if (msg?.action === "getConversationFingerprint") {
+          await handleGetConversationFingerprint(platform, respond);
           return;
         }
 
@@ -1407,7 +1450,7 @@
       el.classList.add("pn-continuation-banner--error");
       if (spinner) {
         spinner.style.cssText =
-          "border-color:rgba(248,113,113,0.22);border-top-color:#f87171;animation:none";
+          "border-color:rgba(239,68,68,0.22);border-top-color:#ef4444;animation:none";
       }
     }
     const textSpan = el.querySelector(
@@ -1591,6 +1634,13 @@
     }
     await initExportSelectionUi(platform);
 
+    if (window.PromptSuggestions?.init) {
+      try {
+        const snap = await chrome.storage.local.get("promptiumSettings");
+        window.PromptSuggestions.init(snap?.promptiumSettings || {});
+      } catch (_) {}
+    }
+
     window.__PN.SidePanelExport = {
       openPanelOnly: openSidePanelOnly,
       openWithSelection: openSidePanelWithSelection,
@@ -1618,6 +1668,10 @@
     chrome.storage.local.onChanged.addListener((changes) => {
       if (changes.promptiumSettings) {
         syncHighlightSettings();
+        const newSettings = changes.promptiumSettings.newValue || {};
+        window.PromptSuggestions?.setEnabled(
+          newSettings?.featureFlags?.smartSuggestions !== false,
+        );
       }
     });
 
