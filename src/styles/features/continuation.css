@@ -1,0 +1,175 @@
+/* Session continuation chat frames */
+
+.pn-continue-view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(18, 21, 29, 0.82));
+}
+
+.pn-continue-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pn-continue-summary {
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 0;
+}
+
+/* Quick Launch Grid */
+.pn-continue-quick {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pn-continue-quick-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.pn-continue-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 6px;
+}
+
+.pn-continue-target-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  transition:
+    background var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease);
+}
+
+.pn-continue-target-btn:hover:not(:disabled) {
+  background: rgba(var(--accent-rgb), 0.08);
+  border-color: rgba(var(--accent-rgb), 0.3);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.pn-continue-target-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.pn-continue-target-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pn-continue-target-btn.pn-loading-state {
+  border-color: rgba(var(--accent-rgb), 0.4);
+  background: rgba(var(--accent-rgb), 0.1);
+  animation: pn-pulse 1.2s ease-in-out infinite;
+}
+
+.pn-continue-target-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary);
+  transition: background 0.15s ease;
+}
+
+.pn-continue-target-btn:hover:not(:disabled) .pn-continue-target-icon {
+  background: rgba(var(--accent-rgb), 0.15);
+  color: var(--accent);
+}
+
+.pn-continue-target-name {
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* Advanced options (collapsible) */
+.pn-continue-advanced {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.pn-continue-advanced-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  transition: color 0.15s ease;
+}
+
+.pn-continue-advanced-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.pn-continue-advanced-toggle svg {
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.pn-continue-advanced[open] .pn-continue-advanced-toggle svg {
+  transform: rotate(180deg);
+}
+
+.pn-continue-advanced-toggle:hover {
+  color: var(--text-secondary);
+}
+
+.pn-continue-advanced-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 10px 10px;
+}
+
+/* Actions and footer */
+.pn-continue-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.pn-continue-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 8px;
+  margin-top: 2px;
+}

@@ -324,7 +324,7 @@ Synced across all contexts via `chrome.storage.onChanged` listener.
 
 ```javascript
 chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName === "local") {
+  if (areaName === 'local') {
     if (changes.promptiumSettings) {
       // Re-render UI with new settings
     }

@@ -1,0 +1,12 @@
+:root {
+  /* ── Border Radius ── */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+  --radius-pill: 999px;
+  --radius-card: 8px;
+  --radius-input: 7px;
+  --radius-chip: 20px;
+}

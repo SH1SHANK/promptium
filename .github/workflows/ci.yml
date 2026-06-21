@@ -1,0 +1,111 @@
+# File: .github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build & Quality Gates
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm Cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      # CI-2A: Formatting & Linter Gates
+      - name: Run Prettier Check
+        run: pnpm prettier:check
+
+      - name: Run ESLint Check
+        run: pnpm lint
+
+      - name: Run Type Check
+        run: pnpm typecheck
+
+      # Build & Packaging
+      - name: Build Extension
+        run: pnpm build
+
+      # CI-2A: Upload Build Artifacts
+      - name: Package Extension (Zip)
+        run: pnpm zip
+
+      - name: Verify Build Artifacts
+        shell: bash
+        run: |
+          if [ ! -f .output/chrome-mv3/manifest.json ]; then
+            echo "Error: manifest.json is missing!"
+            exit 1
+          fi
+
+          ZIP_COUNT=$(ls .output/*.zip 2>/dev/null | wc -l)
+          if [ "$ZIP_COUNT" -eq 0 ]; then
+            echo "Error: zip package is missing!"
+            exit 1
+          fi
+          echo "Build and packaging verified successfully."
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: promptium-chrome-extension
+          path: |
+            .output/chrome-mv3
+            .output/*.zip
+
+      # CI-2B: Knip Dead Dependency Analysis (Report-Only)
+      - name: Run Knip Report
+        run: pnpm knip || true
+
+      # CI-2B: Bundle Size Reporting (Report-Only)
+      - name: Bundle Size Report
+        shell: bash
+        run: |
+          echo "=========================================="
+          echo "           BUNDLE SIZE REPORT             "
+          echo "=========================================="
+          for file in .output/chrome-mv3/background.js .output/chrome-mv3/content-scripts/content.js .output/chrome-mv3/chunks/app-*.js; do
+            if [ -f "$file" ]; then
+              size_bytes=$(wc -c < "$file" | xargs)
+              size_kb=$(echo "scale=2; $size_bytes / 1024" | bc 2>/dev/null || awk "BEGIN {print $size_bytes/1024}")
+              printf "%-50s: %10s bytes (%6.2f KB)\n" "$file" "$size_bytes" "$size_kb"
+            else
+              echo "$file: NOT FOUND"
+            fi
+          done
+          echo "=========================================="

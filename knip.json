@@ -1,0 +1,14 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "src/entrypoints/background.ts",
+    "src/entrypoints/app/index.ts",
+    "src/entrypoints/content/index.ts",
+    "wxt.config.ts",
+    "tailwind.config.js",
+    "postcss.config.js"
+  ],
+  "project": ["src/**/*.ts", "src/**/*.js"],
+  "ignore": [".wxt/**", ".output/**", "node_modules/**"],
+  "ignoreDependencies": ["autoprefixer"]
+}

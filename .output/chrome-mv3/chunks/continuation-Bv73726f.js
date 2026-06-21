@@ -1,0 +1,1 @@
+var e=()=>{},t=async()=>{},n=async()=>{},r=()=>{},i={openFromPayload:()=>{},openFromActiveTab:()=>{},openFromExportSelection:()=>{},refreshTargets:e,bindEvents:()=>{},runContinuation:t};typeof window<`u`&&(window.ContinuationUI=i);export{i as ContinuationUI,r as clearPreview,n as openPendingContinuation,t as quickContinue,e as renderTargetGrid};

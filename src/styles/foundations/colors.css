@@ -1,0 +1,39 @@
+:root {
+  /* ── Colors: Accent ── */
+  --color-accent: #36d6c3;
+  --color-accent-rgb: 54, 214, 195;
+  --color-accent-dim: rgba(54, 214, 195, 0.56);
+  --color-accent-glow: rgba(54, 214, 195, 0.14);
+  --color-accent-strong: #14b8a6;
+  --color-accent-text: #8af3e7;
+  --color-secondary-accent: #6366f1;
+  --color-secondary-accent-text: #a49aff;
+  --color-secondary-accent-muted: #b9b3ff;
+  --color-template-accent: #c084fc;
+
+  /* ── Colors: Backgrounds ── */
+  --color-bg-base: #08090d;
+  --color-bg-surface: #12141b;
+  --color-bg-elevated: #181b24;
+  --color-bg-hover: #242836;
+  --color-bg-glass: rgba(16, 18, 26, 0.86);
+
+  /* ── Colors: Text ── */
+  --color-text-primary: #fafafa;
+  --color-text-secondary: #9ca3b5;
+  --color-text-muted: #596178;
+
+  /* ── Colors: Borders ── */
+  --color-border-subtle: rgba(255, 255, 255, 0.05);
+  --color-border-default: rgba(255, 255, 255, 0.1);
+  --color-border-accent: rgba(54, 214, 195, 0.4);
+
+  /* ── Colors: Status ── */
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  --color-danger-rgb: 239, 68, 68;
+  --color-success-soft: #86efac;
+  --color-info-soft: #93c5fd;
+  --color-danger-soft: #fca5a5;
+}

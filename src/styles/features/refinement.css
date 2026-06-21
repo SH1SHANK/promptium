@@ -1,0 +1,159 @@
+/* AI improve views, side-by-side diffs */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Improve Prompt Diff Modal
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.pn-improve-panel {
+  max-width: 620px;
+  width: calc(100vw - 32px);
+}
+
+.pn-improve-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.pn-improve-title-icon {
+  color: var(--secondary-accent-text);
+  vertical-align: -2px;
+  margin-right: 6px;
+}
+
+/* Loading skeleton */
+.pn-improve-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 0;
+}
+
+/* pn-skeleton-shimmer animation defined in the UX Polish Overrides block below */
+
+.pn-improve-loading-text {
+  margin: 8px 0 0;
+  font-size: var(--font-size-md);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.pn-improve-runtime-note {
+  margin: 2px 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  text-align: center;
+  font-family: var(--font-mono);
+}
+
+/* Diff columns */
+.pn-improve-diff {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.pn-improve-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pn-improve-col-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pn-improve-col-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.pn-improve-col-label--new {
+  color: #86efac;
+}
+
+.pn-improve-count {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.pn-improve-count--positive {
+  color: #86efac;
+}
+
+.pn-improve-count--negative {
+  color: #fca5a5;
+}
+
+.pn-improve-text {
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+  font-size: var(--font-size-md);
+  line-height: 1.55;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.pn-improve-col--new .pn-improve-text {
+  border-color: rgba(134, 239, 172, 0.15);
+  background: rgba(134, 239, 172, 0.03);
+}
+
+/* Error */
+.pn-improve-error {
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(252, 165, 165, 0.06);
+  border: 1px solid rgba(252, 165, 165, 0.2);
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.pn-improve-error p {
+  margin: 0;
+  font-size: var(--font-size-md);
+  color: #fca5a5;
+}
+
+/* Actions */
+.pn-improve-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  flex-wrap: wrap;
+}
+
+/* ── Improve Prompt Word Diff ─────────────────────────────────────────────── */
+
+ins.pn-diff-add {
+  text-decoration: none;
+  background: rgba(74, 222, 128, 0.12);
+  color: #4ade80;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+del.pn-diff-del {
+  background: rgba(var(--danger-rgb), 0.12);
+  color: var(--danger-soft);
+  border-radius: 2px;
+  padding: 0 1px;
+}

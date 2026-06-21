@@ -1,0 +1,7 @@
+.pn-main {
+  padding: 12px;
+}
+
+.pn-main {
+  padding: var(--space-3);
+}

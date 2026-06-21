@@ -1,0 +1,44 @@
+/* Scrollbar customizations */
+
+body.pn-popup::-webkit-scrollbar {
+  width: 8px;
+}
+
+body.pn-popup::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.16);
+}
+
+body.pn-popup::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: var(--radius-pill);
+}
+
+body.pn-popup::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--accent-rgb), 0.5);
+}
+
+.pn-settings-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.pn-template-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.pn-bridge-targets::-webkit-scrollbar {
+  display: none;
+}
+
+body.pn-sidepanel *::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+body.pn-sidepanel *::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 2px;
+}
+
+body.pn-sidepanel *::-webkit-scrollbar-track {
+  background: transparent;
+}

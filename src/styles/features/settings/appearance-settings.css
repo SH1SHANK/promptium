@@ -1,0 +1,12 @@
+/* Themes, custom scaling rules */
+
+/* ── Settings — Dark Theme Corrections ── */
+
+body.pn-sidepanel .tab-content.pn-tab-content[data-tab='settings'] .pn-sv-textarea,
+body.pn-sidepanel .tab-content.pn-tab-content[data-tab='settings'] .pn-sv-select,
+body.pn-sidepanel .tab-content.pn-tab-content[data-tab='settings'] .pn-platform-label-input,
+body.pn-sidepanel .tab-content.pn-tab-content[data-tab='settings'] .pn-platform-label-form {
+  background: var(--bg-surface);
+  border-color: var(--border-default);
+  color: var(--text-primary);
+}

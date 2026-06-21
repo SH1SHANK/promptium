@@ -4,15 +4,28 @@
   "version": "1.0.0",
   "packageManager": "pnpm@8.9.0",
   "scripts": {
-    "build:sidepanel-css": "tailwindcss -i ./src/input.css -o ./sidepanel/tailwind.css --minify",
-    "watch:sidepanel-css": "tailwindcss -i ./src/input.css -o ./sidepanel/tailwind.css --watch"
+    "dev": "wxt",
+    "build": "wxt build",
+    "zip": "wxt zip",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint 'src/**/*.ts'",
+    "prettier:check": "prettier --check 'src/**/*.{ts,css,html}'",
+    "format": "prettier --write .",
+    "knip": "knip",
+    "postinstall": "wxt prepare"
   },
   "private": true,
-  "dependencies": {
-    "jspdf": "^4.2.0"
-  },
   "devDependencies": {
-    "canvas": "2.11.2",
-    "tailwindcss": "^3.4.17"
+    "@types/chrome": "^0.1.43",
+    "autoprefixer": "^10.5.0",
+    "eslint": "^9.20.0",
+    "eslint-config-prettier": "^10.0.1",
+    "knip": "^5.45.0",
+    "postcss": "^8.5.15",
+    "prettier": "^3.5.0",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.23.0",
+    "wxt": "^0.20.26"
   }
 }

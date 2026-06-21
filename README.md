@@ -1,5 +1,7 @@
 # Promptium
 
+[![CI](https://github.com/sh1shank/promptium/actions/workflows/ci.yml/badge.svg)](https://github.com/sh1shank/promptium/actions/workflows/ci.yml)
+
 A Chrome extension for prompt management, semantic search, template variables, AI-assisted optimization, cross-LLM continuation, and conversation export. Operates entirely locally with no server backend.
 
 ## Documentation

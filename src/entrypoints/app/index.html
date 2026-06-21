@@ -1,0 +1,984 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Promptium</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/promptium/icon32.png" />
+  </head>
+  <body class="pn-popup pn-sidepanel pn-app-window">
+    <header class="pn-header pn-sidepanel-header">
+      <div class="pn-header-actions">
+        <span
+          id="pn-search-setup-indicator"
+          class="pn-search-setup-indicator pn-hidden"
+          title="Setting up search..."
+          aria-label="Setting up search"
+        ></span>
+        <button
+          id="back-btn"
+          class="hidden pn-btn pn-btn--ghost pn-icon-btn pn-mr-auto"
+          type="button"
+          title="Back"
+          aria-label="Back"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+          </svg>
+          <span>Back</span>
+        </button>
+        <span id="header-page-title" class="hidden"></span>
+
+        <button
+          id="settings-btn"
+          class="pn-btn pn-btn--ghost pn-icon-btn"
+          type="button"
+          title="Settings"
+          aria-label="Settings"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="12" cy="12" r="3"></circle>
+            <path
+              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
+            ></path>
+          </svg>
+        </button>
+        <button
+          id="refresh-btn"
+          class="pn-btn pn-btn--ghost pn-icon-btn"
+          type="button"
+          title="Refresh Workspace"
+          aria-label="Refresh Workspace"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <polyline points="1 20 1 14 7 14"></polyline>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+          </svg>
+        </button>
+        <button id="add-prompt-btn" class="pn-btn pn-btn--primary" type="button">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          Add Prompt
+        </button>
+        <button
+          id="panel-close-btn"
+          class="pn-btn pn-btn--ghost pn-icon-btn hidden"
+          type="button"
+          title="Close"
+          aria-label="Close"
+        >
+          ×
+        </button>
+      </div>
+    </header>
+
+    <div id="search-wrap" class="pn-search-row">
+      <div class="pn-search-input-wrap">
+        <input
+          id="prompt-search"
+          class="pn-search"
+          type="text"
+          placeholder="Search title, prompt text, tags, or category"
+        />
+        <button
+          id="pn-search-clear"
+          type="button"
+          class="pn-search-clear pn-hidden"
+          aria-label="Clear search"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <span id="pn-search-mode-badge" class="pn-search-mode-badge pn-hidden">Keyword search</span>
+      <span id="pn-search-spark" class="pn-search-spark pn-hidden">✦</span>
+      <div id="pn-model-feedback" class="pn-model-feedback pn-hidden" aria-live="polite">
+        <span id="pn-model-feedback-dot" class="pn-model-feedback__dot"></span>
+        <span id="pn-model-feedback-text">Checking Gemini state…</span>
+      </div>
+      <div id="pn-ai-bar" class="pn-ai-bar pn-ai-bar--hidden">
+        <div class="pn-ai-bar__line"></div>
+      </div>
+    </div>
+
+    <nav class="pn-tab-bar" aria-label="Promptium tabs">
+      <button class="tab pn-tab active" data-tab="prompts" type="button">Prompts</button>
+      <button class="tab pn-tab" data-tab="tags" type="button">Tags</button>
+    </nav>
+
+    <main class="pn-main pn-sidepanel-main">
+      <section class="tab-content pn-tab-content active" data-tab="prompts">
+        <div id="pn-smart-strip" class="pn-smart-strip pn-hidden">
+          <span class="pn-smart-strip__label">✦ Matches your current topic</span>
+          <div id="pn-smart-chips" class="pn-smart-chips"></div>
+          <button class="pn-smart-strip__close" id="pn-smart-close" type="button">×</button>
+        </div>
+        <div id="pn-bridge-strip" class="pn-bridge-strip pn-hidden">
+          <span class="pn-bridge-label">Continue on</span>
+          <div id="pn-bridge-targets" class="pn-bridge-targets"></div>
+        </div>
+        <button
+          id="pn-prompts-continue-chat"
+          type="button"
+          class="pn-btn pn-btn--ghost pn-btn--block pn-continue-shortcut"
+          title="Continue this conversation on another LLM"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M21 12a9 9 0 1 1-3.4-7" />
+            <path d="M21 3v7h-7" />
+            <path d="M8 12h8" />
+            <path d="M12 8l4 4-4 4" />
+          </svg>
+          Continue Chat
+        </button>
+        <div id="pn-search-assists" class="pn-search-assists pn-hidden">
+          <div id="pn-recent-searches" class="pn-search-chip-row"></div>
+          <div id="pn-category-filters" class="pn-search-chip-row"></div>
+        </div>
+        <div
+          id="pn-template-filters"
+          class="pn-template-filters pn-hidden"
+          role="tablist"
+          aria-label="Filter templates by category"
+        >
+          <button
+            class="pn-filter-chip active"
+            data-filter="all"
+            role="tab"
+            aria-selected="true"
+            type="button"
+          >
+            All
+          </button>
+          <button
+            class="pn-filter-chip"
+            data-filter="writing"
+            role="tab"
+            aria-selected="false"
+            type="button"
+          >
+            Writing
+          </button>
+          <button
+            class="pn-filter-chip"
+            data-filter="coding"
+            role="tab"
+            aria-selected="false"
+            type="button"
+          >
+            Coding
+          </button>
+          <button
+            class="pn-filter-chip"
+            data-filter="study"
+            role="tab"
+            aria-selected="false"
+            type="button"
+          >
+            Study
+          </button>
+          <button
+            class="pn-filter-chip"
+            data-filter="research"
+            role="tab"
+            aria-selected="false"
+            type="button"
+          >
+            Research
+          </button>
+          <button
+            class="pn-filter-chip"
+            data-filter="creative"
+            role="tab"
+            aria-selected="false"
+            type="button"
+          >
+            Creative
+          </button>
+          <button
+            class="pn-filter-chip"
+            data-filter="work"
+            role="tab"
+            aria-selected="false"
+            type="button"
+          >
+            Work
+          </button>
+          <button
+            class="pn-filter-chip"
+            data-filter="general"
+            role="tab"
+            aria-selected="false"
+            type="button"
+          >
+            General
+          </button>
+        </div>
+        <div id="pn-template-fill-panel" class="pn-template-fill-panel pn-hidden"></div>
+        <div id="prompt-list" class="pn-list"></div>
+      </section>
+
+      <section class="tab-content pn-tab-content" data-tab="export">
+        <div class="pn-export-grid">
+          <aside class="pn-export-controls">
+            <div class="pn-export-meta-badges">
+              <span id="selection-meta" class="pn-card-meta">No messages selected</span>
+              <div id="export-counts" class="pn-export-counts pn-hidden">
+                <span id="export-msg-count" class="pn-export-count-badge">0 msgs</span>
+                <span id="export-word-count" class="pn-export-count-badge">0 words</span>
+              </div>
+            </div>
+            <div
+              id="pn-bridge-strip-export"
+              class="pn-bridge-strip pn-bridge-strip--export pn-hidden"
+            >
+              <span class="pn-bridge-label">Continue on</span>
+              <div id="pn-bridge-targets-export" class="pn-bridge-targets"></div>
+            </div>
+            <button
+              id="pn-open-continue-chat"
+              type="button"
+              class="pn-btn pn-btn--ghost pn-btn--block"
+            >
+              Continue Chat
+            </button>
+
+            <label class="pn-field">
+              <span>Export Format</span>
+              <select id="export-format">
+                <option value="markdown">Markdown (.md)</option>
+                <option value="json">JSON (.json)</option>
+                <option value="pdf">PDF (.pdf)</option>
+              </select>
+            </label>
+
+            <label class="pn-field">
+              <span>Export Style</span>
+              <select id="export-style">
+                <option value="standard">Standard</option>
+                <option value="research">Research Notes</option>
+                <option value="documentation">Documentation</option>
+              </select>
+            </label>
+
+            <label class="pn-field">
+              <span>Content Mode</span>
+              <select id="export-content-mode">
+                <option value="structured">Structured messages</option>
+                <option value="combined">Combined text</option>
+              </select>
+            </label>
+
+            <label class="pn-field">
+              <span>Font Family</span>
+              <select id="export-font-style">
+                <option value="System">System</option>
+                <option value="Outfit">Outfit</option>
+                <option value="Montserrat">Montserrat</option>
+                <option value="Inter">Inter</option>
+                <option value="Helvetica">Helvetica</option>
+                <option value="Poppins">Poppins</option>
+                <option value="Roboto">Roboto</option>
+                <option value="Open Sans">Open Sans</option>
+                <option value="Lato">Lato</option>
+                <option value="Nunito">Nunito</option>
+                <option value="Source Sans 3">Source Sans 3</option>
+                <option value="Merriweather">Merriweather</option>
+                <option value="JetBrains Mono">JetBrains Mono</option>
+                <option value="Georgia">Georgia</option>
+              </select>
+            </label>
+
+            <label class="pn-field">
+              <span>Font Size</span>
+              <div class="pn-export-font-row">
+                <input id="export-font-size" type="range" min="12" max="20" step="1" value="14" />
+                <input
+                  id="export-font-size-number"
+                  type="number"
+                  min="12"
+                  max="20"
+                  step="1"
+                  value="14"
+                />
+              </div>
+            </label>
+
+            <label class="pn-field">
+              <span>Background</span>
+              <select id="export-bg-style">
+                <option value="dark">Dark</option>
+                <option value="light">Light</option>
+                <option value="sepia">Sepia</option>
+                <option value="custom">Custom</option>
+              </select>
+            </label>
+
+            <label id="export-bg-custom-wrap" class="pn-field pn-hidden">
+              <span>Custom Background</span>
+              <input id="export-bg-custom" type="color" value="#18181c" />
+            </label>
+
+            <label class="pn-field">
+              <span>Filename <small class="pn-field-hint">(optional)</small></span>
+              <input
+                id="export-filename"
+                type="text"
+                placeholder="Auto-generated"
+                class="pn-export-filename-input"
+              />
+            </label>
+
+            <div class="pn-export-toggles">
+              <label class="pn-check-row">
+                <input id="include-date" type="checkbox" checked />
+                <span>Include export date</span>
+              </label>
+
+              <label class="pn-check-row">
+                <input id="include-platform" type="checkbox" checked />
+                <span>Include platform label</span>
+              </label>
+
+              <label class="pn-check-row">
+                <input id="include-msg-numbers" type="checkbox" />
+                <span>Include message numbers</span>
+              </label>
+
+              <label class="pn-check-row">
+                <input id="trim-follow-ups" type="checkbox" checked />
+                <span>Trim AI conversational filler</span>
+              </label>
+            </div>
+
+            <div class="pn-export-actions-row pn-export-actions-row--tools">
+              <button id="export-btn" type="button" class="pn-btn pn-btn--primary">Export</button>
+              <button
+                id="copy-export-btn"
+                type="button"
+                class="pn-btn pn-btn--ghost pn-btn--copy"
+                title="Copy to clipboard"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                Copy
+              </button>
+            </div>
+
+            <div id="export-status" class="pn-card-meta"></div>
+          </aside>
+
+          <section class="pn-export-preview-shell">
+            <div class="pn-export-preview-head">
+              <div>
+                <h3 class="pn-section-title">Preview</h3>
+                <p id="preview-label" class="pn-card-meta">Markdown preview</p>
+              </div>
+              <button
+                id="export-reload-selection"
+                type="button"
+                class="pn-btn pn-btn--ghost pn-hidden"
+              >
+                Reload latest selection
+              </button>
+            </div>
+            <div id="preview" class="pn-export-preview-body"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="tab-content pn-tab-content" data-tab="continue">
+        <div class="pn-continue-view">
+          <!-- Header -->
+          <div class="pn-continue-head">
+            <h3 class="pn-sv-hero__title">Continue Chat</h3>
+            <p id="pn-continue-summary" class="pn-continue-summary">Select a chat to continue.</p>
+            <p id="pn-continue-advisory" class="pn-sv-api-hint pn-hidden"></p>
+          </div>
+
+          <!-- Quick Launch Grid -->
+          <div class="pn-continue-quick">
+            <span class="pn-continue-quick-label">Continue on</span>
+            <div id="pn-continue-targets" class="pn-continue-grid"></div>
+          </div>
+
+          <!-- Advanced options (collapsed by default) -->
+          <details id="pn-continue-advanced" class="pn-continue-advanced">
+            <summary class="pn-continue-advanced-toggle">
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+              Advanced options
+            </summary>
+            <div class="pn-continue-advanced-body">
+              <label class="pn-field">
+                <span>Context mode</span>
+                <select id="pn-continue-mode">
+                  <option value="FULL_SUMMARY">Full Summary</option>
+                  <option value="KEY_POINTS">Key Points Only</option>
+                  <option value="RECENT_ONLY">Last N Messages</option>
+                </select>
+              </label>
+
+              <label class="pn-field">
+                <span>
+                  Extra instructions
+                  <small class="pn-field-hint">(optional)</small>
+                </span>
+                <textarea
+                  id="pn-continue-note"
+                  rows="2"
+                  placeholder="e.g. Focus on the code review part"
+                ></textarea>
+              </label>
+            </div>
+          </details>
+
+          <!-- Inline preview (hidden until handoff is ready) -->
+          <div id="pn-continue-preview-wrap" class="pn-hidden">
+            <label class="pn-field">
+              <span>Handoff Preview</span>
+              <textarea id="pn-continue-preview" rows="5" readonly></textarea>
+            </label>
+            <div class="pn-continue-actions">
+              <button id="pn-continue-copy" class="pn-btn pn-btn--ghost" type="button">
+                📋 Copy
+              </button>
+              <button id="pn-continue-open" class="pn-btn pn-btn--primary" type="button">
+                Open in target →
+              </button>
+            </div>
+          </div>
+
+          <!-- Cancel -->
+          <div class="pn-continue-actions pn-continue-footer">
+            <button id="pn-continue-cancel" class="pn-btn pn-btn--ghost pn-btn--sm" type="button">
+              ← Back to prompts
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-content pn-tab-content" data-tab="tags">
+        <div class="pn-tags-view">
+          <div id="pn-quick-filters-head" class="pn-tags-view-header pn-tags-view-header--spaced">
+            <h3 class="pn-section-title">Quick Filters</h3>
+            <p class="pn-card-meta">Click a tag to view matching prompts</p>
+          </div>
+          <div id="pn-tag-filter-bar" class="pn-tag-filter-bar">
+            <!-- Chips injected here -->
+          </div>
+
+          <hr id="pn-tags-quick-divider" class="pn-sv-divider pn-sv-divider--spaced" />
+
+          <div class="pn-tags-view-header pn-tags-view-header--spaced">
+            <h3 class="pn-section-title">Manage Tags</h3>
+          </div>
+          <div id="tag-list" class="pn-tag-list">
+            <div id="pn-tags-empty" class="pn-empty-state">
+              <svg
+                viewBox="0 0 64 64"
+                fill="none"
+                class="pn-empty-state__illustration"
+                aria-hidden="true"
+              >
+                <circle cx="32" cy="32" r="30" fill="var(--surface-sunken, #F3F4F6)"></circle>
+                <path
+                  d="M20 22h24v24H20z"
+                  fill="var(--surface, #FFFFFF)"
+                  stroke="var(--border, #E5E7EB)"
+                  stroke-width="2"
+                  stroke-linejoin="round"
+                ></path>
+                <path
+                  d="M26 28h12M26 34h8"
+                  stroke="var(--text-muted, #9CA3AF)"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                ></path>
+                <path
+                  d="M46 16l2 4 4 2-4 2-2 4-2-4-4-2 4-2 2-4z"
+                  fill="var(--primary, #3B82F6)"
+                ></path>
+              </svg>
+              <p class="pn-empty-state__title">No tags yet</p>
+              <p class="pn-empty-state__message">
+                Add tags when saving prompts to organize your library.
+              </p>
+              <button
+                id="pn-tags-empty-add"
+                type="button"
+                class="pn-btn pn-btn--primary pn-empty-state__action"
+              >
+                Add your first prompt
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-content pn-tab-content" data-tab="settings">
+        <div id="pn-settings-ui-root" class="pn-settings-container">
+          <nav id="pn-settings-nav" class="pn-settings-nav" aria-label="Settings sections"></nav>
+          <div class="pn-settings-panels">
+            <div class="pn-settings-panel is-active" data-settings-section="providers">
+              <div class="pn-settings-section">
+                <h4 class="pn-settings-section-title">AI Providers</h4>
+                <p class="pn-settings-section-desc">
+                  Configure API keys, choose models, and set your primary provider.
+                </p>
+                <div id="pn-settings-providers-list" class="pn-settings-provider-list"></div>
+              </div>
+            </div>
+            <div class="pn-settings-panel" data-settings-section="interface">
+              <div id="pn-settings-interface-content"></div>
+            </div>
+            <div class="pn-settings-panel" data-settings-section="data">
+              <div id="pn-settings-data-content"></div>
+            </div>
+            <div class="pn-settings-panel" data-settings-section="usage">
+              <div id="pn-settings-usage-content"></div>
+            </div>
+          </div>
+          <p id="pn-settings-ui-status" class="pn-settings-status pn-hidden"></p>
+        </div>
+      </section>
+    </main>
+
+    <div
+      id="pn-command-palette"
+      class="pn-command-palette pn-hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="pn-command-palette-title"
+    >
+      <div class="pn-command-palette__backdrop" data-command-close></div>
+      <div class="pn-command-palette__panel">
+        <h2 id="pn-command-palette-title" class="pn-command-palette__title">Command Palette</h2>
+        <input
+          id="pn-command-input"
+          class="pn-command-input"
+          type="text"
+          placeholder="Search commands or prompts"
+          autocomplete="off"
+        />
+        <div id="pn-command-results" class="pn-command-results"></div>
+      </div>
+    </div>
+
+    <div
+      id="add-modal"
+      class="pn-modal pn-hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="pn-add-modal-title"
+      aria-describedby="pn-add-modal-desc"
+    >
+      <div class="pn-modal__backdrop" data-close-modal></div>
+      <div class="pn-modal__panel pn-add-modal__panel">
+        <h2 id="pn-add-modal-title" class="pn-modal__title">Add Prompt</h2>
+        <p id="pn-add-modal-desc" class="pn-card-meta pn-add-modal__desc">
+          Choose plain or fill-in template mode.
+        </p>
+
+        <div id="pn-add-mode-selector" class="pn-add-mode-selector">
+          <p class="pn-mode-question">What kind of prompt do you want to save?</p>
+          <button class="pn-mode-card" id="pn-mode-plain" type="button">
+            <span class="pn-mode-icon">✏️</span>
+            <span class="pn-mode-text">
+              <span class="pn-mode-title">Plain Prompt</span>
+              <span class="pn-mode-desc">Just type and save. Use it as-is every time.</span>
+            </span>
+          </button>
+          <button class="pn-mode-card" id="pn-mode-template" type="button">
+            <span class="pn-mode-icon">🧩</span>
+            <span class="pn-mode-text">
+              <span class="pn-mode-title">Fill-in Template</span>
+              <span class="pn-mode-desc"
+                >Add blanks to fill in each time — like "Write about [topic]".</span
+              >
+            </span>
+          </button>
+          <button class="pn-mode-cancel" id="pn-mode-cancel" type="button">Cancel</button>
+        </div>
+
+        <div id="pn-add-plain-form" class="pn-add-form pn-hidden">
+          <div class="pn-form-header">
+            <button class="pn-back-btn" id="pn-plain-back" type="button">← Back</button>
+            <span class="pn-form-title">New Prompt</span>
+          </div>
+          <div id="pn-form-ai-status" class="pn-sv-api-hint pn-add-ai-status">
+            ○ AI unavailable — enable in Settings
+          </div>
+
+          <div class="pn-add-modal__section">
+            <label class="pn-field">
+              <span class="pn-field-head">
+                <span>Title</span>
+                <span id="pn-count-prompt-title" class="pn-field-counter">0/80</span>
+              </span>
+              <input
+                id="prompt-title"
+                type="text"
+                placeholder="Give it a name (e.g. My Study Helper)"
+                maxlength="80"
+              />
+            </label>
+            <p id="pn-error-title" class="pn-fill-error pn-hidden"></p>
+          </div>
+
+          <div class="pn-add-modal__section">
+            <label class="pn-field">
+              <span>Category</span>
+              <select id="prompt-category">
+                <option value="general">General</option>
+                <option value="writing">Writing</option>
+                <option value="coding">Coding</option>
+                <option value="study">Study</option>
+                <option value="research">Research</option>
+                <option value="creative">Creative</option>
+                <option value="work">Work</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="pn-add-modal__section">
+            <label class="pn-field">
+              <span class="pn-field-head">
+                <span>Prompt Text</span>
+                <span id="pn-count-prompt-text" class="pn-field-counter">0</span>
+                <span id="pn-token-prompt-text" class="pn-token-count pn-hidden"></span>
+              </span>
+              <textarea
+                id="prompt-text"
+                rows="10"
+                placeholder="Type your prompt here..."
+              ></textarea>
+            </label>
+            <div id="pn-polish-wrap" class="pn-hidden">
+              <button id="pn-polish-btn" class="pn-btn pn-btn--ghost" type="button">
+                ✦ Polish
+              </button>
+              <button id="pn-polish-undo" class="pn-btn pn-btn--ghost pn-hidden" type="button">
+                Undo polish
+              </button>
+              <span id="pn-polish-error" class="pn-fill-error pn-hidden"></span>
+            </div>
+            <p id="pn-error-text" class="pn-fill-error pn-hidden"></p>
+          </div>
+
+          <div class="pn-add-modal__section">
+            <label class="pn-field">
+              <span>Tags</span>
+              <div class="pn-tag-badges" id="tag-badges-wrap">
+                <input
+                  id="prompt-tags-input"
+                  class="pn-tag-badges__input"
+                  type="text"
+                  placeholder="Tags (optional — e.g. study, writing)"
+                />
+              </div>
+              <input id="prompt-tags" type="hidden" />
+            </label>
+            <div id="pn-tag-suggestions" class="pn-tag-suggestions"></div>
+            <div id="pn-duplicate-warning" class="pn-duplicate-warning pn-hidden"></div>
+          </div>
+
+          <div class="pn-modal__actions pn-add-modal__actions">
+            <button id="cancel-modal" class="pn-btn pn-btn--ghost" type="button">Cancel</button>
+            <button id="confirm-duplicate" class="hidden pn-btn pn-btn--warn-ghost" type="button">
+              Save Anyway
+            </button>
+            <button id="save-new-prompt" class="pn-btn pn-btn--primary" type="button">
+              Save Prompt
+            </button>
+          </div>
+        </div>
+
+        <div id="pn-add-template-form" class="pn-add-form pn-hidden">
+          <div class="pn-form-header">
+            <button class="pn-back-btn" id="pn-template-back" type="button">← Back</button>
+            <span class="pn-form-title">New Template</span>
+          </div>
+          <div id="pn-template-ai-status" class="pn-sv-api-hint pn-add-ai-status">
+            ○ AI unavailable — enable in Settings
+          </div>
+
+          <label class="pn-field">
+            <span class="pn-field-head">
+              <span>Title</span>
+              <span id="pn-count-template-title" class="pn-field-counter">0/80</span>
+            </span>
+            <input
+              id="pn-template-title"
+              type="text"
+              placeholder="Give it a name (e.g. My Study Helper)"
+              maxlength="80"
+            />
+          </label>
+          <p id="pn-template-error-title" class="pn-fill-error pn-hidden"></p>
+
+          <div class="pn-add-modal__section" style="margin-top: 12px; margin-bottom: 12px">
+            <label class="pn-field">
+              <span>Category</span>
+              <select id="pn-template-category">
+                <option value="general">General</option>
+                <option value="writing">Writing</option>
+                <option value="coding">Coding</option>
+                <option value="study">Study</option>
+                <option value="research">Research</option>
+                <option value="creative">Creative</option>
+                <option value="work">Work</option>
+              </select>
+            </label>
+          </div>
+
+          <p class="pn-template-hint">
+            Use <strong>[brackets]</strong> for blanks, like <em>[topic]</em>. Add
+            <strong>?</strong> for optional blanks, like <em>[tone?]</em>.
+          </p>
+
+          <label class="pn-field">
+            <span class="pn-field-head">
+              <span>Template Text</span>
+              <span id="pn-count-template-text" class="pn-field-counter">0</span>
+              <span id="pn-token-template-text" class="pn-token-count pn-hidden"></span>
+            </span>
+            <div class="pn-textarea-wrap">
+              <textarea
+                id="pn-template-text"
+                class="pn-form-textarea"
+                rows="6"
+                placeholder="Type your prompt here..."
+              ></textarea>
+              <div class="pn-var-toolbar" id="pn-var-toolbar">
+                <span class="pn-var-toolbar-label">Add a blank:</span>
+                <button
+                  class="pn-var-btn"
+                  data-snippet="[label]"
+                  type="button"
+                  title="Required blank"
+                >
+                  [blank]
+                </button>
+                <button
+                  class="pn-var-btn"
+                  data-snippet="[label?]"
+                  type="button"
+                  title="Optional blank"
+                >
+                  [optional?]
+                </button>
+                <span class="pn-var-toolbar-divider"></span>
+                <span class="pn-var-toolbar-tip">Tap to insert at cursor</span>
+              </div>
+            </div>
+          </label>
+          <div id="pn-template-polish-wrap" class="pn-hidden">
+            <button id="pn-template-polish-btn" class="pn-btn pn-btn--ghost" type="button">
+              ✦ Polish
+            </button>
+            <button
+              id="pn-template-polish-undo"
+              class="pn-btn pn-btn--ghost pn-hidden"
+              type="button"
+            >
+              Undo polish
+            </button>
+            <span id="pn-template-polish-error" class="pn-fill-error pn-hidden"></span>
+          </div>
+          <p id="pn-template-polish-warning" class="pn-fill-error pn-hidden">
+            AI may have altered your blanks — review before saving.
+          </p>
+          <p id="pn-template-error-text" class="pn-fill-error pn-hidden"></p>
+
+          <div class="pn-detected-vars" id="pn-detected-vars" aria-live="polite"></div>
+
+          <label class="pn-field">
+            <span>Tags</span>
+            <input
+              id="pn-template-tags"
+              type="text"
+              placeholder="Tags (optional — e.g. study, writing)"
+            />
+          </label>
+
+          <div class="pn-modal__actions pn-add-modal__actions">
+            <button id="pn-template-cancel" class="pn-btn pn-btn--ghost" type="button">
+              Cancel
+            </button>
+            <button id="pn-template-save" class="pn-btn pn-btn--primary" type="button">
+              Save Template
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Improve Prompt Diff Modal -->
+    <div
+      id="pn-improve-modal"
+      class="pn-modal pn-hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="pn-improve-modal-title"
+    >
+      <div class="pn-modal__backdrop" data-close-improve></div>
+      <div class="pn-modal__panel pn-improve-panel">
+        <div class="pn-improve-header">
+          <h2 id="pn-improve-modal-title" class="pn-modal__title">
+            <svg
+              class="pn-improve-title-icon"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M12 3v19"></path>
+              <path d="M5 10l7-7 7 7"></path>
+            </svg>
+            Improve Prompt
+          </h2>
+          <select id="pn-improve-modal-style" class="pn-improve-style-select">
+            <option value="improve">Improve</option>
+            <option value="shorten">Shorten</option>
+            <option value="expand">Expand</option>
+            <option value="professional">Professional</option>
+          </select>
+        </div>
+
+        <div id="pn-improve-loading" class="pn-improve-loading">
+          <div class="pn-skeleton-line pn-skeleton-line--wide"></div>
+          <div class="pn-skeleton-line pn-skeleton-line--medium"></div>
+          <div class="pn-skeleton-line pn-skeleton-line--wide"></div>
+          <div class="pn-skeleton-line pn-skeleton-line--short"></div>
+          <p class="pn-improve-loading-text">Refining with Gemini…</p>
+          <p id="pn-improve-runtime-note" class="pn-improve-runtime-note">Preparing model…</p>
+        </div>
+
+        <div id="pn-improve-diff" class="pn-improve-diff pn-hidden">
+          <div class="pn-improve-col">
+            <div class="pn-improve-col-header">
+              <span class="pn-improve-col-label">Original</span>
+              <span id="pn-improve-orig-count" class="pn-improve-count"></span>
+            </div>
+            <div id="pn-improve-original" class="pn-improve-text"></div>
+          </div>
+          <div class="pn-improve-col pn-improve-col--new">
+            <div class="pn-improve-col-header">
+              <span class="pn-improve-col-label pn-improve-col-label--new">Improved</span>
+              <span id="pn-improve-new-count" class="pn-improve-count"></span>
+            </div>
+            <div id="pn-improve-improved" class="pn-improve-text"></div>
+          </div>
+        </div>
+
+        <div id="pn-improve-error" class="pn-improve-error pn-hidden">
+          <p id="pn-improve-error-msg">Could not improve prompt.</p>
+        </div>
+
+        <div class="pn-improve-actions">
+          <button id="pn-improve-reject" class="pn-btn pn-btn--danger-ghost" type="button">
+            Discard
+          </button>
+          <button id="pn-improve-retry" class="pn-btn pn-btn--ghost" type="button">Retry</button>
+          <button id="pn-improve-save-only" class="pn-btn pn-btn--ghost pn-hidden" type="button">
+            Save to Library
+          </button>
+          <button
+            id="pn-improve-accept-secondary"
+            class="pn-btn pn-btn--ghost pn-hidden"
+            type="button"
+          >
+            Inject + Save
+          </button>
+          <button id="pn-improve-accept" class="pn-btn pn-btn--primary" type="button">
+            Use Improved Text
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="./index.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,373 @@
+/* Export frames, action overlays */
+
+.pn-export-status-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 6px;
+}
+
+.pn-export-status-hint {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Export Enhancements
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.pn-export-meta-badges {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pn-export-counts {
+  display: flex;
+  gap: 6px;
+}
+
+.pn-export-count-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: rgba(var(--accent-rgb), 0.1);
+  border: 1px solid rgba(var(--accent-rgb), 0.2);
+  color: #c6c3e8;
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+}
+
+.pn-export-filename-input {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--font-size-md);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.pn-export-filename-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.15);
+}
+
+.pn-export-filename-input::placeholder {
+  color: var(--text-muted);
+}
+
+.pn-export-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.pn-export-actions-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.pn-export-actions-row--tools {
+  margin-top: 2px;
+}
+
+.pn-export-icon {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+}
+
+.pn-export-font-row {
+  display: grid;
+  grid-template-columns: 1fr 64px;
+  gap: 8px;
+  align-items: center;
+}
+
+.pn-export-preview-head {
+  align-items: flex-start;
+}
+
+.pn-export-preview-shell,
+.pn-export-preview-shell .pn-export-preview-body,
+.pn-export-preview-shell #preview {
+  min-width: 0;
+}
+
+.pn-export-preview-shell .pn-export-preview-body {
+  overflow: auto;
+}
+
+.pn-export-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 16px;
+  color: var(--text-muted);
+  font-size: var(--font-size-lg);
+  text-align: center;
+}
+
+.pn-export-loading.pn-loading-state::after {
+  margin-left: 0;
+}
+
+.pn-export-sheet {
+  border-radius: var(--radius-xl);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  padding: 18px 20px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.pn-export-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.pn-export-head h2 {
+  margin: 0;
+  font-size: 1.35em;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.02em;
+}
+
+.pn-export-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pn-export-message-heading {
+  margin: 0 0 10px;
+  font-size: 1.05em;
+  font-weight: var(--font-weight-semibold);
+  opacity: 0.9;
+}
+
+.pn-export-sheet .pn-markdown-body pre,
+.pn-export-sheet .pn-export-raw {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow: auto;
+  border-radius: var(--radius-sm);
+  max-width: 100%;
+}
+
+.pn-export-sheet .pn-export-raw--markdown {
+  font-family: var(--font-mono);
+  line-height: 1.55;
+}
+
+.pn-export-sheet .pn-markdown-body code:not(.pn-code) {
+  background: rgba(var(--accent-rgb), 0.12);
+  border-radius: 5px;
+  padding: 1px 4px;
+  font-family: var(--font-mono);
+  font-size: 0.93em;
+}
+
+.pn-export-sheet .pn-markdown-body img,
+.pn-export-sheet .pn-markdown-body svg,
+.pn-export-sheet .pn-markdown-body figure {
+  display: none !important;
+}
+
+.pn-export-sheet .pn-markdown-body .pn-mermaid-wrap svg {
+  display: block !important;
+}
+
+.pn-export-sheet.pn-export-font--system {
+  font-family: var(--font-body);
+}
+
+.pn-export-sheet.pn-export-font--outfit {
+  font-family: Outfit, 'Avenir Next', 'Segoe UI', sans-serif;
+}
+
+.pn-export-sheet.pn-export-font--montserrat {
+  font-family: Montserrat, 'Avenir Next', 'Segoe UI', sans-serif;
+}
+
+.pn-export-sheet.pn-export-font--inter {
+  font-family: Inter, 'Segoe UI', Helvetica, Arial, sans-serif;
+}
+
+.pn-export-sheet.pn-export-font--helvetica {
+  font-family: Helvetica, Arial, 'Segoe UI', sans-serif;
+}
+
+.pn-export-sheet.pn-export-font--poppins {
+  font-family: Poppins, 'Segoe UI', Helvetica, Arial, sans-serif;
+}
+
+.pn-export-sheet.pn-export-font--roboto {
+  font-family: Roboto, 'Segoe UI', Helvetica, Arial, sans-serif;
+}
+
+.pn-export-sheet.pn-export-font--opensans {
+  font-family: 'Open Sans', 'Segoe UI', Helvetica, Arial, sans-serif;
+}
+
+.pn-export-sheet.pn-export-font--lato {
+  font-family: Lato, 'Segoe UI', Helvetica, Arial, sans-serif;
+}
+
+.pn-export-sheet.pn-export-font--nunito {
+  font-family: Nunito, 'Segoe UI', Helvetica, Arial, sans-serif;
+}
+
+.pn-export-sheet.pn-export-font--sourcesans {
+  font-family: 'Source Sans 3', 'Source Sans Pro', 'Segoe UI', Helvetica, Arial, sans-serif;
+}
+
+.pn-export-sheet.pn-export-font--mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.pn-export-sheet.pn-export-font--serif {
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.pn-export-sheet.pn-export-size-12 {
+  font-size: var(--font-size-md);
+}
+
+.pn-export-sheet.pn-export-size-13 {
+  font-size: var(--font-size-lg);
+}
+
+.pn-export-sheet.pn-export-size-14 {
+  font-size: var(--font-size-xl);
+}
+
+.pn-export-sheet.pn-export-size-15 {
+  font-size: 15px;
+}
+
+.pn-export-sheet.pn-export-size-16 {
+  font-size: var(--font-size-xxl);
+}
+
+.pn-export-sheet.pn-export-size-17 {
+  font-size: 17px;
+}
+
+.pn-export-sheet.pn-export-size-18 {
+  font-size: var(--font-size-3xl);
+}
+
+.pn-export-sheet.pn-export-size-19 {
+  font-size: 19px;
+}
+
+.pn-export-sheet.pn-export-size-20 {
+  font-size: 20px;
+}
+
+.pn-export-sheet.pn-export-sheet--theme-dark {
+  background: #18181c;
+  color: #f5f5f5;
+}
+
+.pn-export-sheet.pn-export-sheet--theme-light {
+  background: #ffffff;
+  color: #111111;
+  border-color: rgba(17, 17, 17, 0.2);
+}
+
+.pn-export-sheet.pn-export-sheet--theme-light .pn-export-head {
+  border-bottom-color: rgba(17, 17, 17, 0.14);
+}
+
+.pn-export-sheet.pn-export-sheet--theme-light .pn-code-block {
+  background: rgba(17, 17, 17, 0.06);
+  border-color: rgba(17, 17, 17, 0.14);
+}
+
+.pn-export-sheet.pn-export-sheet--theme-light .pn-mermaid-wrap {
+  background: rgba(17, 17, 17, 0.04);
+  border-color: rgba(17, 17, 17, 0.14);
+}
+
+.pn-export-sheet.pn-export-sheet--theme-light .pn-mermaid-node {
+  fill: rgba(29, 78, 216, 0.08);
+  stroke: rgba(29, 78, 216, 0.5);
+}
+
+.pn-export-sheet.pn-export-sheet--theme-light .pn-mermaid-edge {
+  stroke: rgba(37, 99, 235, 0.8);
+}
+
+.pn-export-sheet.pn-export-sheet--theme-light .pn-mermaid-arrow {
+  fill: rgba(37, 99, 235, 0.8);
+}
+
+.pn-export-sheet.pn-export-sheet--theme-light .pn-mermaid-lifeline {
+  stroke: rgba(37, 99, 235, 0.45);
+}
+
+.pn-export-sheet.pn-export-sheet--theme-light .pn-code-token-comment {
+  color: #6b7280;
+}
+
+.pn-export-sheet.pn-export-sheet--theme-light .pn-code-token-string {
+  color: #0f766e;
+}
+
+.pn-export-sheet.pn-export-sheet--theme-light .pn-code-token-keyword {
+  color: #7c3aed;
+}
+
+.pn-export-sheet.pn-export-sheet--theme-light .pn-code-token-number {
+  color: #b45309;
+}
+
+.pn-export-sheet.pn-export-sheet--theme-light .pn-code-token-type,
+.pn-export-sheet.pn-export-sheet--theme-light .pn-code-token-key {
+  color: #1d4ed8;
+}
+
+.pn-export-sheet.pn-export-sheet--theme-sepia {
+  background: #f4ecd8;
+  color: #2f2417;
+  border-color: rgba(47, 36, 23, 0.24);
+}
+
+.pn-export-sheet.pn-export-sheet--theme-sepia .pn-export-head {
+  border-bottom-color: rgba(47, 36, 23, 0.2);
+}
+
+.pn-export-sheet.pn-export-sheet--theme-custom {
+  background: #18181c;
+  color: #f5f5f5;
+}
+
+.pn-export-actions-row {
+  flex-wrap: wrap;
+}
+
+.pn-export-grid,
+.pn-export-controls,
+.pn-export-preview-shell,
+.pn-export-preview-body,
+.pn-card-actions,
+.pn-fill-actions {
+  min-width: 0;
+}

@@ -1,0 +1,171 @@
+/* Dialog boxes, modal panels, overlays */
+
+.pn-modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  z-index: 1200;
+}
+
+.pn-modal.pn-hidden {
+  display: none;
+}
+
+.pn-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(14, 14, 16, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.pn-modal__panel {
+  position: relative;
+  z-index: 1;
+  width: min(760px, calc(100% - 24px));
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl);
+  padding: 12px;
+  box-shadow:
+    0 28px 56px rgba(0, 0, 0, 0.52),
+    0 0 0 1px var(--border-subtle);
+}
+
+.pn-modal__title {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.02em;
+}
+
+.pn-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ── PnDialog ── */
+.pn-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000000;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+.pn-dialog-overlay--visible {
+  opacity: 1;
+}
+
+.pn-dialog {
+  background: var(--bg-card, #1a1a1e);
+  border: 1px solid var(--border-default, #2a2a2e);
+  border-radius: var(--radius-lg);
+  padding: 20px 22px 16px;
+  width: 90%;
+  max-width: 340px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  animation: pn-dialog-enter 0.2s ease;
+}
+
+.pn-dialog__title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary, #e8e8ea);
+  margin: 0 0 8px;
+}
+
+.pn-dialog__message {
+  font-size: 12.5px;
+  color: var(--text-secondary, #a0a0a6);
+  margin: 0 0 14px;
+  line-height: 1.45;
+}
+
+.pn-dialog__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pn-dialog__input {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: var(--font-size-lg);
+  font-family: var(--font-body, 'Outfit', sans-serif);
+  color: var(--text-primary, #e8e8ea);
+  background: var(--bg, #111113);
+  border: 1px solid var(--border-default, #2a2a2e);
+  border-radius: var(--radius-sm);
+  outline: none;
+  margin-bottom: 10px;
+  transition: border-color 0.15s ease;
+  box-sizing: border-box;
+}
+
+.pn-dialog__input:focus {
+  border-color: var(--accent, #36d6c3);
+}
+
+.pn-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.pn-dialog__btn {
+  min-width: 72px;
+  padding: 6px 14px;
+  font-size: 12.5px;
+  border-radius: var(--radius-input);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.pn-modal__backdrop,
+.pn-save-modal__backdrop {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.pn-modal__panel {
+  border-radius: var(--radius-xl);
+}
+
+.pn-modal {
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity var(--motion-panel) var(--motion-ease),
+    visibility 0s linear var(--motion-panel);
+}
+
+.pn-modal.pn-hidden {
+  display: flex;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.pn-modal:not(.pn-hidden) .pn-modal__backdrop {
+  animation: pn-fade-in var(--motion-panel) var(--motion-ease);
+}
+
+.pn-modal:not(.pn-hidden) .pn-modal__panel {
+  animation: pn-modal-in var(--motion-panel) var(--motion-spring);
+}
