@@ -1,3 +1,6 @@
+import { getCurrentAdapter } from '../platforms';
+import { toast } from '../utils/toast';
+
 (() => {
   /**
    * File: content/content.js
@@ -175,7 +178,7 @@
     }
   `;
 
-  const exportSelectionState = {
+  const exportSelectionState: any = {
     platform: null,
     selectors: null,
     selectionModeActive: false,
@@ -190,7 +193,7 @@
     sequence: 0,
     chatHighlightStyle: 'solid',
   };
-  const injectionUndoState = {
+  const injectionUndoState: any = {
     previousText: '',
     injectedText: '',
     platform: null,
@@ -202,7 +205,7 @@
   };
 
   /** Creates a chat payload object from scraped messages and page metadata. */
-  const createChatPayload = async (platform, messages) => ({
+  const createChatPayload = async (platform: any, messages: any) => ({
     title: document.title || 'Untitled chat',
     platform,
     tags: [],
@@ -210,23 +213,18 @@
     url: window.location.href,
   });
 
-  /** Shows a user notification via toolbar toast when available, else logs to console. */
-  const notify = async (message) => {
+  /** Shows a user notification via toast utility. */
+  const notify = async (message: any) => {
     const text = String(message || '').trim();
 
     if (!text) {
       return;
     }
 
-    if (window.Toolbar?.showNotification) {
-      await window.Toolbar.showNotification(text);
-      return;
-    }
-
-    console.info('[Promptium][Content]', text);
+    toast.info(text);
   };
 
-  const normalizeComposerText = (value) => String(value || '').replace(/\r\n/g, '\n');
+  const normalizeComposerText = (value: any) => String(value || '').replace(/\r\n/g, '\n');
 
   const clearInjectionUndoState = () => {
     if (injectionUndoState.timer) {
@@ -246,17 +244,12 @@
     injectionUndoState.consumed = true;
   };
 
-  const getComposerNode = async (platform) => {
-    const selectors = await window.Platform.getSelectors(platform);
-    if (!selectors?.input) return null;
-    try {
-      return document.querySelector(selectors.input);
-    } catch (_error) {
-      return null;
-    }
+  const getComposerNode = async (platform: any) => {
+    const adapter = getCurrentAdapter();
+    return adapter ? adapter.getComposerElement() : null;
   };
 
-  const readComposerText = async (platform) => {
+  const readComposerText = async (platform: any) => {
     const composer = await getComposerNode(platform);
     if (!composer) return null;
 
@@ -322,7 +315,7 @@
     return toast;
   };
 
-  const stageInjectionUndo = (platform, previousText, injectedText) => {
+  const stageInjectionUndo = (platform: any, previousText: any, injectedText: any) => {
     clearInjectionUndoState();
     injectionUndoState.previousText = String(previousText || '');
     injectionUndoState.injectedText = String(injectedText || '');
@@ -341,7 +334,7 @@
   };
 
   /** Safely queries one element and returns null if the selector throws. */
-  const safeQuery = async (selector, root = document) => {
+  const safeQuery = async (selector: any, root: any = document) => {
     if (!selector || typeof selector !== 'string') {
       return null;
     }
@@ -354,7 +347,7 @@
   };
 
   /** Safely queries all elements and returns an empty list if selector parsing fails. */
-  const safeQueryAllInScope = async (selector, root = document) => {
+  const safeQueryAllInScope = async (selector: any, root: any = document) => {
     if (!selector || typeof selector !== 'string') {
       return [];
     }
@@ -367,7 +360,7 @@
   };
 
   /** Sorts nodes in stable document order to preserve chat turn sequence across platforms. */
-  const sortContentNodesByDomOrder = async (nodes) => {
+  const sortContentNodesByDomOrder = async (nodes: any[]) => {
     const sorted = [...nodes];
 
     sorted.sort((left, right) => {
@@ -392,7 +385,7 @@
   };
 
   /** Returns a stable local id for one chat message node across observer rescans. */
-  const ensureMessageNodeId = async (node) => {
+  const ensureMessageNodeId = async (node: any) => {
     if (node.dataset.pnMessageId) {
       return node.dataset.pnMessageId;
     }
@@ -404,25 +397,25 @@
   };
 
   /** Removes Promptium-injected controls from cloned content and returns clean message HTML. */
-  const getSanitizedMessageHtml = async (node) => {
+  const getSanitizedMessageHtml = async (node: any) => {
     if (!node) {
       return '';
     }
 
     const clone = node.cloneNode(true);
-    clone.querySelectorAll('.pn-inline-select, .pn-inline-select-host').forEach((injected) => {
+    clone.querySelectorAll('.pn-inline-select, .pn-inline-select-host').forEach((injected: any) => {
       injected.remove();
     });
 
     // Strip executable/dangerous elements before carrying HTML into extension pages.
     clone
       .querySelectorAll('script, style, iframe, object, embed, link, meta')
-      .forEach((unsafeNode) => {
+      .forEach((unsafeNode: any) => {
         unsafeNode.remove();
       });
 
-    clone.querySelectorAll('*').forEach((element) => {
-      Array.from(element.attributes).forEach((attribute) => {
+    clone.querySelectorAll('*').forEach((element: any) => {
+      Array.from(element.attributes).forEach((attribute: any) => {
         const name = String(attribute.name || '').toLowerCase();
         const value = String(attribute.value || '').trim();
 
@@ -473,7 +466,7 @@
   };
 
   /** Returns one normalized message payload from a platform chat message DOM node. */
-  const readMessageNode = async (node, selectors, order) => {
+  const readMessageNode = async (node: any, role: string, order: any) => {
     if (!node || typeof node.matches !== 'function') {
       return null;
     }
@@ -485,7 +478,6 @@
     }
 
     const id = await ensureMessageNodeId(node);
-    const role = node.matches(selectors.userMsg) ? 'user' : 'assistant';
 
     return {
       id,
@@ -532,7 +524,7 @@
       })
       .filter(Boolean);
 
-  const setControlChecked = (entry, checked) => {
+  const setControlChecked = (entry: any, checked: any) => {
     if (!entry) return;
     const bool = Boolean(checked);
     if (entry.input instanceof HTMLInputElement) {
@@ -550,12 +542,12 @@
     }
   };
 
-  const setAllSelectionControls = (checked) => {
+  const setAllSelectionControls = (checked: any) => {
     getSelectionControls().forEach((entry) => setControlChecked(entry, checked));
   };
 
   /** Ensures each message gets a single injected checkbox control and syncs checked state. */
-  const ensureMessageCheckbox = async (node, messageId) => {
+  const ensureMessageCheckbox = async (node: any, messageId: any) => {
     if (!(node instanceof HTMLElement)) {
       return;
     }
@@ -644,10 +636,10 @@
   /** Builds selected messages in original order for side panel export payloads. */
   const buildSelectedMessages = () =>
     exportSelectionState.messageOrder
-      .filter((id) => exportSelectionState.selectedIds.has(id))
-      .map((id) => exportSelectionState.messagesById.get(id))
+      .filter((id: any) => exportSelectionState.selectedIds.has(id))
+      .map((id: any) => exportSelectionState.messagesById.get(id))
       .filter(Boolean)
-      .map((message) => ({
+      .map((message: any) => ({
         role: message.role,
         text: message.text,
         html: message.html,
@@ -687,10 +679,10 @@
 
       return { ok: true };
     } catch (error) {
-      notify(error?.message || 'Failed to prepare Promptium export.').catch(console.error);
+      notify((error as any)?.message || 'Failed to prepare Promptium export.').catch(console.error);
       return {
         ok: false,
-        error: error?.message || 'Failed to open side panel.',
+        error: (error as any)?.message || 'Failed to open side panel.',
       };
     }
   };
@@ -733,7 +725,7 @@
       platform,
       url: window.location.href,
       createdAt: new Date().toISOString(),
-      messages: messages.map((message, index) => ({
+      messages: messages.map((message: any, index: any) => ({
         role: message.role,
         text: message.text,
         html: String(message.html || ''),
@@ -758,7 +750,7 @@
     } catch (error) {
       return {
         ok: false,
-        error: error?.message || 'Failed to prepare full export payload.',
+        error: (error as any)?.message || 'Failed to prepare full export payload.',
       };
     }
   };
@@ -891,8 +883,8 @@
   };
 
   /** Clears selections that no longer exist in the latest DOM scan snapshot. */
-  const pruneMissingSelections = async (currentIds) => {
-    for (const id of Array.from(exportSelectionState.selectedIds)) {
+  const pruneMissingSelections = async (currentIds: any) => {
+    for (const id of Array.from(exportSelectionState.selectedIds) as any[]) {
       if (!currentIds.has(id)) {
         exportSelectionState.selectedIds.delete(id);
       }
@@ -907,12 +899,13 @@
   };
 
   /** Collects all known chat message nodes for the current platform in order. */
-  const collectChatMessageNodes = async (selectors) => {
-    const userNodes = await safeQueryAllInScope(selectors.userMsg);
-    const assistantNodes = await safeQueryAllInScope(selectors.botMsg);
-    const uniqueNodes = Array.from(new Set([...userNodes, ...assistantNodes]));
+  const collectChatMessageNodes = async () => {
+    const adapter = getCurrentAdapter();
+    if (!adapter) return [];
+    const elements = await adapter.getMessageElements();
+    const uniqueNodes = elements.map((e) => e.element);
     const topLevelNodes = uniqueNodes.filter(
-      (node) => !uniqueNodes.some((candidate) => candidate !== node && candidate.contains(node))
+      (node) => !uniqueNodes.some((candidate: any) => candidate !== node && candidate.contains(node))
     );
     return sortContentNodesByDomOrder(topLevelNodes);
   };
@@ -923,19 +916,22 @@
       return;
     }
 
-    const selectors = exportSelectionState.selectors;
-
-    if (!selectors) {
+    const adapter = getCurrentAdapter();
+    if (!adapter) {
       return;
     }
 
-    const nodes = await collectChatMessageNodes(selectors);
+    const nodes = await collectChatMessageNodes();
+    const elements = await adapter.getMessageElements();
+    const roleMap = new Map(elements.map((e) => [e.element, e.role]));
+
     const nextOrder = [];
     const nextMessagesById = new Map();
 
     for (let index = 0; index < nodes.length; index += 1) {
       const node = nodes[index];
-      const row = await readMessageNode(node, selectors, index);
+      const role = roleMap.get(node) || 'user';
+      const row = await readMessageNode(node, role, index);
 
       if (!row) {
         continue;
@@ -950,7 +946,7 @@
     exportSelectionState.messagesById = nextMessagesById;
     await pruneMissingSelections(new Set(nextOrder));
 
-    getSelectionControls().forEach((entry) => {
+    getSelectionControls().forEach((entry: any) => {
       if (!entry?.messageId) return;
       setControlChecked(entry, exportSelectionState.selectedIds.has(entry.messageId));
     });
@@ -971,11 +967,11 @@
     exportSelectionState.scanTimer = setTimeout(() => {
       exportSelectionState.scanTimer = null;
       void scanSelectionTargets();
-    }, OBSERVER_DEBOUNCE_MS);
+    }, OBSERVER_DEBOUNCE_MS) as any;
   };
 
   /** Resolves the narrowest stable container to observe for chat message DOM changes. */
-  const resolveObserverRoot = async (selectors) => {
+  const resolveObserverRoot = async (selectors: any) => {
     const seed = (await safeQuery(selectors.userMsg)) || (await safeQuery(selectors.botMsg));
 
     if (seed) {
@@ -1012,8 +1008,7 @@
     const observer = new MutationObserver((mutations) => {
       // High-performance, zero-allocation check to prevent infinite loops globally
       let isPromptiumMutation = true;
-      for (let i = 0; i < mutations.length; i++) {
-        const m = mutations[i];
+      for (const m of mutations) {
         let isLocalMutation = false;
 
         if (m.type === 'childList') {
@@ -1084,11 +1079,10 @@
   };
 
   /** Handles SPA navigation by resetting selection state and rebinding scoped observers. */
-  const handleNavigationRefresh = async (platform) => {
+  const handleNavigationRefresh = async (platform: any) => {
     exportSelectionState.selectedIds.clear();
     exportSelectionState.messageOrder = [];
     exportSelectionState.messagesById = new Map();
-    exportSelectionState.selectors = await window.Platform.getSelectors(platform);
 
     if (exportSelectionState.selectionModeActive) {
       await attachSelectionObserver();
@@ -1098,7 +1092,7 @@
   };
 
   /** Starts lightweight URL watcher to rebind observers when SPAs change route. */
-  const startSelectionUrlWatcher = async (platform) => {
+  const startSelectionUrlWatcher = async (platform: any) => {
     if (exportSelectionState.urlWatchTimer) {
       return;
     }
@@ -1115,15 +1109,15 @@
           await attachSelectionObserver();
         }
       })();
-    }, URL_WATCH_INTERVAL_MS);
+    }, URL_WATCH_INTERVAL_MS) as any;
   };
 
   /** Initializes in-page selection affordances used to launch side panel exports. */
-  const initExportSelectionUi = async (platform) => {
+  const initExportSelectionUi = async (platform: any) => {
     exportSelectionState.platform = platform;
-    exportSelectionState.selectors = await window.Platform.getSelectors(platform);
 
-    if (!exportSelectionState.selectors) {
+    const adapter = getCurrentAdapter();
+    if (!adapter) {
       return;
     }
 
@@ -1132,7 +1126,7 @@
   };
 
   /** Handles injectPrompt action messages from popup and returns operation status. */
-  const handleInjectPrompt = async (msg, platform, sendResponse) => {
+  const handleInjectPrompt = async (msg: any, platform: any, sendResponse: any) => {
     const nextText = String(msg?.text || '');
     const previousText = await readComposerText(platform);
     const success = await window.Injector.inject(nextText, platform);
@@ -1143,7 +1137,7 @@
   };
 
   /** Handles exportChat action by scraping and exporting chat data. */
-  const handleExportChat = async (msg, platform, sendResponse) => {
+  const handleExportChat = async (msg: any, platform: any, sendResponse: any) => {
     const messages = await window.Scraper.scrape(platform);
 
     if (!messages.length) {
@@ -1155,7 +1149,7 @@
     }
 
     const payload = await createChatPayload(platform, messages);
-    const result = await window.Exporter.exportChat(
+    const result = await (window.Exporter as any).exportChat(
       payload,
       String(msg?.format || 'md').toLowerCase(),
       msg?.prefs || {}
@@ -1165,34 +1159,34 @@
   };
 
   /** Handles getPlatform action by returning the detected platform identifier. */
-  const handleGetPlatform = async (platform, sendResponse) => {
+  const handleGetPlatform = async (platform: any, sendResponse: any) => {
     sendResponse({ ok: true, platform });
   };
 
   /** Handles side-panel export open requests that should include every visible message. */
-  const handleOpenSidePanelAll = async (sendResponse) => {
+  const handleOpenSidePanelAll = async (sendResponse: any) => {
     sendResponse(await openSidePanelWithAllMessages());
   };
 
   /** Handles cross-LLM bridge scrape requests from sidepanel modules. */
-  const handleScrapeForBridge = async (platform, sendResponse) => {
+  const handleScrapeForBridge = async (platform: any, sendResponse: any) => {
     const messages = await window.Scraper.scrape(platform);
     sendResponse({ ok: true, platform, messages });
   };
 
   /** Handles continuation scrape requests by returning full normalized message rows. */
-  const handleScrapeForContinuation = async (platform, sendResponse) => {
+  const handleScrapeForContinuation = async (platform: any, sendResponse: any) => {
     const messages = await window.Scraper.scrape(platform);
     sendResponse({ ok: true, platform, messages });
   };
 
   /** Routes incoming runtime messages by action name and wraps execution errors. */
-  const onRuntimeMessage = (msg, _sender, sendResponse) => {
+  const onRuntimeMessage = (msg: any, _sender: any, sendResponse: any) => {
     void (async () => {
       let responded = false;
 
       /** Sends a response once to avoid message channel closure errors. */
-      const respond = (payload) => {
+      const respond = (payload: any) => {
         if (responded) {
           return;
         }
@@ -1207,7 +1201,50 @@
       };
 
       try {
-        const platform = await window.Platform.detect();
+        if (msg?.action === 'GET_SELECTION' || msg?.type === 'GET_SELECTION') {
+          const text = String(window.getSelection()?.toString() || '').trim();
+          const url = window.location.href;
+          const platform = getCurrentAdapter()?.id || null;
+          const sourceTitle = document.title || '';
+          respond({ text, url, platform, sourceTitle });
+          return;
+        }
+
+        if (msg?.action === 'CHECK_ADAPTER_HEALTH' || msg?.type === 'CHECK_ADAPTER_HEALTH') {
+          try {
+            const adapter = getCurrentAdapter();
+            const validation = adapter ? await adapter.validate() : null;
+            respond({ ok: true, healthy: Boolean(validation && validation.healthy) });
+          } catch (_) {
+            respond({ ok: true, healthy: false });
+          }
+          return;
+        }
+
+        if (msg?.action === 'SHOW_TOAST' || msg?.type === 'SHOW_TOAST') {
+          if (msg.type === 'error' || msg.toastType === 'error') {
+            toast.error(msg.text);
+          } else if (msg.type === 'success' || msg.toastType === 'success') {
+            toast.success(msg.text);
+          } else {
+            toast.info(msg.text);
+          }
+          respond({ ok: true });
+          return;
+        }
+
+        if (msg?.action === 'COPY_TO_CLIPBOARD' || msg?.type === 'COPY_TO_CLIPBOARD') {
+          try {
+            const text = String(msg.text || '').trim();
+            await navigator.clipboard.writeText(text);
+            respond({ ok: true });
+          } catch (err: any) {
+            respond({ ok: false, error: err.message || 'Clipboard write failed.' });
+          }
+          return;
+        }
+
+        const platform = getCurrentAdapter()?.id || null;
 
         if (!platform) {
           respond({ ok: false, error: 'Unsupported platform.' });
@@ -1252,18 +1289,15 @@
 
         if (msg?.type === 'GET_CONVERSATION_SNIPPET') {
           try {
-            const selectors =
-              exportSelectionState.selectors || (await window.Platform.getSelectors());
-            if (!selectors) {
+            const adapter = getCurrentAdapter();
+            if (!adapter) {
               respond({ text: null });
               return;
             }
-            const userNodes = Array.from(document.querySelectorAll(selectors.userMsg));
-            const botNodes = Array.from(document.querySelectorAll(selectors.botMsg));
-            const allNodes = [...new Set([...userNodes, ...botNodes])];
-            const text = allNodes
+            const elements = await adapter.getMessageElements();
+            const text = elements
               .slice(-4)
-              .map((el) => (el.innerText || '').trim())
+              .map((el) => (el.element.innerText || '').trim())
               .filter(Boolean)
               .join(' ')
               .slice(0, 600);
@@ -1278,7 +1312,7 @@
           ok: false,
           error: `Unknown action: ${String(msg?.action || 'undefined')}`,
         });
-      } catch (error) {
+      } catch (error: any) {
         respond({
           ok: false,
           error: error.message || 'Unexpected content script failure.',
@@ -1295,10 +1329,10 @@
 
   /* ——— Continuation loading banner helpers ——— */
 
-  let _continuationBanner = null;
-  let _continuationBannerTimer = null;
+  let _continuationBanner: any = null;
+  let _continuationBannerTimer: any = null;
 
-  const showContinuationBanner = (message) => {
+  const showContinuationBanner = (message: string) => {
     _continuationBanner?.remove();
     if (_continuationBannerTimer) {
       clearTimeout(_continuationBannerTimer);
@@ -1308,42 +1342,68 @@
     el.className = 'pn-continuation-banner';
     el.setAttribute('role', 'status');
     el.setAttribute('aria-live', 'polite');
-    el.innerHTML =
-      `<div class="pn-continuation-banner__spinner"></div>` +
-      `<span><span class="pn-continuation-banner__label">Promptium</span>${message}</span>`;
+
+    const spinner = document.createElement('div');
+    spinner.className = 'pn-continuation-banner__spinner';
+
+    const textSpan = document.createElement('span');
+
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'pn-continuation-banner__label';
+    labelSpan.textContent = 'Promptium';
+
+    const messageText = document.createTextNode(message);
+
+    textSpan.appendChild(labelSpan);
+    textSpan.appendChild(messageText);
+
+    el.appendChild(spinner);
+    el.appendChild(textSpan);
+
     document.body.appendChild(el);
     _continuationBanner = el;
   };
 
-  const updateContinuationBanner = (message, state) => {
+  const updateContinuationBanner = (message: string, state: string) => {
     const el = _continuationBanner;
     if (!el) return;
     el.classList.remove('pn-continuation-banner--success', 'pn-continuation-banner--error');
-    const spinner = el.querySelector('.pn-continuation-banner__spinner');
+    const spinner = el.querySelector('.pn-continuation-banner__spinner') as HTMLElement | null;
+    const checkEl = el.querySelector('.pn-continuation-banner__check') as HTMLElement | null;
+    const activeIcon = spinner || checkEl;
+
     if (state === 'success') {
       el.classList.add('pn-continuation-banner--success');
-      if (spinner) {
-        spinner.className = 'pn-continuation-banner__check';
-        spinner.style.cssText = '';
-        spinner.textContent = '✓';
+      if (activeIcon) {
+        activeIcon.className = 'pn-continuation-banner__check';
+        activeIcon.style.cssText = '';
+        activeIcon.textContent = '✓';
       }
     } else if (state === 'error') {
       el.classList.add('pn-continuation-banner--error');
-      if (spinner) {
-        spinner.style.cssText =
+      if (activeIcon) {
+        activeIcon.className = 'pn-continuation-banner__spinner';
+        activeIcon.style.cssText =
           'border-color:rgba(239,68,68,0.22);border-top-color:#ef4444;animation:none';
+        activeIcon.textContent = '';
       }
     }
+
     const textSpan = el.querySelector(
       'span:not(.pn-continuation-banner__check):not(.pn-continuation-banner__label)'
-    );
+    ) as HTMLElement | null;
     if (textSpan) {
-      const labelText = state === 'success' ? '' : 'Promptium';
-      textSpan.innerHTML = `<span class="pn-continuation-banner__label">${labelText}</span>${message}`;
+      textSpan.replaceChildren();
+      const labelSpan = document.createElement('span');
+      labelSpan.className = 'pn-continuation-banner__label';
+      labelSpan.textContent = state === 'success' ? '' : 'Promptium';
+
+      textSpan.appendChild(labelSpan);
+      textSpan.appendChild(document.createTextNode(message));
     }
   };
 
-  const hideContinuationBanner = (delay) => {
+  const hideContinuationBanner = (delay: any) => {
     const el = _continuationBanner;
     if (!el) return;
     const safeDelay = typeof delay === 'number' ? delay : 2400;
@@ -1354,17 +1414,17 @@
         if (_continuationBanner === el) _continuationBanner = null;
       }, 300);
       _continuationBannerTimer = null;
-    }, safeDelay);
+    }, safeDelay) as any;
   };
 
   /** Reads pending cross-LLM bridge context and injects it on target platform load. */
-  const hydratePendingBridge = async (platform) => {
+  const hydratePendingBridge = async (platform: any) => {
     try {
-      if (!window.Bridge?.checkPendingBridge) {
+      if (!(window.Bridge as any)?.checkPendingBridge) {
         return;
       }
 
-      const bridge = await window.Bridge.checkPendingBridge(platform);
+      const bridge = await (window.Bridge as any).checkPendingBridge(platform);
       if (!bridge) return;
 
       if (bridge.kind === 'expired') {
@@ -1393,7 +1453,7 @@
       }
 
       if (success) {
-        const bridgeKey = window.Bridge?.BRIDGE_KEY || 'pendingBridge';
+        const bridgeKey = (window.Bridge as any)?.BRIDGE_KEY || 'pendingBridge';
         await chrome.storage.local.remove([bridgeKey]).catch(() => {});
         const label = PLATFORM_LABELS[bridge.sourcePlatform] || bridge.sourcePlatform;
         updateContinuationBanner(`Continued from ${label}`, 'success');
@@ -1411,7 +1471,7 @@
   };
 
   /** Reads pending continuation handoff and injects it once on target platform load. */
-  const hydratePendingContinuation = async (platform) => {
+  const hydratePendingContinuation = async (platform: any) => {
     try {
       if (!window.Continuation?.checkPending) {
         return;
@@ -1482,13 +1542,13 @@
 
   /** Initializes content execution when the current page matches a supported platform. */
   const init = async () => {
-    const platform = await window.Platform.detect();
+    const platform = getCurrentAdapter()?.id || null;
 
     if (!platform) {
       return;
     }
 
-    await window.Toolbar.waitAndInject(platform);
+    // Legacy toolbar is disabled in Phase S4.5 in favor of the new lightweight FAB launcher
     await hydratePendingBridge(platform);
     await hydratePendingContinuation(platform);
     if (window.Bookmarks?.init) {
@@ -1511,14 +1571,12 @@
       getSelectedMessages: buildSelectedMessages,
     };
 
-    chrome.runtime.onMessage.addListener(onRuntimeMessage);
-
     const syncHighlightSettings = async () => {
       try {
-        const snap = await chrome.storage.local.get('promptiumSettings');
+        const snap = await chrome.storage.local.get('promptiumSettings') as any;
         exportSelectionState.chatHighlightStyle =
           snap?.promptiumSettings?.chatHighlightStyle || 'solid';
-        getSelectionControls().forEach((entry) => {
+        getSelectionControls().forEach((entry: any) => {
           setControlChecked(entry, entry.host?.getAttribute('data-checked') === 'true');
         });
       } catch (e) {}
@@ -1527,7 +1585,7 @@
     chrome.storage.local.onChanged.addListener((changes) => {
       if (changes.promptiumSettings) {
         syncHighlightSettings();
-        const newSettings = changes.promptiumSettings.newValue || {};
+        const newSettings = (changes.promptiumSettings.newValue || {}) as any;
         window.PromptSuggestions?.setEnabled(newSettings?.featureFlags?.smartSuggestions !== false);
       }
     });
@@ -1543,5 +1601,6 @@
     );
   };
 
+  chrome.runtime.onMessage.addListener(onRuntimeMessage);
   void init();
 })();

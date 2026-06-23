@@ -24,3 +24,6 @@ import '../../features/templates';
 import '../../sidepanel/tags-ui';
 import '../../features/settings';
 import '../../sidepanel/app-shell-init';
+
+import { initVaultStore } from '../../features/vault/store';
+void initVaultStore();

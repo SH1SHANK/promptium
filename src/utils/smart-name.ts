@@ -80,7 +80,7 @@
     'give',
   ]);
 
-  const normalizeRole = (role) => {
+  const normalizeRole = (role: any) => {
     const value = String(role || '')
       .trim()
       .toLowerCase();
@@ -88,7 +88,7 @@
     return value;
   };
 
-  const firstUserMessageText = (messages) => {
+  const firstUserMessageText = (messages: any) => {
     if (!Array.isArray(messages)) return '';
     const row = messages.find(
       (message) => normalizeRole(message?.role) === 'user' && String(message?.text || '').trim()
@@ -96,7 +96,7 @@
     return String(row?.text || '').trim();
   };
 
-  const slugFromText = (text) => {
+  const slugFromText = (text: string) => {
     const normalized = String(text || '')
       .toLowerCase()
       .replace(/[^a-z0-9\s]/g, ' ')
@@ -119,7 +119,7 @@
     return words.join('-').slice(0, 64).replace(/-+/g, '-').replace(/^-|-$/g, '');
   };
 
-  const fallbackName = (platform) => {
+  const fallbackName = (platform: string) => {
     const safePlatform =
       String(platform || 'unknown')
         .toLowerCase()
@@ -128,7 +128,7 @@
     return `${safePlatform}-${date}`;
   };
 
-  const generateName = (messages, platform, fallbackMessages = []) => {
+  const generateName = (messages: any, platform: string, fallbackMessages: any = []) => {
     const selectedFirst = firstUserMessageText(messages);
     const selectedSlug = slugFromText(selectedFirst);
     if (selectedSlug) {
@@ -144,7 +144,7 @@
     return fallbackName(platform);
   };
 
-  const normalizeExtension = (formatOrExtension) => {
+  const normalizeExtension = (formatOrExtension: string) => {
     const raw = String(formatOrExtension || '')
       .trim()
       .toLowerCase();
@@ -155,7 +155,7 @@
     return raw.replace(/^\./, '');
   };
 
-  const getFilename = (messages, platform, formatOrExtension = 'md', fallbackMessages = []) => {
+  const getFilename = (messages: any, platform: string, formatOrExtension = 'md', fallbackMessages: any = []) => {
     const base = generateName(messages, platform, fallbackMessages);
     const extension = normalizeExtension(formatOrExtension);
     return `${base}.${extension}`;

@@ -17,7 +17,7 @@ const PromptForm = {
   open: form.open,
   close: form.close,
   openForEdit: () => {},
-  openPlainPrefilled: () => {},
+  openPlainPrefilled: (text: string, sourceUrl?: string) => {},
   saveFromModal: () => {},
   saveDuplicateAnyway: () => {},
   prefillSuggestedTags: () => Promise.resolve(),

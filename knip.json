@@ -9,6 +9,17 @@
     "postcss.config.js"
   ],
   "project": ["src/**/*.ts", "src/**/*.js"],
-  "ignore": [".wxt/**", ".output/**", "node_modules/**"],
+  "ignore": [
+    ".wxt/**",
+    ".output/**",
+    "node_modules/**",
+    "src/lib/jspdf.min.js",
+    "src/lib/markdown-it.min.js",
+    "src/lib/turndown.js",
+    "src/types/bookmark.ts",
+    "src/types/continuation.ts",
+    "src/types/errors.ts",
+    "src/types/gemini.ts"
+  ],
   "ignoreDependencies": ["autoprefixer"]
 }

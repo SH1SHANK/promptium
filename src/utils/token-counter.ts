@@ -15,7 +15,7 @@
    * @param {string} text
    * @returns {number} estimated token count
    */
-  const countTokens = (text) => {
+  const countTokens = (text: any): number => {
     if (!text || typeof text !== 'string') return 0;
     const matches = text.match(CL100K_REGEX);
     return matches ? matches.length : 0;
@@ -27,7 +27,7 @@
    * @param {string} text
    * @returns {{ count: number, isExact: boolean }}
    */
-  const count = (text) => {
+  const count = (text: any) => {
     const n = countTokens(text);
     return { count: n, isExact: false };
   };
@@ -38,7 +38,7 @@
    * @param {number} tokenCount
    * @returns {string}
    */
-  const format = (tokenCount) => {
+  const format = (tokenCount: any) => {
     const n = Math.max(0, Number(tokenCount) || 0);
     return `~${n.toLocaleString()} tokens`;
   };

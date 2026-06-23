@@ -4,7 +4,8 @@
    * Purpose: Export, bridge, and copy actions for sidepanel export tab.
    */
 
-  const { state, UI_FEEDBACK_MS } = window.SidepanelState;
+  const { state, UI_FEEDBACK_MS } = window.SidepanelState as any;
+  const byId = (id: string) => document.getElementById(id) as any;
 
   /**
    * Content scripts write promptiumSidePanelPayload asynchronously after openSidePanelAll.
@@ -13,14 +14,14 @@
    */
   const EXPORT_SELECTION_SETTLE_MS = 220;
 
-  const buildFilename = async (extension, options = {}) => {
+  const buildFilename = async (extension: string, options: any = {}) => {
     const customName = String(byId('export-filename')?.value || '').trim();
     if (customName) {
       const baseName = customName.replace(/\.[^.]+$/, '');
       return `${baseName}.${extension}`;
     }
 
-    const payload = window.ExportPayloadUI.getActivePayload();
+    const payload = (window.ExportPayloadUI as any).getActivePayload();
     const selectedMessages = options.messages || payload?.messages || [];
     const fallbackMessages =
       options.fallbackMessages ||
@@ -37,9 +38,9 @@
     return `promptium_${safePlatform}_${date}.${extension}`;
   };
 
-  const persistExportHistory = async () => {};
+  const persistExportHistory = async (payload: any) => {};
 
-  const downloadSidepanelText = async (content, filename, mimeType) => {
+  const downloadSidepanelText = async (content: any, filename: string, mimeType: string) => {
     const payload = content == null ? '' : content;
     const blob =
       payload instanceof Blob
@@ -49,31 +50,30 @@
           });
     const objectUrl = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
-
     anchor.href = objectUrl;
     anchor.download = filename;
     document.body.appendChild(anchor);
     anchor.click();
-    anchor.remove();
+    document.body.removeChild(anchor);
     URL.revokeObjectURL(objectUrl);
   };
 
   const selectMessagesForExport = async () => {
     const context = await getActiveTabContext();
-
     if (!context.tabId) {
-      await window.ExportPayloadUI.setStatus(
-        'Open a supported LLM tab, then try selecting messages again.',
+      await (window.ExportPayloadUI as any).setStatus(
+        'No active chat tab found. Navigate to a supported AI chat platform.',
         true
       );
       return;
     }
 
+    await (window.ExportPayloadUI as any).setStatus('Selecting messages...');
     const response = await chrome.tabs
       .sendMessage(context.tabId, { action: 'openSidePanelAll' })
       .catch(() => null);
     if (!response?.ok) {
-      await window.ExportPayloadUI.setStatus(
+      await (window.ExportPayloadUI as any).setStatus(
         'Selection request failed. Reload the chat tab and try again.',
         true
       );
@@ -81,25 +81,25 @@
     }
 
     await new Promise((resolve) => setTimeout(resolve, EXPORT_SELECTION_SETTLE_MS));
-    const incoming = await window.ExportPayloadUI.loadPayload();
-    await window.ExportPayloadUI.ingestIncomingPayload(incoming);
-    await window.ExportPayloadUI.renderPreview();
-    await window.ExportPayloadUI.setStatus('Selection loaded.');
+    const incoming = await (window.ExportPayloadUI as any).loadPayload();
+    await (window.ExportPayloadUI as any).ingestIncomingPayload(incoming);
+    await (window.ExportPayloadUI as any).renderPreview();
+    await (window.ExportPayloadUI as any).setStatus('Selection loaded.');
   };
 
-  const resolveExtensionForFormat = (format) => {
+  const resolveExtensionForFormat = (format: string) => {
     const normalized = String(format || '').toLowerCase();
     if (normalized === 'markdown') return 'md';
     return normalized;
   };
 
   const runExport = async (forcedFormat = '') => {
-    await window.ExportPayloadUI.syncPrefsFromControls();
+    await (window.ExportPayloadUI as any).syncPrefsFromControls();
 
-    const payload = window.ExportPayloadUI.getActivePayload();
+    const payload = (window.ExportPayloadUI as any).getActivePayload();
 
     if (!payload || !payload.messages.length) {
-      await window.ExportPayloadUI.setStatus('No messages selected.', true, {
+      await (window.ExportPayloadUI as any).setStatus('No messages selected.', true, {
         showRetry: false,
         debugHint: 'Use "Select Messages" to choose a range before exporting.',
       });
@@ -109,9 +109,9 @@
     const format = String(forcedFormat || state.exportPrefs.format || 'markdown').toLowerCase();
 
     if (format === 'markdown') {
-      const markdown = await window.ExportPayloadUI.buildMarkdown();
+      const markdown = await (window.ExportPayloadUI as any).buildMarkdown();
       if (!markdown) {
-        await window.ExportPayloadUI.setStatus('Markdown build failed.', true, {
+        await (window.ExportPayloadUI as any).setStatus('Markdown build failed.', true, {
           showRetry: true,
           debugHint: 'Confirm selected messages are non-empty and try again.',
         });
@@ -127,16 +127,16 @@
         'text/markdown;charset=utf-8'
       );
       await persistExportHistory(payload);
-      await window.ExportPayloadUI.setStatus('Markdown export complete.');
+      await (window.ExportPayloadUI as any).setStatus('Markdown export complete.');
       return;
     }
 
-    const chat = window.ExportPayloadUI.buildExporterChatPayload();
-    const prefs = window.ExportPayloadUI.buildExporterPrefs();
+    const chat = (window.ExportPayloadUI as any).buildExporterChatPayload();
+    const prefs = (window.ExportPayloadUI as any).buildExporterPrefs();
 
     if (format === 'json') {
       try {
-        const json = await window.Exporter.toJSON(chat, prefs);
+        const json = await window.Exporter.toJSON(chat as any, prefs);
         await downloadSidepanelText(
           json,
           await buildFilename('json', {
@@ -147,9 +147,9 @@
           'application/json;charset=utf-8'
         );
         await persistExportHistory(payload);
-        await window.ExportPayloadUI.setStatus('JSON export complete.');
-      } catch (err) {
-        await window.ExportPayloadUI.setStatus(err?.message || 'JSON export failed.', true, {
+        await (window.ExportPayloadUI as any).setStatus('JSON export complete.');
+      } catch (err: any) {
+        await (window.ExportPayloadUI as any).setStatus(err?.message || 'JSON export failed.', true, {
           showRetry: true,
           debugHint: 'Retry the export. If it fails again, refresh the workspace.',
         });
@@ -158,17 +158,17 @@
     }
 
     if (!window.Exporter?.toPDF) {
-      await window.ExportPayloadUI.setStatus('PDF exporter unavailable.', true, {
+      await (window.ExportPayloadUI as any).setStatus('PDF exporter unavailable.', true, {
         showRetry: true,
         debugHint: 'Ensure jsPDF is loaded, then retry.',
       });
       return;
     }
 
-    await window.ExportPayloadUI.setStatus('Building PDF...');
+    await (window.ExportPayloadUI as any).setStatus('Building PDF...');
 
     try {
-      const pdfData = await window.Exporter.toPDF(chat, prefs);
+      const pdfData = await window.Exporter.toPDF(chat as any, prefs);
       const filename = await buildFilename('pdf', {
         format,
         messages: chat?.messages,
@@ -176,9 +176,9 @@
       });
       await downloadSidepanelText(pdfData, filename, 'application/pdf');
       await persistExportHistory(payload);
-      await window.ExportPayloadUI.setStatus('PDF export complete.');
-    } catch (error) {
-      await window.ExportPayloadUI.setStatus(error?.message || 'PDF export failed.', true, {
+      await (window.ExportPayloadUI as any).setStatus('PDF export complete.');
+    } catch (error: any) {
+      await (window.ExportPayloadUI as any).setStatus(error?.message || 'PDF export failed.', true, {
         showRetry: true,
         debugHint: 'Retry export. If it keeps failing, switch format and test again.',
       });
@@ -186,11 +186,11 @@
   };
 
   const copyToClipboard = async () => {
-    await window.ExportPayloadUI.syncPrefsFromControls();
-    const payload = window.ExportPayloadUI.getActivePayload();
+    await (window.ExportPayloadUI as any).syncPrefsFromControls();
+    const payload = (window.ExportPayloadUI as any).getActivePayload();
 
     if (!payload || !payload.messages.length) {
-      await window.ExportPayloadUI.setStatus('No messages selected.', true, {
+      await (window.ExportPayloadUI as any).setStatus('No messages selected.', true, {
         debugHint: 'Select messages first, then copy again.',
       });
       return;
@@ -199,25 +199,25 @@
     try {
       const format = String(state.exportPrefs.format || 'markdown').toLowerCase();
       if (!['markdown', 'json', 'pdf'].includes(format)) {
-        await window.ExportPayloadUI.setStatus('Unsupported export format.', true, {
+        await (window.ExportPayloadUI as any).setStatus('Unsupported export format.', true, {
           showRetry: false,
           debugHint: 'Switch to Markdown, JSON, or PDF.',
         });
         return;
       }
 
-      const chat = window.ExportPayloadUI.buildExporterChatPayload();
-      const prefs = window.ExportPayloadUI.buildExporterPrefs();
+      const chat = (window.ExportPayloadUI as any).buildExporterChatPayload();
+      const prefs = (window.ExportPayloadUI as any).buildExporterPrefs();
       let content = '';
 
       if (format === 'json') {
-        content = await window.Exporter.toJSON(chat, prefs);
+        content = await window.Exporter.toJSON(chat as any, prefs);
       } else if (format === 'markdown') {
-        content = await window.ExportPayloadUI.buildMarkdown();
+        content = await (window.ExportPayloadUI as any).buildMarkdown();
       } else if (format === 'pdf') {
-        content = await window.ExportPayloadUI.buildMarkdown();
+        content = await (window.ExportPayloadUI as any).buildMarkdown();
       } else {
-        content = await window.Exporter.toClipboardText(chat, prefs);
+        content = await window.Exporter.toClipboardText(chat as any, prefs);
       }
 
       await navigator.clipboard.writeText(content);
@@ -234,9 +234,9 @@
         }, UI_FEEDBACK_MS.COPY_RESET);
       }
 
-      await window.ExportPayloadUI.setStatus('Copied to clipboard.');
+      await (window.ExportPayloadUI as any).setStatus('Copied to clipboard.');
     } catch (_) {
-      await window.ExportPayloadUI.setStatus('Clipboard copy failed.', true, {
+      await (window.ExportPayloadUI as any).setStatus('Clipboard copy failed.', true, {
         showRetry: true,
         debugHint: 'Retry copy. If blocked, use file export and copy from the file.',
       });
@@ -245,7 +245,7 @@
 
   const getCurrentBridgePlatform = async () => {
     const payloadPlatform = String(
-      window.ExportPayloadUI.getActivePayload()?.platform || ''
+      (window.ExportPayloadUI as any).getActivePayload()?.platform || ''
     ).toLowerCase();
     if (payloadPlatform) return payloadPlatform;
 
@@ -258,14 +258,14 @@
   };
 
   const getBridgeMessagesFromExport = async () => {
-    const payload = window.ExportPayloadUI.getActivePayload();
+    const payload = (window.ExportPayloadUI as any).getActivePayload();
     if (Array.isArray(payload?.messages) && payload.messages.length > 0) {
       return payload.messages
-        .map((message) => ({
+        .map((message: any) => ({
           role: String(message?.role || 'assistant'),
           text: String(message?.text || '').trim(),
         }))
-        .filter((message) => message.text.length > 0);
+        .filter((message: any) => message.text.length > 0);
     }
 
     const context = await getActiveTabContext();
@@ -294,9 +294,9 @@
     }
 
     const targets = Object.keys(window.Bridge.LLM_URLS)
-      .filter((platform) => platform !== currentPlatform)
-      .filter((platform) => state.settings?.enabledPlatforms?.[platform] !== false)
-      .map((platform) => ({
+      .filter((platform: string) => platform !== currentPlatform)
+      .filter((platform: string) => (state.settings?.enabledPlatforms as any)?.[platform] !== false)
+      .map((platform: string) => ({
         key: platform,
         label: PLATFORM_LABELS?.[platform] || platform,
       }));
@@ -356,7 +356,7 @@
     });
   };
 
-  window.ExportActionsUI = {
+  (window as any).ExportActionsUI = {
     selectMessagesForExport,
     runExport,
     copyToClipboard,
@@ -366,3 +366,6 @@
     resolveExtensionForFormat,
   };
 })();
+
+export {};
+

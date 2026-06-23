@@ -12,7 +12,7 @@
   const LONG_NO_KEY_ADVISORY =
     'Long conversation: quality may be limited without a configured provider key.';
 
-  const MODE_ALIASES = Object.freeze({
+  const MODE_ALIASES: Record<string, string> = Object.freeze({
     full_summary: 'FULL_SUMMARY',
     full: 'FULL_SUMMARY',
     key_points: 'KEY_POINTS',
@@ -22,7 +22,7 @@
     last_messages: 'RECENT_ONLY',
   });
 
-  const normalizeMode = (value) => {
+  const normalizeMode = (value: any) => {
     const key = String(value || '')
       .trim()
       .toLowerCase();
@@ -34,7 +34,7 @@
     );
   };
 
-  const normalizeRole = (role) => {
+  const normalizeRole = (role: any) => {
     const value = String(role || '')
       .trim()
       .toLowerCase();
@@ -43,7 +43,7 @@
     return value.includes('user') ? 'Human' : 'Assistant';
   };
 
-  const cleanContinuationText = (text) => {
+  const cleanContinuationText = (text: any) => {
     let cleaned = String(text || '').trim();
 
     // 1. Remove leaked thinking blocks
@@ -52,7 +52,7 @@
 
     // 2. Remove LaTeX display math (\\[ ... \\] and $$ ... $$)
     cleaned = cleaned.replace(/\\\[[\s\S]*?\\\]/g, '');
-    cleaned = cleaned.replace(/\$\$[\s\S]*?\$\$/g, '');
+    cleaned = cleaned.replace(/\$$[\s\S]*?\$\$/g, '');
 
     // 3. Remove LaTeX inline math (\\( ... \\) and $ ... $) - avoiding currency
     cleaned = cleaned.replace(/\\\([\s\S]*?\\\)/g, '');
@@ -72,7 +72,7 @@
     return cleaned.trim();
   };
 
-  const normalizeMessages = (messages) => {
+  const normalizeMessages = (messages: any) => {
     if (!Array.isArray(messages)) return [];
     return messages
       .map((message) => ({
@@ -82,7 +82,7 @@
       .filter((message) => message.text.length > 0);
   };
 
-  const buildFallback = (messages) => {
+  const buildFallback = (messages: any) => {
     const rows = normalizeMessages(messages)
       .slice(-FALLBACK_MESSAGE_COUNT)
       .map((message) => `${message.role}: ${message.text}`)
@@ -101,17 +101,16 @@
     ].join('\n');
   };
 
-  const resolveCloudKey = async (explicitKey) => {
+  const resolveCloudKey = async (explicitKey: any) => {
     const fromArg = String(explicitKey || '').trim();
     if (fromArg) return fromArg;
 
     let activeProvider = 'gemini';
     try {
       const snapshot = await chrome.storage.local.get(['promptiumSettings']);
-      const settings =
-        snapshot?.promptiumSettings && typeof snapshot.promptiumSettings === 'object'
-          ? snapshot.promptiumSettings
-          : {};
+      const settings = (snapshot?.promptiumSettings && typeof snapshot.promptiumSettings === 'object'
+        ? snapshot.promptiumSettings
+        : {}) as any;
       activeProvider =
         String(settings?.activeProvider || 'gemini')
           .trim()
@@ -141,7 +140,7 @@
     return '';
   };
 
-  const buildHandoff = async (messages, mode = 'FULL_SUMMARY', userNote = '', cloudKey = '') => {
+  const buildHandoff = async (messages: any, mode = 'FULL_SUMMARY', userNote = '', cloudKey = '') => {
     const normalized = normalizeMessages(messages).slice(-MAX_SOURCE_MESSAGES);
     if (!normalized.length) {
       return { ok: false, error: 'no_messages' };
@@ -186,7 +185,7 @@
     }
   };
 
-  const store = async (handoffText, targetPlatform, sourcePlatform = 'unknown') => {
+  const store = async (handoffText: any, targetPlatform: any, sourcePlatform = 'unknown') => {
     const text = String(handoffText || '').trim();
     const target = String(targetPlatform || '')
       .trim()
@@ -207,8 +206,8 @@
     });
   };
 
-  const checkPending = async (currentPlatform) => {
-    const snapshot = await chrome.storage.local.get([CONTINUATION_KEY]).catch(() => ({}));
+  const checkPending = async (currentPlatform: any) => {
+    const snapshot = (await chrome.storage.local.get([CONTINUATION_KEY]).catch(() => ({}))) as Record<string, any>;
     const pending = snapshot?.[CONTINUATION_KEY];
     if (!pending) return null;
 

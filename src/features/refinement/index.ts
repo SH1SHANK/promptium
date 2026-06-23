@@ -11,8 +11,8 @@ const ImproveUI = {
   close: dialog.close,
   retry: actions.retry,
   accept: actions.accept,
-  bindEvents: () => {},
-  setCallbacks: () => {},
+  bindEvents: dialog.bindEvents,
+  setCallbacks: dialog.setCallbacks,
 };
 
 if (typeof window !== 'undefined') {

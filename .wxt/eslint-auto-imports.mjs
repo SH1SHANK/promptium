@@ -1,4 +1,5 @@
 const globals = {
+  "AIBridge": true,
   "AutoMount": true,
   "AutoMountOptions": true,
   "Browser": true,
@@ -33,12 +34,15 @@ const globals = {
   "StorageArea": true,
   "StorageAreaChanges": true,
   "StorageItemKey": true,
+  "Toast": true,
   "UsageRecord": true,
   "WxtAppConfig": true,
   "WxtStorage": true,
   "WxtStorageItem": true,
   "WxtWindowEventMap": true,
+  "assertElement": true,
   "browser": true,
+  "byId": true,
   "commandPalette": true,
   "createBuiltinCommands": true,
   "createBuiltinShortcuts": true,
@@ -60,6 +64,7 @@ const globals = {
   "recentsAndFavorites": true,
   "searchRanker": true,
   "storage": true,
+  "toast": true,
   "useAppConfig": true
 }
 

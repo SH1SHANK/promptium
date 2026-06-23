@@ -4,9 +4,10 @@
  *          field when the user is typing. Searches the prompt library for
  *          semantically relevant matches and injects on click.
  *
- * Communicates with: utils/storage.js (window.Store), utils/platform.js (window.Platform),
- *                    service_worker.js (chrome.runtime.sendMessage for semantic search)
+ * Communicates with: utils/storage.js (window.Store), service_worker.js (chrome.runtime.sendMessage for semantic search)
  */
+
+import { getCurrentAdapter } from '../platforms';
 
 (() => {
   const SUGGESTION_HOST_ID = 'pn-suggestion-host';
@@ -90,9 +91,9 @@
     'get',
   ]);
 
-  let dropdownNode = null;
-  let inputEl = null;
-  let debounceTimer = null;
+  let dropdownNode: any = null;
+  let inputEl: any = null;
+  let debounceTimer: any = null;
   let dismissed = false;
   let lastQuery = '';
   let isEnabled = true;
@@ -202,12 +203,12 @@
 
   const hideDropdown = () => {
     const host = document.getElementById(SUGGESTION_HOST_ID);
-    if (host) host.innerHTML = '';
+    if (host) host.replaceChildren();
     dropdownNode = null;
     lastQuery = '';
   };
 
-  const positionDropdown = (dropdown, inputRect) => {
+  const positionDropdown = (dropdown: any, inputRect: any) => {
     const pad = 8;
     const vpW = window.innerWidth;
     const vpH = window.innerHeight;
@@ -237,14 +238,14 @@
     }
   };
 
-  const showDropdown = (prompts, inputRect) => {
+  const showDropdown = (prompts: any, inputRect: any) => {
     if (!prompts.length) {
       hideDropdown();
       return;
     }
 
     const host = getOrCreateHost();
-    host.innerHTML = '';
+    host.replaceChildren();
 
     const dropdown = document.createElement('div');
     dropdown.className = 'pn-sug-dropdown';
@@ -258,7 +259,7 @@
     dismiss.type = 'button';
     dismiss.className = 'pn-sug-dismiss';
     dismiss.title = 'Dismiss (Esc)';
-    dismiss.innerHTML = '✕';
+    dismiss.textContent = '✕';
     dismiss.addEventListener('click', () => {
       dismissed = true;
       hideDropdown();
@@ -266,7 +267,7 @@
     header.appendChild(dismiss);
     dropdown.appendChild(header);
 
-    prompts.forEach((p) => {
+    prompts.forEach((p: any) => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'pn-sug-item';
@@ -301,169 +302,158 @@
 
   /* ── Prompt injection ──────────────────────────────────────────────────────── */
 
-  const injectSuggestion = (text) => {
+  const injectSuggestion = (text: any) => {
     if (!inputEl) return;
     const el = inputEl;
-    // Support both textarea and contenteditable
-    if (typeof el.value !== 'undefined') {
+    if (el.value === undefined) {
+      el.textContent = text;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    } else {
       el.value = text;
       el.dispatchEvent(new Event('input', { bubbles: true }));
       el.dispatchEvent(new Event('change', { bubbles: true }));
-    } else {
-      el.textContent = text;
-      el.dispatchEvent(new Event('input', { bubbles: true }));
     }
     el.focus();
   };
 
-  /* ── Keyword scoring ──────────────────────────────────────────────────────── */
-
-  const tokenize = (text) =>
+  const tokenize = (text: any) =>
     String(text || '')
       .toLowerCase()
       .replace(/[^\w\s]/g, ' ')
       .split(/\s+/)
-      .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
+      .filter((word: any) => word.length > 2 && !STOP_WORDS.has(word));
 
-  const scorePrompt = (queryWords, prompt) => {
+  const calculateScore = (queryWords: any, prompt: any) => {
     if (!queryWords.length) return 0;
-    const haystack = tokenize(`${prompt.title || ''} ${(prompt.text || '').slice(0, 300)}`);
-    if (!haystack.length) return 0;
-    const haystackSet = new Set(haystack);
-    let matches = 0;
-    for (const word of queryWords) {
-      if (haystackSet.has(word)) matches++;
-      else {
-        // Partial prefix match
-        if (haystack.some((h) => h.startsWith(word) || word.startsWith(h))) {
-          matches += 0.6;
-        }
+    const promptWords = tokenize(
+      `${prompt.title || ''} ${String(prompt.text || '').slice(0, 300)}`
+    );
+    if (!promptWords.length) return 0;
+
+    const querySet = new Set(promptWords);
+    let matched = 0;
+
+    for (const qw of queryWords) {
+      if (querySet.has(qw)) {
+        matched++;
+      } else if (promptWords.some((pw: any) => pw.startsWith(qw) || qw.startsWith(pw))) {
+        matched += 0.6;
       }
     }
-    return matches / queryWords.length;
+
+    return matched / queryWords.length;
   };
 
-  const findSuggestions = async (query) => {
+  const findSuggestions = async (query: any) => {
     if (!window.Store?.getPrompts) return [];
-    const prompts = await window.Store.getPrompts().catch(() => []);
-    if (!prompts.length) return [];
+    const all = await window.Store.getPrompts().catch(() => []);
+    if (!all.length) return [];
 
-    const queryTrimmed = query.slice(-QUERY_MAX_CHARS).trim();
-    const queryWords = tokenize(queryTrimmed);
+    const queryWords = tokenize(query.slice(-QUERY_MAX_CHARS).trim());
     if (!queryWords.length) return [];
 
-    const scored = prompts
-      .map((p) => ({ p, score: scorePrompt(queryWords, p) }))
-      .filter((x) => x.score >= MIN_SCORE)
-      .sort((a, b) => b.score - a.score)
+    return all
+      .map((p: any) => ({ prompt: p, score: calculateScore(queryWords, p) }))
+      .filter((entry: any) => entry.score >= MIN_SCORE)
+      .sort((a: any, b: any) => b.score - a.score)
       .slice(0, MAX_SUGGESTIONS)
-      .map((x) => x.p);
-
-    return scored;
+      .map((entry: any) => entry.prompt);
   };
 
-  /* ── Input field observation ──────────────────────────────────────────────── */
-
-  const handleInput = (event) => {
+  const handleInput = (event: any) => {
     if (!isEnabled || dismissed) return;
-    const el = event.target;
-    const text = typeof el.value !== 'undefined' ? el.value : el.textContent || el.innerText || '';
-    const trimmed = text.trim();
-
-    if (!trimmed || trimmed.length < 8) {
+    const target = event.target;
+    const val = (target.value === undefined ? target.textContent || target.innerText || '' : target.value).trim();
+    if (!val || val.length < 8) {
       hideDropdown();
       return;
     }
-    if (trimmed === lastQuery) return;
 
-    if (debounceTimer) clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(async () => {
-      lastQuery = trimmed;
-      const inputRect = el.getBoundingClientRect();
-      if (!inputRect.width) return; // element not visible
-      const suggestions = await findSuggestions(trimmed);
-      showDropdown(suggestions, inputRect);
-    }, DEBOUNCE_MS);
+    if (val !== lastQuery) {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(async () => {
+        lastQuery = val;
+        const rect = target.getBoundingClientRect();
+        if (rect.width) {
+          showDropdown(await findSuggestions(val), rect);
+        }
+      }, DEBOUNCE_MS);
+    }
   };
 
-  const handleKeydown = (event) => {
+  const handleKeyDown = (event: any) => {
     if (event.key === 'Escape' && dropdownNode) {
       dismissed = true;
       hideDropdown();
     }
-    // Dismiss when user presses Enter (submits message)
     if (event.key === 'Enter' && !event.shiftKey && dropdownNode) {
       hideDropdown();
       dismissed = false;
     }
   };
 
-  const handleFocusOut = (event) => {
-    // Hide if focus leaves the input and goes somewhere other than our dropdown
+  const handleBlur = (event: any) => {
+    // Small delay to allow click handlers on dropdown to trigger first
     setTimeout(() => {
       if (!dropdownNode) return;
-      const active = document.activeElement;
-      if (active && active.closest('#pn-suggestion-host')) return;
-      if (active === inputEl) return;
+      const focused = document.activeElement;
+      if (focused && focused.closest('#pn-suggestion-host')) return;
+      if (focused === inputEl) return;
       hideDropdown();
     }, 150);
   };
 
-  const bindToInput = (el) => {
+  const bindToInput = (el: any) => {
     if (!el || el === inputEl) return;
     if (inputEl) unbindFromInput(inputEl);
     inputEl = el;
     dismissed = false;
     el.addEventListener('input', handleInput);
-    el.addEventListener('keydown', handleKeydown);
-    el.addEventListener('blur', handleFocusOut);
+    el.addEventListener('keydown', handleKeyDown);
+    el.addEventListener('blur', handleBlur);
   };
 
-  const unbindFromInput = (el) => {
+  const unbindFromInput = (el: any) => {
     if (!el) return;
     el.removeEventListener('input', handleInput);
-    el.removeEventListener('keydown', handleKeydown);
-    el.removeEventListener('blur', handleFocusOut);
+    el.removeEventListener('keydown', handleKeyDown);
+    el.removeEventListener('blur', handleBlur);
   };
 
-  /* ── Platform input finder ───────────────────────────────────────────────── */
-
-  const findInputField = () => {
-    if (!window.Platform) return null;
-    const platform = window.Platform.detect();
-    if (!platform) return null;
-    const selectors = window.Platform.getSelectors(platform);
-    const sel = selectors?.inputField || selectors?.inputField;
-    if (!sel) return null;
-    return document.querySelector(sel);
+  const findInputField = async () => {
+    const adapter = getCurrentAdapter();
+    if (!adapter) return null;
+    return adapter.getComposerElement();
   };
 
-  let observerTimer = null;
+  let observerTimer: any = null;
 
   const watchForInput = () => {
-    const check = () => {
-      const el = findInputField();
+    const check = async () => {
+      const el = await findInputField();
       if (el && el !== inputEl) {
         bindToInput(el);
         dismissed = false;
       }
     };
-    check();
+    void check();
     // Use a periodic check for SPA navigation
     if (observerTimer) clearInterval(observerTimer);
-    observerTimer = setInterval(check, 2000);
+    observerTimer = setInterval(() => {
+      void check();
+    }, 2000);
   };
 
   /* ── Public API ──────────────────────────────────────────────────────────── */
 
-  const init = (settings = {}) => {
+  const init = (settings: any = {}) => {
     isEnabled = settings.smartSuggestions !== false;
     if (!isEnabled) return;
     injectStyles();
     watchForInput();
 
     // Dismiss when clicking outside
-    document.addEventListener('click', (e) => {
+    document.addEventListener('click', (e: any) => {
       if (!dropdownNode) return;
       if (e.target.closest('#pn-suggestion-host')) return;
       if (e.target === inputEl) return;
@@ -472,7 +462,7 @@
     });
   };
 
-  const setEnabled = (enabled) => {
+  const setEnabled = (enabled: any) => {
     isEnabled = Boolean(enabled);
     if (!isEnabled) {
       hideDropdown();
@@ -480,5 +470,5 @@
     }
   };
 
-  window.PromptSuggestions = { init, setEnabled, hideDropdown };
+  (window as any).PromptSuggestions = { init, setEnabled, hideDropdown };
 })();

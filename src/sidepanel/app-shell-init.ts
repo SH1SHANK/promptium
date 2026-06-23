@@ -1,3 +1,5 @@
+import { byId, assertElement } from '../utils/dom-safe';
+
 (() => {
   /**
    * File: sidepanel/app-shell-init.js
@@ -6,11 +8,11 @@
 
   const { KEYS, ONBOARDING_CARDS, state, isEditableField } = window.SidepanelState;
   const MODAL_SCROLL_LOCK_CLASS = 'pn-modal-open';
-  let modalLockObserver = null;
+  let modalLockObserver: MutationObserver | null = null;
 
-  const getOnboardingIconClass = (card) => String(card?.iconClass || 'pn-card-icon--violet');
+  const getOnboardingIconClass = (card: any) => String(card?.iconClass || 'pn-card-icon--violet');
 
-  const renderOnboardingCard = async (card, index) => `
+  const renderOnboardingCard = async (card: any, index: any) => `
   <section class="pn-onboarding-card" data-onboard-index="${index}">
     <div class="pn-ob-visual">
       <span class="pn-card-icon ${getOnboardingIconClass(card)}">${card.icon}</span>
@@ -33,18 +35,27 @@
   </section>
 `;
 
-  const updateOnboardingPositions = async () => {
+  const handleOnboardingAction = async (settings: any) => {
     const cards = Array.from(document.querySelectorAll('#pn-onboarding .pn-onboarding-card'));
     const dots = Array.from(document.querySelectorAll('#pn-onboarding .pn-ob-dot'));
 
     cards.forEach((card, index) => {
+      card.classList.remove('active', 'exit');
+    });
+  };
+
+  const updateOnboardingPositions = async () => {
+    const cards = Array.from(document.querySelectorAll('#pn-onboarding .pn-onboarding-card'));
+    const dots = Array.from(document.querySelectorAll('#pn-onboarding .pn-ob-dot'));
+
+    cards.forEach((card: any, index: number) => {
       card.classList.remove('active', 'exit');
       if (index === state.onboardingIndex) {
         card.classList.add('active');
       }
     });
 
-    dots.forEach((dot, index) => {
+    dots.forEach((dot: any, index: number) => {
       dot.classList.remove('active', 'visited');
       if (index < state.onboardingIndex) {
         dot.classList.add('visited');
@@ -55,17 +66,17 @@
     });
 
     /* Animate headline char-by-char for the active card */
-    const activeCard = cards[state.onboardingIndex];
+    const activeCard = cards[state.onboardingIndex] as HTMLElement;
     if (activeCard) {
-      const headlineEl = activeCard.querySelector('.pn-ob-headline');
+      const headlineEl = activeCard.querySelector('.pn-ob-headline') as HTMLElement;
       if (headlineEl) {
-        const text = headlineEl.getAttribute('data-text') || headlineEl.textContent;
+        const text = headlineEl.getAttribute('data-text') || headlineEl.textContent || '';
         headlineEl.setAttribute('data-text', text);
         headlineEl.textContent = text;
         /* Trigger charReveal using inline span injection */
         setTimeout(() => {
           headlineEl.innerHTML = '';
-          text.split('').forEach((ch, i) => {
+          text.split('').forEach((ch: string, i: number) => {
             if (ch === ' ') {
               headlineEl.appendChild(document.createTextNode('\u00A0'));
             } else {
@@ -80,7 +91,7 @@
       }
 
       /* Animate icon */
-      const iconEl = activeCard.querySelector('.pn-card-icon');
+      const iconEl = activeCard.querySelector('.pn-card-icon') as HTMLElement;
       if (iconEl) {
         iconEl.style.animation = 'none';
         iconEl.style.opacity = '0';
@@ -103,9 +114,9 @@
         { top: '55%', left: '30%', top2: '25%', left2: '65%' },
         { top: '40%', left: '40%', top2: '50%', left2: '55%' },
       ];
-      const gp = glowPositions[state.onboardingIndex] || glowPositions[0];
-      const glow = document.querySelector('#pn-onboarding .pn-onboarding-glow');
-      const glow2 = document.querySelector('#pn-onboarding .pn-onboarding-glow-2');
+      const gp = glowPositions[state.onboardingIndex] ?? glowPositions[0] ?? { top: '65%', left: '55%', top2: '22%', left2: '35%' };
+      const glow = document.querySelector('#pn-onboarding .pn-onboarding-glow') as HTMLElement;
+      const glow2 = document.querySelector('#pn-onboarding .pn-onboarding-glow-2') as HTMLElement;
       if (glow) {
         glow.style.top = gp.top;
         glow.style.left = gp.left;
@@ -119,7 +130,7 @@
 
   const completeOnboarding = async () => {
     await chrome.storage.local.set({ [KEYS.ONBOARDING_KEY]: true });
-    const overlay = document.getElementById('pn-onboarding');
+    const overlay = byId('pn-onboarding');
     if (overlay) {
       overlay.classList.add('pn-ob-exit');
       await new Promise((r) => setTimeout(r, 350));
@@ -131,7 +142,7 @@
     if (state.onboardingIndex < ONBOARDING_CARDS.length - 1) {
       /* Animate current card out */
       const cards = Array.from(document.querySelectorAll('#pn-onboarding .pn-onboarding-card'));
-      const currentCard = cards[state.onboardingIndex];
+      const currentCard = cards[state.onboardingIndex] as HTMLElement;
       if (currentCard) {
         currentCard.classList.remove('active');
         currentCard.classList.add('exit');
@@ -149,7 +160,7 @@
   const onOnboardingSkip = async () => {
     /* Animate current card out */
     const cards = Array.from(document.querySelectorAll('#pn-onboarding .pn-onboarding-card'));
-    const currentCard = cards[state.onboardingIndex];
+    const currentCard = cards[state.onboardingIndex] as HTMLElement;
     if (currentCard) {
       currentCard.classList.remove('active');
       currentCard.classList.add('exit');
@@ -172,10 +183,10 @@
     overlay.id = 'pn-onboarding';
 
     const cardsMarkup = await Promise.all(
-      ONBOARDING_CARDS.map((card, index) => renderOnboardingCard(card, index))
+      ONBOARDING_CARDS.map((card: any, index: number) => renderOnboardingCard(card, index))
     );
     const dotsMarkup = ONBOARDING_CARDS.map(
-      (_, index) => `<span class="pn-ob-dot visible${index === 0 ? ' active' : ''}"></span>`
+      (_: any, index: number) => `<span class="pn-ob-dot visible${index === 0 ? ' active' : ''}"></span>`
     ).join('');
 
     overlay.innerHTML = `
@@ -201,7 +212,7 @@
 
     let aiInitialized = false;
 
-    overlay.addEventListener('click', (event) => {
+    overlay.addEventListener('click', (event: any) => {
       void (async () => {
         const action = String(event.target?.dataset?.action || '');
 
@@ -249,8 +260,8 @@
   };
 
   const refreshHeaderControls = () => {
-    const addPromptButton = byId('add-prompt-btn');
-    const searchWrap = byId('search-wrap');
+    const addPromptButton = document.getElementById('add-prompt-btn');
+    const searchWrap = document.getElementById('search-wrap');
     const isPromptTab = state.activeTab === 'prompts';
     if (addPromptButton) addPromptButton.classList.toggle('hidden', !isPromptTab);
     if (searchWrap) {
@@ -264,22 +275,21 @@
   };
 
   const syncPopupCloseButton = async () => {
-    const closeBtn = byId('panel-close-btn');
+    const closeBtn = document.getElementById('panel-close-btn');
     if (!closeBtn) return;
     closeBtn.classList.toggle('hidden', !(await isPopupMode()));
   };
 
-  const isTabEnabledBySettings = (tabName) => {
-    return true;
-  };
-
-  const switchTab = async (tabName) => {
+  const switchTab = async (tabName: any) => {
     const requested = String(tabName || 'prompts');
 
     if (requested === 'export') {
       await loadExportFeature();
     } else if (requested === 'continue') {
       await loadContinuationFeature();
+    } else if (requested === 'vault') {
+      const { initVaultUI } = await import('../features/vault/vault-ui');
+      await initVaultUI();
     }
 
     const tabs = Array.from(document.querySelectorAll('.tab'));
@@ -289,11 +299,11 @@
 
     state.activeTab = String(tabName || 'prompts');
 
-    tabs.forEach((tab) => {
+    tabs.forEach((tab: any) => {
       tab.classList.toggle('active', tab.dataset.tab === state.activeTab);
     });
 
-    panes.forEach((pane) => {
+    panes.forEach((pane: any) => {
       pane.classList.toggle('active', pane.dataset.tab === state.activeTab);
     });
 
@@ -317,13 +327,13 @@
 
     if (headerPageTitle) {
       headerPageTitle.classList.toggle('hidden', !isStandaloneView);
-      const pageTitles = { settings: 'Settings', export: 'Export', continue: 'Continue' };
+      const pageTitles: Record<string, string> = { settings: 'Settings', export: 'Export', continue: 'Continue' };
       headerPageTitle.textContent = pageTitles[tabName] || '';
     }
 
     refreshHeaderControls();
 
-    const searchInput = document.getElementById('prompt-search');
+    const searchInput = document.getElementById('prompt-search') as HTMLInputElement;
     if (searchInput) {
       searchInput.placeholder = 'Search prompts by title, text, or tags';
     }
@@ -351,11 +361,10 @@
   const performWorkspaceRefresh = async () => {
     await window.PromptsUI.render(window.PromptsUI.getSearchValue());
     await window.TagsUI.render();
-    await showToast('Workspace synced.');
   };
 
   const bindSessionPayloadUpdates = async () => {
-    chrome.storage.onChanged.addListener((changes, areaName) => {
+    chrome.storage.onChanged.addListener((changes: any, areaName: string) => {
       const payloadChange = changes[KEYS.SIDEPANEL_SESSION_KEY];
       if (areaName !== 'session' || !payloadChange) {
         return;
@@ -369,7 +378,7 @@
       })();
     });
 
-    chrome.storage.onChanged.addListener((changes, areaName) => {
+    chrome.storage.onChanged.addListener((changes: any, areaName: string) => {
       if (areaName !== 'local' || !changes.prompts) {
         return;
       }
@@ -380,7 +389,7 @@
       })();
     });
 
-    chrome.storage.onChanged.addListener((changes, areaName) => {
+    chrome.storage.onChanged.addListener((changes: any, areaName: string) => {
       if (areaName !== 'local' || !changes[KEYS.PENDING_SNIPPET_KEY]) {
         return;
       }
@@ -395,28 +404,28 @@
   };
 
   const bindShellEvents = async () => {
-    Array.from(document.querySelectorAll('.tab')).forEach((tab) => {
+    Array.from(document.querySelectorAll('.tab')).forEach((tab: any) => {
       tab.addEventListener('click', () => {
         void switchTab(String(tab.dataset.tab || 'prompts'));
       });
     });
 
-    byId('settings-btn')?.addEventListener('click', () => {
+    document.getElementById('settings-btn')?.addEventListener('click', () => {
       void switchTab('settings');
     });
 
-    byId('back-btn')?.addEventListener('click', () => {
+    document.getElementById('back-btn')?.addEventListener('click', () => {
       void switchTab('prompts');
     });
 
-    byId('add-prompt-btn')?.addEventListener('click', () => {
+    document.getElementById('add-prompt-btn')?.addEventListener('click', () => {
       void window.PromptForm.open();
     });
 
-    byId('refresh-btn')?.addEventListener('click', () => {
+    document.getElementById('refresh-btn')?.addEventListener('click', () => {
       void performWorkspaceRefresh();
     });
-    byId('panel-close-btn')?.addEventListener('click', () => {
+    document.getElementById('panel-close-btn')?.addEventListener('click', () => {
       window.close();
     });
 
@@ -424,11 +433,11 @@
       document.getElementById('pn-smart-strip')?.classList.add('pn-hidden');
     });
 
-    byId('pn-prompts-continue-chat')?.addEventListener('click', () => {
+    document.getElementById('pn-prompts-continue-chat')?.addEventListener('click', () => {
       void handleShowContinuation();
     });
 
-    window.addEventListener('keydown', (event) => {
+    window.addEventListener('keydown', (event: KeyboardEvent) => {
       if (
         event.key === '/' &&
         !event.metaKey &&
@@ -489,23 +498,12 @@
         void window.PromptForm.close();
         return;
       }
-      const searchInput = window.PromptsUI.getSearchInput();
+      const searchInput = window.PromptsUI.getSearchInput() as HTMLInputElement | null;
       if (document.activeElement === searchInput && String(searchInput?.value || '').trim()) {
         event.preventDefault();
         window.PromptsUI.clearSearch();
       }
     });
-
-    window.addEventListener('resize', () => {
-      // no-op
-    });
-  };
-
-  const syncModalScrollLock = () => {
-    const hasOpenModal = Array.from(document.querySelectorAll('.pn-modal')).some(
-      (node) => !node.classList.contains('pn-hidden')
-    );
-    document.body.classList.toggle(MODAL_SCROLL_LOCK_CLASS, hasOpenModal);
   };
 
   const bindModalScrollLock = () => {
@@ -522,13 +520,20 @@
     });
 
     modals.forEach((modal) => {
-      modalLockObserver.observe(modal, {
+      modalLockObserver!.observe(modal, {
         attributes: true,
         attributeFilter: ['class'],
       });
     });
 
     syncModalScrollLock();
+  };
+
+  const syncModalScrollLock = () => {
+    const hasOpenModal = Array.from(document.querySelectorAll('.pn-modal')).some(
+      (node) => !node.classList.contains('pn-hidden')
+    );
+    document.body.classList.toggle(MODAL_SCROLL_LOCK_CLASS, hasOpenModal);
   };
 
   const handleShowExport = async () => {
@@ -553,7 +558,7 @@
     }
   };
 
-  const commandState = {
+  const commandState: { items: any[]; activeIndex: number } = {
     items: [],
     activeIndex: 0,
   };
@@ -562,13 +567,13 @@
     document.getElementById('pn-command-palette')?.classList.add('pn-hidden');
   };
 
-  const runCommand = async (command) => {
+  const runCommand = async (command: any) => {
     closeCommandPalette();
     if (!command) return;
 
     if (command.type === 'prompt') {
       await switchTab('prompts');
-      const search = window.PromptsUI.getSearchInput();
+      const search = window.PromptsUI.getSearchInput() as HTMLInputElement | null;
       if (search) search.value = command.title;
       await window.PromptsUI.render(command.title);
       return;
@@ -587,13 +592,13 @@
       .toLowerCase();
     const staticCommands = window.commandPalette.getAllCommands();
     const prompts = await (window.PromptStore || window.Store)?.getPrompts?.().catch(() => []);
-    const promptCommands = (Array.isArray(prompts) ? prompts : []).slice(0, 200).map((prompt) => ({
+    const promptCommands = (Array.isArray(prompts) ? prompts : []).slice(0, 200).map((prompt: any) => ({
       title: String(prompt.title || 'Untitled Prompt'),
       subtitle: [prompt.category, ...(prompt.tags || [])].filter(Boolean).join(' · '),
       type: 'prompt',
     }));
     commandState.items = [...staticCommands, ...promptCommands]
-      .filter((item) => {
+      .filter((item: any) => {
         if (!normalized) return true;
         return `${item.title} ${item.subtitle || ''}`.toLowerCase().includes(normalized);
       })
@@ -618,7 +623,7 @@
 
   const openCommandPalette = async () => {
     const palette = document.getElementById('pn-command-palette');
-    const input = document.getElementById('pn-command-input');
+    const input = document.getElementById('pn-command-input') as HTMLInputElement | null;
     if (!palette || !input) return;
     palette.classList.remove('pn-hidden');
     input.value = '';
@@ -629,7 +634,7 @@
 
   const bindCommandPalette = () => {
     const palette = document.getElementById('pn-command-palette');
-    const input = document.getElementById('pn-command-input');
+    const input = document.getElementById('pn-command-input') as HTMLInputElement | null;
     if (!palette || !input || palette.dataset.bound === 'true') return;
     palette.dataset.bound = 'true';
     palette.querySelector('[data-command-close]')?.addEventListener('click', closeCommandPalette);
@@ -637,7 +642,7 @@
       commandState.activeIndex = 0;
       void renderCommandPalette(input.value);
     });
-    input.addEventListener('keydown', (event) => {
+    input.addEventListener('keydown', (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
         closeCommandPalette();
@@ -660,7 +665,7 @@
 
   const consumePendingSnippet = async () => {
     try {
-      const snapshot = await chrome.storage.local.get([KEYS.PENDING_SNIPPET_KEY]);
+      const snapshot = (await chrome.storage.local.get([KEYS.PENDING_SNIPPET_KEY])) as Record<string, any>;
       const snippet = snapshot?.[KEYS.PENDING_SNIPPET_KEY];
       const text = String(snippet?.text || '').trim();
       if (!text) {
@@ -670,7 +675,6 @@
       await chrome.storage.local.remove([KEYS.PENDING_SNIPPET_KEY]).catch(() => {});
       await switchTab('prompts');
       await window.PromptForm.openPlainPrefilled(text, snippet?.sourceUrl || '');
-      await showToast('Saved to Promptium');
       return true;
     } catch (_error) {
       return false;
@@ -686,7 +690,7 @@
       }
       await chrome.storage.session.remove([KEYS.PENDING_PANEL_ACTION_KEY]).catch(() => {});
 
-      const normalized = typeof rawAction === 'string' ? { type: rawAction } : rawAction;
+      const normalized = (typeof rawAction === 'string' ? { type: rawAction } : rawAction) as Record<string, unknown>;
       if (!normalized?.type) {
         return null;
       }
@@ -697,7 +701,7 @@
     }
   };
 
-  const handleImprovePayload = async (payload) => {
+  const handleImprovePayload = async (payload: any) => {
     const normalizedImprove = window.ImproveUI.normalizePayload(payload);
     chrome.storage.local.remove([KEYS.IMPROVE_PAYLOAD_KEY]).catch(() => {});
     if (normalizedImprove.text) {
@@ -709,7 +713,7 @@
   };
 
   const registerEarlyListeners = () => {
-    chrome.runtime.onMessage.addListener((msg) => {
+    chrome.runtime.onMessage.addListener((msg: any) => {
       if (msg?.action !== 'showExport') return;
 
       if (!state.initialized) {
@@ -717,14 +721,14 @@
         return true;
       }
 
-      void handleShowExport().catch((err) => {
+      void handleShowExport().catch((err: any) => {
         console.warn('[Promptium] showExport handler error:', err);
       });
 
       return true;
     });
 
-    chrome.runtime.onMessage.addListener((msg) => {
+    chrome.runtime.onMessage.addListener((msg: any) => {
       if (msg?.action !== 'showContinuation') return;
 
       if (!state.initialized) {
@@ -732,14 +736,14 @@
         return true;
       }
 
-      void handleShowContinuation().catch((err) => {
+      void handleShowContinuation().catch((err: any) => {
         console.warn('[Promptium] showContinuation handler error:', err);
       });
 
       return true;
     });
 
-    chrome.storage.onChanged.addListener((changes) => {
+    chrome.storage.onChanged.addListener((changes: any) => {
       const improveChange = changes[KEYS.IMPROVE_PAYLOAD_KEY];
       if (!improveChange?.newValue) {
         return;
@@ -785,9 +789,9 @@
     if (exportFeatureLoaded) return;
     exportFeatureLoaded = true;
 
-    await import('../utils/export-preview-renderer' as any);
-    await import('../services/export-service' as any);
-    await import('../features/export' as any);
+    await import('../utils/export-preview-renderer');
+    await import('../services/export-service');
+    await import('../features/export');
 
     window.ExportPayloadUI.setCallbacks({
       onRunExport: () => window.ExportActionsUI.runExport(),
@@ -816,7 +820,7 @@
     if (continuationFeatureLoaded) return;
     continuationFeatureLoaded = true;
 
-    await import('../features/continuation' as any);
+    await import('../features/continuation');
     window.ContinuationUI?.bindEvents?.();
   };
 
@@ -825,51 +829,45 @@
     if (refinementFeatureLoaded) return;
     refinementFeatureLoaded = true;
 
-    await import('../features/refinement' as any);
+    await import('../features/refinement');
     window.ImproveUI.setCallbacks({
       onLibraryChanged: async () => {
         await window.PromptsUI.render(window.PromptsUI.getSearchValue());
         await window.TagsUI.render();
       },
       onPromptTextReplaced: () => window.PromptForm.prefillSuggestedTags(),
-      onSwitchTab: (tabName) => switchTab(tabName),
+      onSwitchTab: (tabName: string) => switchTab(tabName),
     });
     window.ImproveUI.bindEvents();
   };
 
   const init = async () => {
-    // Register builtin commands
     if (typeof window.createBuiltinCommands === 'function') {
       window.commandPalette.registerCommands(window.createBuiltinCommands());
     }
 
-    const isPopupMode = true;
-    // ... (rest of the file)
-
-    if (isPopupMode) {
-      const header = document.querySelector('.pn-header-actions');
-      if (header) {
-        const closeBtn = document.createElement('button');
-        closeBtn.id = 'popup-close-btn';
-        closeBtn.className = 'pn-btn pn-btn--ghost pn-icon-btn pn-popup-close';
-        closeBtn.type = 'button';
-        closeBtn.title = 'Close';
-        closeBtn.setAttribute('aria-label', 'Close');
-        closeBtn.innerHTML = `
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        `;
-        closeBtn.addEventListener('click', () => {
-          window.close();
-        });
-        header.appendChild(closeBtn);
-      }
+    const header = document.querySelector('.pn-header-actions');
+    if (header) {
+      const closeBtn = document.createElement('button');
+      closeBtn.id = 'popup-close-btn';
+      closeBtn.className = 'pn-btn pn-btn--ghost pn-icon-btn pn-popup-close';
+      closeBtn.type = 'button';
+      closeBtn.title = 'Close';
+      closeBtn.setAttribute('aria-label', 'Close');
+      closeBtn.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      `;
+      closeBtn.addEventListener('click', () => {
+        window.close();
+      });
+      header.appendChild(closeBtn);
     }
 
     window.PromptsUI.setCallbacks({
-      onOpenImprove: async (promptId, text, tags, options = {}) => {
+      onOpenImprove: async (promptId: string, text: string, tags: string[], options: any = {}) => {
         await loadRefinementFeature();
         window.ImproveUI.open(promptId, text, tags, options);
       },
@@ -881,18 +879,21 @@
         await window.PromptsUI.render(window.PromptsUI.getSearchValue());
         await window.TagsUI.render();
       },
-      onOpenImprove: async (promptId, text, tags, options = {}) => {
+      onOpenImprove: async (promptId: string, text: string, tags: string[], options: any = {}) => {
         await loadRefinementFeature();
         window.ImproveUI.open(promptId, text, tags, options);
       },
     });
 
     window.TagsUI.setCallbacks({
-      onApplyTagFilter: async (filterValue) => {
-        const search = document.getElementById('prompt-search');
-        if (search) search.value = filterValue;
-        await switchTab('prompts');
-        await window.PromptsUI.render(filterValue);
+      onApplyTagFilter: async (filterValue: string) => {
+        const loadPromptLibraryTab = async (filter: string) => {
+          const search = document.getElementById('prompt-search') as HTMLInputElement;
+          if (search) search.value = filter;
+          await switchTab('prompts');
+          await window.PromptsUI.render(filter);
+        };
+        await loadPromptLibraryTab(filterValue);
       },
       onTagsMutated: async () => {
         await window.PromptsUI.render(window.PromptsUI.getSearchValue());
@@ -900,7 +901,7 @@
     });
 
     window.SettingsAI?.setCallbacks?.({
-      onApplyExportDefaults: (settings) => {
+      onApplyExportDefaults: (settings: any) => {
         if (window.ExportPayloadUI) {
           window.ExportPayloadUI.applyDefaultsFromSettings(settings);
         }
@@ -931,7 +932,7 @@
     try {
       const snapshot = await chrome.storage.local.get([KEYS.IMPROVE_PAYLOAD_KEY]);
       const promptiumImprovePayload = snapshot?.[KEYS.IMPROVE_PAYLOAD_KEY];
-      const settingsSnap = await chrome.storage.local.get([KEYS.SETTINGS_KEY]).catch(() => ({}));
+      const settingsSnap = (await chrome.storage.local.get([KEYS.SETTINGS_KEY]).catch(() => ({}))) as Record<string, any>;
       const activeProvider = String(settingsSnap?.[KEYS.SETTINGS_KEY]?.activeProvider || 'gemini')
         .trim()
         .toLowerCase();
@@ -951,13 +952,13 @@
         }
       }
 
-      const keyInput = document.getElementById('pn-provider-key');
+      const keyInput = document.getElementById('pn-provider-key') as HTMLInputElement | null;
       if (keyInput && providerKey) keyInput.value = providerKey;
     } catch (_) {
       // non-fatal
     }
 
-    const pendingPanelAction = await consumePendingPanelAction();
+    const pendingPanelAction = (await consumePendingPanelAction()) as Record<string, unknown> | null;
     const hasSelectionPayload = Boolean(state.exportPayload?.messages?.length);
     const route = String(window.location.hash || '')
       .replace(/^#/, '')

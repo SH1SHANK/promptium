@@ -4,17 +4,20 @@
    * Purpose: Tags tab rendering, quick filters, rename/delete actions.
    */
 
-  const callbacks = {
+  const callbacks: {
+    onApplyTagFilter: ((tag: string) => void) | null;
+    onTagsMutated: (() => Promise<void> | void) | null;
+  } = {
     onApplyTagFilter: null,
     onTagsMutated: null,
   };
 
-  const savePromptCollection = async (prompts) => {
+  const savePromptCollection = async (prompts: any) => {
     const nextPrompts = Array.isArray(prompts) ? prompts : [];
     await chrome.storage.local.set({ prompts: nextPrompts });
   };
 
-  const collectTags = async (prompts) => {
+  const collectTags = async (prompts: any) => {
     const map = new Map();
 
     for (const prompt of prompts) {
@@ -34,7 +37,7 @@
       .sort((left, right) => right.count - left.count || left.tag.localeCompare(right.tag));
   };
 
-  const renameTag = async (oldTag, nextTag) => {
+  const renameTag = async (oldTag: any, nextTag: any) => {
     const prompts = await window.Store.getPrompts();
     const oldValue = String(oldTag || '').trim();
     const nextValue = String(nextTag || '').trim();
@@ -62,7 +65,7 @@
     return true;
   };
 
-  const deleteTag = async (tagToDelete) => {
+  const deleteTag = async (tagToDelete: any) => {
     const prompts = await window.Store.getPrompts();
     const normalized = String(tagToDelete || '').trim();
 
@@ -246,7 +249,7 @@
     }
   };
 
-  const setCallbacks = (nextCallbacks = {}) => {
+  const setCallbacks = (nextCallbacks: any = {}) => {
     callbacks.onApplyTagFilter = nextCallbacks.onApplyTagFilter || null;
     callbacks.onTagsMutated = nextCallbacks.onTagsMutated || null;
   };

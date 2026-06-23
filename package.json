@@ -8,10 +8,15 @@
     "build": "wxt build",
     "zip": "wxt zip",
     "typecheck": "tsc --noEmit",
+    "test:adapters": "npx tsx src/platforms/testing/run.ts",
+    "test:context-menu": "npx tsx src/features/context-menu/context-menu.test.ts",
+    "test:importer": "npx tsx src/features/vault/importer/importer.test.ts",
+    "test:cre": "npx tsx src/features/refinement/intelligence/cre/cre.test.ts",
     "lint": "eslint 'src/**/*.ts'",
     "prettier:check": "prettier --check 'src/**/*.{ts,css,html}'",
     "format": "prettier --write .",
     "knip": "knip",
+    "verify": "pnpm typecheck && pnpm lint && pnpm knip --exclude exports,types,nsExports,nsTypes,classMembers,enumMembers,duplicates,unlisted,binaries && pnpm test:adapters && pnpm test:context-menu && pnpm test:importer && pnpm test:cre && pnpm build",
     "postinstall": "wxt prepare"
   },
   "private": true,
@@ -27,5 +32,11 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.23.0",
     "wxt": "^0.20.26"
+  },
+  "dependencies": {
+    "compromise": "^14.15.1",
+    "fuse.js": "^7.4.2",
+    "harper.js": "^2.4.0",
+    "js-tiktoken": "^1.0.21"
   }
 }

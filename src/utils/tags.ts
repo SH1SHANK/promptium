@@ -6,7 +6,7 @@
    */
 
   /** Converts comma-separated tag text into normalized string array. */
-  const parseTags = (raw) =>
+  const parseTags = (raw: any) =>
     String(raw || '')
       .split(',')
       .map((item) => item.trim())
@@ -15,16 +15,16 @@
   /** Syncs badge tags to the hidden prompt-tags input. */
   const syncBadgesToHidden = () => {
     const wrap = document.getElementById('tag-badges-wrap');
-    const hidden = document.getElementById('prompt-tags');
+    const hidden = document.getElementById('prompt-tags') as HTMLInputElement | null;
     if (!wrap || !hidden) return;
     const tags = Array.from(wrap.querySelectorAll('.pn-tag-badge'))
-      .map((b) => b.dataset.tag)
+      .map((b) => (b as HTMLElement).dataset.tag)
       .filter(Boolean);
     hidden.value = tags.join(', ');
   };
 
   /** Adds a single tag badge to the badge container and syncs to hidden input. */
-  const addTagBadge = (tag) => {
+  const addTagBadge = (tag: any) => {
     const normalized = String(tag || '')
       .trim()
       .toLowerCase()
@@ -36,7 +36,7 @@
     if (!wrap) return;
 
     // Prevent duplicate badges
-    const existing = Array.from(wrap.querySelectorAll('.pn-tag-badge')).map((b) => b.dataset.tag);
+    const existing = Array.from(wrap.querySelectorAll('.pn-tag-badge')).map((b) => (b as HTMLElement).dataset.tag);
     if (existing.includes(normalized)) return;
 
     const badge = document.createElement('span');

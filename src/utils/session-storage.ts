@@ -4,7 +4,7 @@
    * Purpose: Session/local storage helpers for sidepanel runtime handoff.
    */
 
-  const PROVIDER_KEY_MAP = Object.freeze({
+  const PROVIDER_KEY_MAP: Record<string, string> = Object.freeze({
     gemini: 'promptiumGeminiKey',
   });
 
@@ -18,7 +18,7 @@
     return String(key || '').trim();
   };
 
-  const migrateLocalKeyToSession = async (storageKey) => {
+  const migrateLocalKeyToSession = async (storageKey: string) => {
     const localSnapshot = await chrome.storage.local.get([storageKey]);
     const localKey = String(localSnapshot?.[storageKey] || '').trim();
     if (localKey) {
@@ -58,16 +58,16 @@
   const getStoredGeminiKey = async () => getStoredProviderKey('gemini');
 
   /** Stores Gemini key in session storage only and clears persistent legacy copy. */
-  const setStoredGeminiKey = async (rawKey) => setStoredProviderKey('gemini', rawKey);
+  const setStoredGeminiKey = async (rawKey: string) => setStoredProviderKey('gemini', rawKey);
 
   /** Clones export payload and normalizes message rows. */
-  const cloneExportPayload = (payload) => {
+  const cloneExportPayload = (payload: any) => {
     if (!payload || !Array.isArray(payload.messages)) {
       return null;
     }
     return {
       ...payload,
-      messages: payload.messages.map((message) => ({
+      messages: payload.messages.map((message: any) => ({
         role: String(message?.role || 'assistant'),
         text: String(message?.text || ''),
         html: String(message?.html || ''),
@@ -76,7 +76,7 @@
   };
 
   /** Returns export snapshot when available, otherwise current payload. */
-  const getActiveExportPayload = (state) => state?.exportSnapshotPayload || state?.exportPayload;
+  const getActiveExportPayload = (state: any) => state?.exportSnapshotPayload || state?.exportPayload;
 
   const SessionStorage = {
     PROVIDER_KEY_MAP,

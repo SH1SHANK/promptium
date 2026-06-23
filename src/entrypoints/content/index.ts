@@ -2,7 +2,7 @@
 import '../../utils/constants';
 import '../../utils/dom-helpers';
 import '../../utils/tags';
-import '../../utils/platform';
+import '../../platforms/index';
 import '../../stores/prompt-store';
 import '../../stores/settings-store';
 import '../../stores/bookmark-store';
@@ -13,24 +13,20 @@ import '../../utils/continuation';
 import '../../utils/templates';
 import '../../content/scraper';
 import '../../content/injector';
-import '../../content/toolbar';
 import '../../content/bookmarks';
 import '../../content/suggestions';
 import '../../content/content';
 
-import './fab.css';
+import '../../features/fab/fab.css';
 import './toolbar.css';
+import { fabManager } from '../../features/fab';
 
 export default defineContentScript({
   matches: [
-    '*://*.chatgpt.com/*',
-    '*://*.claude.ai/*',
-    '*://gemini.google.com/*',
-    '*://*.perplexity.ai/*',
-    '*://copilot.microsoft.com/*',
+    '<all_urls>',
   ],
   runAt: 'document_idle',
   main() {
-    // No-op - side effects are executed by imports
+    fabManager.initialize();
   },
 });

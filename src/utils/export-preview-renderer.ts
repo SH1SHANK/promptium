@@ -4,7 +4,7 @@
    * Purpose: Pure, CSP-safe preview rendering helpers for code and Mermaid blocks.
    */
 
-  const normalizeCodeLanguage = (lang) => {
+  const normalizeCodeLanguage = (lang: any) => {
     const value = String(lang || '')
       .trim()
       .toLowerCase();
@@ -39,15 +39,15 @@
     return value.replace(/[^a-z0-9_-]/g, '') || 'text';
   };
 
-  const escapeCodeHtml = (value) =>
+  const escapeCodeHtml = (value: any) =>
     String(value || '')
       .replaceAll('&', '&amp;')
       .replaceAll('<', '&lt;')
       .replaceAll('>', '&gt;');
 
-  const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const escapeRegex = (value: any) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-  const escapeSvgText = (value) =>
+  const escapeSvgText = (value: any) =>
     String(value || '')
       .replaceAll('&', '&amp;')
       .replaceAll('<', '&lt;')
@@ -55,7 +55,7 @@
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&#39;');
 
-  const trimMermaidLabel = (value, maxLen = 44) => {
+  const trimMermaidLabel = (value: any, maxLen = 44) => {
     const compact = String(value || '')
       .replace(/\s+/g, ' ')
       .trim();
@@ -64,7 +64,7 @@
     return `${compact.slice(0, maxLen - 1)}…`;
   };
 
-  const splitLabelLines = (value, maxChars = 20, maxLines = 3) => {
+  const splitLabelLines = (value: any, maxChars = 20, maxLines = 3) => {
     const words = trimMermaidLabel(value, maxChars * maxLines + 8).split(' ');
     if (!words.length) return [''];
     const lines = [];
@@ -981,12 +981,12 @@
 
   const KEYWORD_REGEX_CACHE = new Map();
 
-  const getKeywordRegex = (lang) => {
+  const getKeywordRegex = (lang: any) => {
     const key = String(lang || '').toLowerCase();
     if (KEYWORD_REGEX_CACHE.has(key)) {
       return KEYWORD_REGEX_CACHE.get(key);
     }
-    const words = CODE_KEYWORDS[key] || [];
+    const words = (CODE_KEYWORDS as Record<string, string[]>)[key] || [];
     if (!words.length) {
       KEYWORD_REGEX_CACHE.set(key, null);
       return null;
@@ -996,14 +996,14 @@
     return regex;
   };
 
-  const tokenizeCodeSegments = (source, regex, className, tokenStore) =>
-    source.replace(regex, (match) => {
+  const tokenizeCodeSegments = (source: string, regex: RegExp, className: string, tokenStore: string[]) =>
+    source.replace(regex, (match: string) => {
       const token = `__pn_token_${tokenStore.length}__`;
       tokenStore.push(`<span class="${className}">${match}</span>`);
       return token;
     });
 
-  const getCommentPattern = (lang) => {
+  const getCommentPattern = (lang: string) => {
     if (['python', 'bash', 'ruby', 'yaml', 'toml', 'lua', 'r', 'powershell'].includes(lang)) {
       return /#.*$/gm;
     }
@@ -1019,7 +1019,7 @@
     return /\/\/.*$|\/\*[\s\S]*?\*\//gm;
   };
 
-  const highlightCodeForPreview = (source, languageHint = '') => {
+  const highlightCodeForPreview = (source: string, languageHint: string = '') => {
     const lang = normalizeCodeLanguage(languageHint);
     let output = escapeCodeHtml(source).replace(/\r\n/g, '\n');
 
@@ -1027,7 +1027,7 @@
       return output;
     }
 
-    const tokenStore = [];
+    const tokenStore: string[] = [];
     const commentPattern = getCommentPattern(lang);
 
     output = tokenizeCodeSegments(output, commentPattern, 'pn-code-token-comment', tokenStore);
@@ -1081,7 +1081,7 @@
       '<span class="pn-code-token-number">$&</span>'
     );
 
-    tokenStore.forEach((tokenMarkup, index) => {
+    tokenStore.forEach((tokenMarkup: string, index: number) => {
       const token = `__pn_token_${index}__`;
       output = output.split(token).join(tokenMarkup);
     });
@@ -1089,7 +1089,7 @@
     return output;
   };
 
-  const parseMermaidNodeToken = (token) => {
+  const parseMermaidNodeToken = (token: string) => {
     const raw = String(token || '')
       .trim()
       .replace(/[;,]+$/, '');
@@ -1120,13 +1120,13 @@
     return null;
   };
 
-  const cleanMermaidEndpointToken = (value) =>
+  const cleanMermaidEndpointToken = (value: string) =>
     String(value || '')
       .replace(/^\|[^|]*\|\s*/g, '')
       .replace(/\s*\|[^|]*\|$/g, '')
       .trim();
 
-  const findMermaidEdge = (statement) => {
+  const findMermaidEdge = (statement: string) => {
     const edgeOps = ['<-->', '-.->', '-->', '==>', '---', '<--', '->', '<-'];
     let best = null;
     for (const op of edgeOps) {
@@ -1144,7 +1144,7 @@
     return { left, right };
   };
 
-  const renderMermaidFlowchart = (source, direction = 'td') => {
+  const renderMermaidFlowchart = (source: string, direction = 'td') => {
     const chunks = String(source || '')
       .split('\n')
       .flatMap((line) => line.split(';'))
@@ -1153,7 +1153,7 @@
 
     const nodes = new Map();
     const edges = [];
-    const registerNode = (token) => {
+    const registerNode = (token: string) => {
       const parsed = parseMermaidNodeToken(token);
       if (!parsed) return null;
       if (!nodes.has(parsed.id)) {
@@ -1275,18 +1275,18 @@
   `;
   };
 
-  const renderMermaidSequence = (source) => {
+  const renderMermaidSequence = (source: string) => {
     const chunks = String(source || '')
       .split('\n')
       .flatMap((line) => line.split(';'))
       .map((line) => line.trim())
       .filter((line) => line && !line.startsWith('%%'));
 
-    const participantOrder = [];
+    const participantOrder: string[] = [];
     const participantLabels = new Map();
     const messages = [];
 
-    const ensureParticipant = (id, label = '') => {
+    const ensureParticipant = (id: string, label = '') => {
       const safeId = String(id || '').trim();
       if (!safeId) return;
       if (!participantLabels.has(safeId)) {
@@ -1310,7 +1310,11 @@
         /^(participant|actor)\s+([A-Za-z0-9_-]+)(?:\s+as\s+(.+))?$/i
       );
       if (participantMatch) {
-        ensureParticipant(participantMatch[2], participantMatch[3] || participantMatch[2]);
+        const id = participantMatch[2] || '';
+        const label = participantMatch[3] || id;
+        if (id) {
+          ensureParticipant(id, label);
+        }
         continue;
       }
 
@@ -1318,12 +1322,15 @@
         /^([A-Za-z0-9_-]+)\s*(->>|-->>|->|-->|=>|==>|<--|<<--|<-|<->)\s*([A-Za-z0-9_-]+)\s*:\s*(.+)$/
       );
       if (!msgMatch) continue;
-      const from = msgMatch[1];
-      const to = msgMatch[3];
-      const text = trimMermaidLabel(msgMatch[4], 44);
-      ensureParticipant(from);
-      ensureParticipant(to);
-      messages.push({ from, to, text });
+      const from = msgMatch[1] || '';
+      const to = msgMatch[3] || '';
+      const rawLabel = msgMatch[4] || '';
+      const text = trimMermaidLabel(rawLabel, 44);
+      if (from && to) {
+        ensureParticipant(from);
+        ensureParticipant(to);
+        messages.push({ from, to, text });
+      }
     }
 
     if (!participantOrder.length || !messages.length) return null;
@@ -1392,7 +1399,7 @@
   `;
   };
 
-  const renderMermaidDiagram = (source) => {
+  const renderMermaidDiagram = (source: string) => {
     const raw = String(source || '').trim();
     if (!raw) return null;
     const firstLine =
@@ -1423,7 +1430,7 @@
    * Creates a markdown-it parser with CSP-safe options.
    * No inline HTML rendering and no dynamic code execution paths are used.
    */
-  const createMarkdownParser = (markdownItFactory) => {
+  const createMarkdownParser = (markdownItFactory: any) => {
     const markdownitFn =
       typeof markdownItFactory === 'function' ? markdownItFactory : window.markdownit;
     if (typeof markdownitFn !== 'function') {
@@ -1434,7 +1441,7 @@
       html: false,
       breaks: true,
       linkify: true,
-      highlight: (str, lang) => {
+      highlight: (str: string, lang: string) => {
         const normalizedLang = normalizeCodeLanguage(lang);
         if (normalizedLang === 'mermaid') {
           const diagramMarkup = renderMermaidDiagram(str);
@@ -1449,7 +1456,7 @@
     });
   };
 
-  const renderMarkdownDocument = (parser, markdownText) => {
+  const renderMarkdownDocument = (parser: any, markdownText: string) => {
     const markdown = String(markdownText || '');
     if (parser && typeof parser.render === 'function') {
       return parser.render(markdown);
@@ -1469,3 +1476,5 @@
     window.ExportPreviewRenderer = ExportPreviewRenderer;
   }
 })();
+
+export {};

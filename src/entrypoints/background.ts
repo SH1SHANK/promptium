@@ -10,11 +10,13 @@ import {
   callGemini,
   validateGeminiApiKey as validateGeminiApiKeyClient,
 } from '../services/gemini-service';
-import { windowManager } from '../services/window-manager';
+import { floatingWindowService } from '../services/floating-window-service';
+import { getAdapters } from '../platforms';
+import { contextMenuRegistry, handleContextMenuClick } from '../features/context-menu';
 
 export default defineBackground(() => {
   if (chrome?.storage && !chrome.storage.session) {
-    chrome.storage.session = chrome.storage.local;
+    (chrome.storage as any).session = chrome.storage.local;
   }
 
   // ─── AI State ────────────────────────────────────────────────────────────────
@@ -34,7 +36,6 @@ export default defineBackground(() => {
 
   const CONTINUATION_WORD_LIMIT = 300;
   const CONTINUATION_LONG_THRESHOLD = 20;
-  const CONTEXT_MENU_SAVE_ID = 'promptium-save-selection';
 
   const PROVIDER_LABELS = Object.freeze({
     gemini: 'Gemini',
@@ -53,14 +54,13 @@ export default defineBackground(() => {
     return PROVIDER_LABELS[normalized] || normalized;
   };
 
-  /** Redacts obvious secret-like and PII patterns before external API calls. */
-  const redactSensitiveText = (value) =>
+  const redactSensitiveText = (value: any) =>
     String(value || '')
       .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[redacted-email]')
       .replace(/\b(?:sk|ghp_|AIzaSy)[A-Za-z0-9_\-]{12,}\b/g, '[redacted-token]')
       .replace(/\b\d{3}[-.\s]?\d{2}[-.\s]?\d{4}\b/g, '[redacted-ssn]');
 
-  const normalizeContinuationRole = (role) => {
+  const normalizeContinuationRole = (role: any) => {
     const value = String(role || '')
       .trim()
       .toLowerCase();
@@ -69,7 +69,7 @@ export default defineBackground(() => {
     return value.includes('user') ? 'Human' : 'Assistant';
   };
 
-  const limitWords = (value, maxWords) => {
+  const limitWords = (value: any, maxWords: number) => {
     const words = String(value || '')
       .trim()
       .split(/\s+/)
@@ -80,7 +80,7 @@ export default defineBackground(() => {
     return `${words.slice(0, maxWords).join(' ').trim()}…`;
   };
 
-  const buildContinuationPrompt = (messages, mode, userNote = '') => {
+  const buildContinuationPrompt = (messages: any, mode: any, userNote = '') => {
     const transcript = (Array.isArray(messages) ? messages : [])
       .slice(-24)
       .map((message) =>
@@ -93,31 +93,24 @@ export default defineBackground(() => {
       'You are helping a user continue a conversation in a new chat window.',
       'Summarize the following conversation as a clear handoff context.',
       `Mode: ${String(mode || 'FULL_SUMMARY')}`,
-      `Additional note from user: ${String(userNote || '').trim() || 'none'}`,
-      '',
-      'Write in second person. Start with "We were working on...".',
-      `Keep it under ${CONTINUATION_WORD_LIMIT} words. End with "Continue from here:".`,
-      '',
-      'Conversation:',
-      transcript,
-    ].join('\n');
+      userNote ? `Additional context: ${userNote}` : '',
+      'Do not prefix with anything.',
+      `Conversation:\n${transcript}`,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
   };
 
-  const clampText = (value, limit = 5000) =>
-    String(value || '')
+  const deriveFallbackTitle = (value: any) => {
+    const compact = String(value || '')
       .trim()
-      .slice(0, limit);
-
-  const deriveFallbackTitle = (value) => {
-    const compact = clampText(value || '', 240)
-      .replace(/\s+/g, ' ')
-      .trim();
+      .replace(/\s+/g, ' ');
     if (!compact) return 'Untitled Prompt';
     const firstSentence = compact.split(/[.!?]/)[0]?.trim() || compact;
     return firstSentence.slice(0, 80) || 'Untitled Prompt';
   };
 
-  const safeJsonParse = (value) => {
+  const safeJsonParse = (value: any) => {
     try {
       return JSON.parse(value);
     } catch (_error) {
@@ -125,7 +118,12 @@ export default defineBackground(() => {
     }
   };
 
-  const parseClarityFromText = (rawText, sourceText = '') => {
+  const clampText = (value: any, limit = 5000) =>
+    String(value || '')
+      .trim()
+      .slice(0, limit);
+
+  const parseClarityFromText = (rawText: any, sourceText = '') => {
     const text = String(rawText || '').trim();
     const direct = safeJsonParse(text);
     const parsed =
@@ -175,6 +173,7 @@ export default defineBackground(() => {
       },
       featureFlags: {
         improvePrompt: true,
+        polish: true,
       },
       fabPosition: 'bottom-right',
       fabStyle: 'circle',
@@ -191,7 +190,7 @@ export default defineBackground(() => {
       theme: 'dark',
     });
 
-    const asObject = (value) => (value && typeof value === 'object' ? value : {});
+    const asObject = (value: any) => (value && typeof value === 'object' ? value : {});
 
     const normalizeFabPosition = (value = '') => {
       const raw = String(value || '')
@@ -201,7 +200,7 @@ export default defineBackground(() => {
     };
 
     try {
-      const snapshot = await chrome.storage.local.get([BRAND_KEYS.settingsKey]);
+      const snapshot = (await chrome.storage.local.get([BRAND_KEYS.settingsKey])) as any;
       const source = asObject(snapshot?.[BRAND_KEYS.settingsKey]);
       return {
         ...DEFAULT_RUNTIME_SETTINGS,
@@ -210,6 +209,7 @@ export default defineBackground(() => {
         },
         featureFlags: {
           improvePrompt: source.featureFlags?.improvePrompt !== false,
+          polish: source.featureFlags?.polish !== false,
         },
         fabPosition: normalizeFabPosition(source.fabPosition),
         fabStyle: String(source.fabStyle || 'circle')
@@ -255,7 +255,7 @@ export default defineBackground(() => {
     geminiApiKey = '',
     noCloudMessage = 'Gemini API key is not configured.',
     noGeminiMessage = 'Gemini API key is not configured.',
-  }) => {
+  }: any) => {
     const runtime = await getAiRuntimeSettings();
     const apiKey = String(geminiApiKey || (await getGeminiApiKey()) || '').trim();
     if (!apiKey) {
@@ -277,7 +277,7 @@ export default defineBackground(() => {
     return { ok: true, backend: 'gemini', ...(result || {}) };
   };
 
-  const mapValidationResultToLegacy = (result = {}) => {
+  const mapValidationResultToLegacy = (result: any = {}) => {
     if (result?.ok) return { ok: true };
     const category = String(result?.category || '')
       .trim()
@@ -288,14 +288,14 @@ export default defineBackground(() => {
     return { ok: false, error: String(result?.message || 'Provider error.') };
   };
 
-  const validateGeminiApiKey = async (rawKey) => {
+  const validateGeminiApiKey = async (rawKey: any) => {
     const key = String(rawKey || '').trim();
     if (!key) return { ok: false, error: 'Missing API key.' };
     const result = await validateGeminiApiKeyClient(key);
     return mapValidationResultToLegacy(result);
   };
 
-  function broadcast(message) {
+  function broadcast(message: any) {
     chrome.runtime.sendMessage(message).catch(() => {
       // Side panel may be closed — ignore silently
     });
@@ -318,7 +318,7 @@ export default defineBackground(() => {
     return String(text || '').trim();
   };
 
-  const suggestTagsViaCloudStrict = async ({ providerId, apiKey, modelId, promptText }) => {
+  const suggestTagsViaCloudStrict = async ({ providerId, apiKey, modelId, promptText }: any) => {
     const source = clampText(promptText, 2200);
     if (!source) {
       throw new Error('Empty prompt text provided.');
@@ -351,7 +351,7 @@ export default defineBackground(() => {
     translate: 'translate, language, convert, localize',
   };
 
-  const suggestTagsHeuristic = (promptText, maxCount = 3) => {
+  const suggestTagsHeuristic = (promptText: string, maxCount = 3) => {
     const normalized = String(promptText || '').toLowerCase();
     if (!normalized) return [];
 
@@ -376,7 +376,7 @@ export default defineBackground(() => {
     return scored;
   };
 
-  const parseTagsFromModelText = (text) => {
+  const parseTagsFromModelText = (text: string) => {
     const raw = String(text || '').trim();
     if (!raw) return [];
 
@@ -404,15 +404,15 @@ export default defineBackground(() => {
       .slice(0, 3);
   };
 
-  async function suggestTags(promptText) {
+  async function suggestTags(promptText: string) {
     const source = clampText(promptText, 2600);
     if (!source) return { ok: false, tags: [], error: 'Prompt text is required.' };
 
     try {
-      const result = await runWithConfiguredBackend({
+      const result = (await runWithConfiguredBackend({
         feature: 'autoTags',
         inputText: source,
-        cloudTask: ({ providerId, apiKey, modelId }) =>
+        cloudTask: ({ providerId, apiKey, modelId }: any) =>
           suggestTagsViaCloudStrict({
             providerId,
             apiKey,
@@ -420,11 +420,11 @@ export default defineBackground(() => {
             promptText: source,
           }),
         noCloudMessage: 'No cloud API key found in Settings.',
-      });
+      })) as any;
 
       const tags = Array.isArray(result?.tags)
         ? result.tags
-            .map((tag) =>
+            .map((tag: any) =>
               String(tag || '')
                 .trim()
                 .toLowerCase()
@@ -449,39 +449,39 @@ export default defineBackground(() => {
 
   // ─── AI Feature: Duplicate Detection ─────────────────────────────────────────
 
-  const normalizeDuplicateValue = (value) =>
+  const normalizeDuplicateValue = (value: any) =>
     String(value || '')
       .toLowerCase()
       .replace(/[^\w\s]+/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
 
-  const buildDuplicateCandidate = (title, text) => {
+  const buildDuplicateCandidate = (title: any, text: any) => {
     const trimmedText = String(text || '').slice(0, 80);
     return `${normalizeDuplicateValue(title)}\n${normalizeDuplicateValue(trimmedText)}`.trim();
   };
 
-  const levenshteinDistance = (left, right) => {
+  const levenshteinDistance = (left: string, right: string) => {
     const a = String(left || '');
     const b = String(right || '');
     const rows = a.length + 1;
     const cols = b.length + 1;
     const dp = Array.from({ length: rows }, () => Array(cols).fill(0));
 
-    for (let i = 0; i < rows; i += 1) dp[i][0] = i;
-    for (let j = 0; j < cols; j += 1) dp[0][j] = j;
+    for (let i = 0; i < rows; i += 1) dp[i]![0] = i;
+    for (let j = 0; j < cols; j += 1) dp[0]![j] = j;
 
     for (let i = 1; i < rows; i += 1) {
       for (let j = 1; j < cols; j += 1) {
         const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-        dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+        dp[i]![j] = Math.min(dp[i - 1]![j]! + 1, dp[i]![j - 1]! + 1, dp[i - 1]![j - 1]! + cost);
       }
     }
 
-    return dp[rows - 1][cols - 1];
+    return dp[rows - 1]![cols - 1]!;
   };
 
-  const duplicateSimilarity = (left, right) => {
+  const duplicateSimilarity = (left: string, right: string) => {
     const a = String(left || '');
     const b = String(right || '');
     const maxLen = Math.max(a.length, b.length);
@@ -489,8 +489,8 @@ export default defineBackground(() => {
     return 1 - levenshteinDistance(a, b) / maxLen;
   };
 
-  async function checkDuplicate(promptText, excludeId = null) {
-    const { prompts = [] } = await chrome.storage.local.get('prompts');
+  async function checkDuplicate(promptText: any, excludeId: any = null) {
+    const { prompts = [] } = (await chrome.storage.local.get('prompts')) as any;
     const payload =
       promptText && typeof promptText === 'object'
         ? promptText
@@ -520,17 +520,17 @@ export default defineBackground(() => {
 
   // ─── AI Feature: Smart Suggestions ───────────────────────────────────────────
 
-  async function getSmartSuggestions(conversationText) {
+  async function getSmartSuggestions(conversationText: any) {
     if (!conversationText || conversationText.length < 30) return null;
 
     try {
-      const { prompts = [] } = await chrome.storage.local.get('prompts');
+      const { prompts = [] } = (await chrome.storage.local.get('prompts')) as any;
       if (!prompts.length) return null;
 
       const promptList = prompts
         .slice(0, 30)
         .map(
-          (p, i) =>
+          (p: any, i: number) =>
             `${i + 1}. [${p.id}] "${p.title}"${p.tags?.length ? ` (tags: ${p.tags.join(', ')})` : ''}`
         )
         .join('\n');
@@ -541,10 +541,10 @@ export default defineBackground(() => {
       const safeConversation = redactSensitiveText(conversationText).slice(0, 600);
       const userMessage = `Conversation:\n${safeConversation}\n\nSaved prompts:\n${promptList}`;
 
-      const routed = await runWithConfiguredBackend({
+      const routed = (await runWithConfiguredBackend({
         feature: 'suggestions',
         inputText: userMessage,
-        cloudTask: ({ providerId, apiKey, modelId }) =>
+        cloudTask: ({ providerId, apiKey, modelId }: any) =>
           callProviderTextTask({
             providerId,
             modelId,
@@ -553,7 +553,7 @@ export default defineBackground(() => {
             userPrompt: userMessage,
           }).then((text) => ({ text })),
         noCloudMessage: 'No cloud API key found in Settings.',
-      });
+      })) as any;
 
       const textResult = String(routed?.text || '').trim();
       if (!textResult) return null;
@@ -564,8 +564,8 @@ export default defineBackground(() => {
       const ids = JSON.parse(match[0]);
       if (!Array.isArray(ids)) return null;
 
-      const promptIdSet = new Set(prompts.map((p) => p.id));
-      const validIds = ids.filter((id) => promptIdSet.has(id)).slice(0, 3);
+      const promptIdSet = new Set(prompts.map((p: any) => p.id));
+      const validIds = ids.filter((id: any) => promptIdSet.has(id)).slice(0, 3);
 
       return validIds.length > 0 ? validIds : null;
     } catch (_) {
@@ -582,7 +582,8 @@ export default defineBackground(() => {
     text,
     tags = [],
     style = 'general',
-  }) {
+    context,
+  }: any) {
     if (!text || text.trim().length === 0) {
       throw new Error('Empty prompt text provided.');
     }
@@ -600,15 +601,84 @@ export default defineBackground(() => {
     }
 
     const safeTags = Array.isArray(tags)
-      ? tags.map((tag) => String(tag || '').trim()).filter(Boolean)
+      ? tags.map((tag: any) => String(tag || '').trim()).filter(Boolean)
       : [];
     const tagContext =
       safeTags.length > 0 ? `Incorporate these concepts/topics: ${safeTags.join(', ')}.` : '';
 
-    const systemPrompt = `You are an expert prompt engineer. Your goal is to improve the user's prompt so it yields the best possible response from an LLM.
+    let systemPrompt = `You are an expert prompt engineer. Your goal is to improve the user's prompt so it yields the best possible response from an LLM.
 ${styleInstruction}
 ${tagContext}
 ONLY return the improved prompt text. Do not add quotes, do not explain your changes, and do not add headings.`;
+
+    if (context) {
+      const { category, skillPack, pattern, modelRecommendations, agentRecommendations, promptIssues, notes, intent, vaultKnowledge, vaultSkill, vaultInstructions } = context;
+
+      const ruleIssues = (promptIssues || []).filter((i: any) => i.category === 'rule');
+      const rulesFeedback = ruleIssues.map((i: any) => `- ${i.explanation}`).join('\n');
+
+      const modelGuidelinesText = (modelRecommendations || []).map((r: any) => `- ${r}`).join('\n');
+      const agentGuidelinesText = (agentRecommendations || []).map((r: any) => `- ${r}`).join('\n');
+
+      const refinementNotesText = Array.isArray(notes) && notes.length > 0
+        ? notes.map((n: any) => `- On segment "${n.selectedText}": ${n.instruction}`).join('\n')
+        : '';
+
+      let intentContext = '';
+      if (intent) {
+        const { action, subject, entities, keywords } = intent;
+        intentContext = `Parsed Intent Profile:\n`;
+        if (action) intentContext += `  - Primary Action Requested: ${action}\n`;
+        if (subject) intentContext += `  - Core Subject: ${subject}\n`;
+        if (entities && entities.length > 0) intentContext += `  - Target Entities: ${entities.join(', ')}\n`;
+        if (keywords && keywords.length > 0) intentContext += `  - Context Keywords: ${keywords.join(', ')}\n`;
+      }
+
+      // Vault parameters incorporation
+      let vaultSkillText = skillPack?.role || 'Expert';
+      if (vaultSkill) {
+        vaultSkillText = `${vaultSkill.title}\nRole Guidelines:\n${vaultSkill.content}`;
+      }
+
+      let vaultKnowledgeText = '';
+      if (Array.isArray(vaultKnowledge) && vaultKnowledge.length > 0) {
+        vaultKnowledgeText = `\nRELEVANT KNOWLEDGE DOCUMENTATION REFERENCE:\n` +
+          vaultKnowledge.map((k: any) => `### Reference: ${k.title}\n${k.content}`).join('\n\n') + `\n`;
+      }
+
+      let vaultInstructionsText = '';
+      if (Array.isArray(vaultInstructions) && vaultInstructions.length > 0) {
+        vaultInstructionsText = `\nPERSISTENT USER PREFERENCES & CONSTRAINTS:\n` +
+          vaultInstructions.map((i: any) => `- ${i.content}`).join('\n') + `\n`;
+      }
+
+      systemPrompt = `You are an expert prompt engineer rewriting a prompt to optimize its effectiveness.
+
+Target Category: ${category || 'general'}
+Assigned Role/Skill Persona: ${vaultSkillText}
+Recommended Prompt Pattern: ${pattern?.name || 'Standard'} (Structure: ${(pattern?.structure || []).join(' -> ')})
+
+${intentContext}
+${vaultKnowledgeText}
+${vaultInstructionsText}
+
+GUIDELINES FOR THE REWRITE:
+1. Adopt the Persona/Role: Make sure the final prompt explicitly sets the role: "${vaultSkill ? vaultSkill.title : (skillPack?.role || 'Expert')}".
+2. Follow the Recommended Structure: Organize the rewritten prompt sections logically following:
+${(pattern?.structure || []).map((s: string) => `   - ${s}`).join('\n')}
+3. Incorporate Target Model Guidelines:
+${modelGuidelinesText || '   - Optimize formatting, use markdown, and ensure instruction following.'}
+${agentGuidelinesText ? `4. Incorporate Agentic Workflow Rules:\n${agentGuidelinesText}` : ''}
+5. Resolve Identified Rules Violations/Weaknesses:
+${rulesFeedback || '   - Ensure clear objectives, context, constraints, and formatting outputs.'}
+${refinementNotesText ? `\n6. CRITICAL - SPECIFIC USER GUIDED REFINEMENT INSTRUCTIONS:\nYou MUST prioritize and apply these exact modification requests on the matching text segments:\n${refinementNotesText}` : ''}
+
+REWRITE OUTPUT CONSTRAINTS:
+- Return ONLY the final improved prompt text.
+- Do NOT wrap the prompt in quotes.
+- Do NOT output any preamble, commentary, explanations, or 'improved version:' headers.
+- Output the raw prompt text directly.`;
+    }
 
     const improvedText = await callProviderTextTask({
       providerId,
@@ -623,7 +693,7 @@ ONLY return the improved prompt text. Do not add quotes, do not explain your cha
     return { text: improvedText };
   }
 
-  async function paraphrasePromptViaCloudStrict({ providerId, apiKey, modelId, text }) {
+  async function paraphrasePromptViaCloudStrict({ providerId, apiKey, modelId, text }: any) {
     const source = clampText(text, 5000);
     if (!source) {
       throw new Error('Empty prompt text provided.');
@@ -649,10 +719,10 @@ ONLY return the improved prompt text. Do not add quotes, do not explain your cha
   }
 
   async function buildContinuationHandoffViaCloud(
-    messages,
+    messages: any,
     mode = 'FULL_SUMMARY',
     userNote = '',
-    cloud = {}
+    cloud: any = {}
   ) {
     const safeMessages = Array.isArray(messages) ? messages : [];
     if (!safeMessages.length) {
@@ -684,7 +754,7 @@ ONLY return the improved prompt text. Do not add quotes, do not explain your cha
       }
 
       return { ok: true, text: limitWords(raw, CONTINUATION_WORD_LIMIT) };
-    } catch (error) {
+    } catch (error: any) {
       const fallback =
         error?.name === 'AbortError'
           ? `${getProviderLabel(providerId)} request timed out.`
@@ -694,7 +764,7 @@ ONLY return the improved prompt text. Do not add quotes, do not explain your cha
   }
 
   async function buildContinuationHandoff(
-    messages,
+    messages: any,
     mode = 'FULL_SUMMARY',
     userNote = '',
     explicitKey = '',
@@ -724,14 +794,14 @@ ONLY return the improved prompt text. Do not add quotes, do not explain your cha
         inputText: safeMessages.map((m) => String(m?.content || m?.text || '')).join(' '),
         forceProvider,
         geminiApiKey: key,
-        cloudTask: ({ providerId, apiKey, modelId }) =>
+        cloudTask: ({ providerId, apiKey, modelId }: any) =>
           buildContinuationHandoffViaCloud(safeMessages, mode, userNote, {
             providerId,
             apiKey,
             modelId,
           }),
         noCloudMessage: 'No cloud API key found in Settings.',
-      });
+      }) as any;
 
       return {
         ok: true,
@@ -739,7 +809,7 @@ ONLY return the improved prompt text. Do not add quotes, do not explain your cha
         backend: 'gemini',
         advisory: String(result?.advisory || longAdvisory || '').trim() || undefined,
       };
-    } catch (error) {
+    } catch (error: any) {
       return {
         ok: false,
         error: String(error?.message || 'Failed to generate continuation handoff.'),
@@ -748,7 +818,7 @@ ONLY return the improved prompt text. Do not add quotes, do not explain your cha
     }
   }
 
-  async function generatePromptTitleViaCloudStrict({ providerId, apiKey, modelId, text }) {
+  async function generatePromptTitleViaCloudStrict({ providerId, apiKey, modelId, text }: any) {
     const source = clampText(text, 3200);
     if (!source) {
       throw new Error('Empty text provided.');
@@ -758,16 +828,15 @@ ONLY return the improved prompt text. Do not add quotes, do not explain your cha
 Return ONLY the title text.
 No quotes, no numbering, no extra text.`;
 
-    const title = (
-      await callProviderTextTask({
+    const result = await callProviderTextTask({
         providerId,
         modelId,
         apiKey,
         systemPrompt: instruction,
         userPrompt: `Prompt:\n${source}`,
-      })
-    )
-      .split('\n')[0]
+      });
+    const firstLine = (result.split('\n')[0] || '').trim();
+    const title = firstLine
       .replace(/^["'`]+|["'`]+$/g, '')
       .replace(/^\d+[\).\s-]+/, '')
       .trim()
@@ -779,7 +848,7 @@ No quotes, no numbering, no extra text.`;
     return { title };
   }
 
-  async function scorePromptClarityViaCloudStrict({ providerId, apiKey, modelId, text }) {
+  async function scorePromptClarityViaCloudStrict({ providerId, apiKey, modelId, text }: any) {
     const source = clampText(text, 4200);
     if (!source) {
       throw new Error('Empty text provided.');
@@ -801,12 +870,12 @@ No quotes, no numbering, no extra text.`;
     return parseClarityFromText(raw, source);
   }
 
-  const improvePrompt = async (text, tags = [], style = 'general') => {
+  const improvePrompt = async (text: any, tags: any = [], style: any = 'general', context?: any) => {
     try {
-      const result = await runWithConfiguredBackend({
+      const result = (await runWithConfiguredBackend({
         feature: 'improvePrompt',
         inputText: text,
-        cloudTask: ({ providerId, apiKey, modelId }) =>
+        cloudTask: ({ providerId, apiKey, modelId }: any) =>
           improvePromptViaCloudStrict({
             providerId,
             apiKey,
@@ -814,16 +883,17 @@ No quotes, no numbering, no extra text.`;
             text,
             tags,
             style,
+            context,
           }),
         noCloudMessage: 'No cloud API key found in Settings.',
-      });
+      })) as any;
       return {
         ok: true,
         text: String(result?.text || '').trim(),
         backend: 'gemini',
         advisory: result?.advisory || undefined,
       };
-    } catch (error) {
+    } catch (error: any) {
       return {
         ok: false,
         error: String(error?.message || 'Failed to improve prompt.'),
@@ -831,17 +901,17 @@ No quotes, no numbering, no extra text.`;
     }
   };
 
-  const generatePromptTitle = async (text) => {
+  const generatePromptTitle = async (text: any) => {
     const source = clampText(text, 4200);
     if (!source) {
       return { error: 'Empty text provided.', title: '' };
     }
 
     try {
-      const result = await runWithConfiguredBackend({
+      const result = (await runWithConfiguredBackend({
         feature: 'title',
         inputText: source,
-        cloudTask: ({ providerId, apiKey, modelId }) =>
+        cloudTask: ({ providerId, apiKey, modelId }: any) =>
           generatePromptTitleViaCloudStrict({
             providerId,
             apiKey,
@@ -849,7 +919,7 @@ No quotes, no numbering, no extra text.`;
             text: source,
           }),
         noCloudMessage: 'No cloud API key found in Settings.',
-      });
+      })) as any;
 
       const title = String(result?.title || '')
         .trim()
@@ -869,16 +939,16 @@ No quotes, no numbering, no extra text.`;
     }
   };
 
-  const paraphrasePrompt = async (text) => {
+  const paraphrasePrompt = async (text: any) => {
     const source = clampText(text, 5200);
     if (!source) {
       return { ok: false, error: 'Empty prompt text provided.' };
     }
     try {
-      const result = await runWithConfiguredBackend({
+      const result = (await runWithConfiguredBackend({
         feature: 'polish',
         inputText: source,
-        cloudTask: ({ providerId, apiKey, modelId }) =>
+        cloudTask: ({ providerId, apiKey, modelId }: any) =>
           paraphrasePromptViaCloudStrict({
             providerId,
             apiKey,
@@ -886,7 +956,7 @@ No quotes, no numbering, no extra text.`;
             text: source,
           }),
         noCloudMessage: 'No cloud API key found in Settings.',
-      });
+      })) as any;
       const rewritten = String(result?.text || '').trim();
       return {
         ok: true,
@@ -894,7 +964,7 @@ No quotes, no numbering, no extra text.`;
         backend: 'gemini',
         advisory: result?.advisory || undefined,
       };
-    } catch (error) {
+    } catch (error: any) {
       return {
         ok: false,
         text: source,
@@ -904,7 +974,7 @@ No quotes, no numbering, no extra text.`;
     }
   };
 
-  const scorePromptClarity = async (text) => {
+  const scorePromptClarity = async (text: any) => {
     const source = clampText(text, 4200);
     if (!source) {
       return {
@@ -916,10 +986,10 @@ No quotes, no numbering, no extra text.`;
     }
 
     try {
-      const result = await runWithConfiguredBackend({
+      const result = (await runWithConfiguredBackend({
         feature: 'polish',
         inputText: source,
-        cloudTask: ({ providerId, apiKey, modelId }) =>
+        cloudTask: ({ providerId, apiKey, modelId }: any) =>
           scorePromptClarityViaCloudStrict({
             providerId,
             apiKey,
@@ -927,7 +997,7 @@ No quotes, no numbering, no extra text.`;
             text: source,
           }),
         noCloudMessage: 'No cloud API key found in Settings.',
-      });
+      })) as any;
       return {
         ok: true,
         score: Number(result?.score) || 0,
@@ -994,7 +1064,7 @@ No quotes, no numbering, no extra text.`;
   };
 
   // ─── AI Message Handler ──────────────────────────────────────────────────────
-  const handleRoutedTask = async (message = {}) => {
+  const handleRoutedTask = async (message: any = {}) => {
     const task = String(message?.task || '')
       .trim()
       .toLowerCase();
@@ -1024,7 +1094,7 @@ No quotes, no numbering, no extra text.`;
     }
   };
 
-  const handleAIMessage = async (message, sendResponse) => {
+  const handleAIMessage = async (message: any, sendResponse: any) => {
     try {
       switch (message.type) {
         case 'AI_INIT':
@@ -1078,7 +1148,7 @@ No quotes, no numbering, no extra text.`;
           return true;
 
         case 'AI_IMPROVE_PROMPT':
-          sendResponse(await improvePrompt(message.text, message.tags, message.style));
+          sendResponse(await improvePrompt(message.text, message.tags, message.style, message.context));
           return true;
 
         case 'AI_GENERATE_PROMPT_TITLE':
@@ -1150,7 +1220,7 @@ No quotes, no numbering, no extra text.`;
         default:
           return false;
       }
-    } catch (error) {
+    } catch (error: any) {
       sendResponse({
         ok: false,
         error: String(error?.message || 'AI request failed.'),
@@ -1169,13 +1239,6 @@ No quotes, no numbering, no extra text.`;
   const FALLBACK_PANEL_RIGHT_OFFSET = 24;
   const FALLBACK_PANEL_TOP_OFFSET = 56;
 
-  const SUPPORTED_DOC_PATTERNS = [
-    '*://*.chatgpt.com/*',
-    '*://*.claude.ai/*',
-    '*://gemini.google.com/*',
-    '*://*.perplexity.ai/*',
-    '*://copilot.microsoft.com/*',
-  ];
   const ALLOWED_LLM_HOSTS = new Set([
     'chatgpt.com',
     'claude.ai',
@@ -1185,9 +1248,9 @@ No quotes, no numbering, no extra text.`;
   ]);
 
   let usePopupMode = true;
-  let fallbackPopupWindowId = null;
+  let fallbackPopupWindowId: any = null;
 
-  const setPanelMode = async (mode) => {
+  const setPanelMode = async (mode: any) => {
     await chrome.storage.session
       .set({ [PANEL_MODE_SESSION_KEY]: String(mode || 'sidepanel') })
       .catch(() => {});
@@ -1203,7 +1266,7 @@ No quotes, no numbering, no extra text.`;
     return clean ? `${base}#${clean}` : base;
   };
 
-  const resolvePopupPlacement = async (windowId) => {
+  const resolvePopupPlacement = async (windowId: any) => {
     const screenWidth = Number(globalThis?.screen?.width || 0);
     const screenHeight = Number(globalThis?.screen?.height || 0);
     let left = screenWidth ? screenWidth - FALLBACK_PANEL_WIDTH - FALLBACK_PANEL_RIGHT_OFFSET : 0;
@@ -1259,6 +1322,7 @@ No quotes, no numbering, no extra text.`;
     const tabs = await chrome.tabs.query({ url: `${base}*` }).catch(() => []);
     if (!tabs.length) return null;
     const tab = tabs[0];
+    if (!tab) return null;
     if (tab.windowId) {
       fallbackPopupWindowId = tab.windowId;
     }
@@ -1273,7 +1337,7 @@ No quotes, no numbering, no extra text.`;
     return { ok: true, tab, reused: true };
   };
 
-  const createPopupPanel = async ({ route = '', focus = true, windowId } = {}) => {
+  const createPopupPanel = async ({ route = '', focus = true, windowId }: any = {}) => {
     await setPanelMode('popup');
     const { left, top } = await resolvePopupPlacement(windowId);
     const win = await chrome.windows.create({
@@ -1289,7 +1353,7 @@ No quotes, no numbering, no extra text.`;
     return { ok: true, mode: 'popup', tab: win?.tabs?.[0], reused: false };
   };
 
-  const openPopupPanel = async ({ route = '', focus = true, windowId } = {}) => {
+  const openPopupPanel = async ({ route = '', focus = true, windowId }: any = {}) => {
     await setPanelMode('popup');
     const existing = await focusExistingPanel(route);
     if (existing) {
@@ -1300,10 +1364,10 @@ No quotes, no numbering, no extra text.`;
         reused: true,
       };
     }
-    return await createPopupPanel({ route, focus, windowId });
+    return await createPopupPanel({ route, focus, windowId } as any);
   };
 
-  const openPromptiumPanel = async ({ tabId, windowId, route = '', pendingAction = null } = {}) => {
+  const openPromptiumPanel = async ({ tabId, windowId, route = '', pendingAction = null }: { tabId?: number; windowId?: number; route?: string; pendingAction?: any } = {}) => {
     usePopupMode = true;
 
     if (pendingAction) {
@@ -1317,15 +1381,15 @@ No quotes, no numbering, no extra text.`;
       }
 
       await stashPendingPanelAction(pendingAction);
-      return await createPopupPanel({ route, windowId });
+      return await createPopupPanel({ route, windowId } as any);
     }
 
-    return await openPopupPanel({ route, windowId });
+    return await openPopupPanel({ route, windowId } as any);
   };
 
   const initializeStorageKeys = async () => {
-    const state = await chrome.storage.local.get(['prompts']);
-    const updates = {};
+    const state = (await chrome.storage.local.get(['prompts'])) as any;
+    const updates: any = {};
 
     if (!Array.isArray(state.prompts)) {
       updates.prompts = [];
@@ -1336,34 +1400,12 @@ No quotes, no numbering, no extra text.`;
     }
   };
 
-  const detectPlatformFromUrl = (value) => {
-    const url = String(value || '').toLowerCase();
-    if (url.includes('chatgpt.com')) return 'chatgpt';
-    if (url.includes('claude.ai')) return 'claude';
-    if (url.includes('gemini.google.com')) return 'gemini';
-    if (url.includes('perplexity.ai')) return 'perplexity';
-    if (url.includes('copilot.microsoft.com')) return 'copilot';
-    return 'unknown';
-  };
-
-  const registerContextMenus = async () => {
-    try {
-      await chrome.contextMenus.removeAll();
-      chrome.contextMenus.create({
-        id: CONTEXT_MENU_SAVE_ID,
-        title: 'Save to Promptium',
-        contexts: ['selection'],
-        documentUrlPatterns: SUPPORTED_DOC_PATTERNS,
-      });
-    } catch (error) {
-      console.warn('[Promptium][ServiceWorker] Failed to register context menu.', error);
-    }
-  };
-
   const onInstalled = async () => {
     try {
       await initializeStorageKeys();
-      await registerContextMenus();
+      await contextMenuRegistry.register();
+      const { initVaultStore } = await import('../features/vault/store');
+      await initVaultStore();
     } catch (error) {
       console.error('[Promptium][ServiceWorker] Initialization failed.', error);
     }
@@ -1381,12 +1423,12 @@ No quotes, no numbering, no extra text.`;
       const opened = await openPromptiumPanel({
         tabId: tab.id,
         windowId: tab.windowId,
-      });
+      } as any);
       if (!opened?.ok) {
         return { ok: false, error: 'Failed to open Promptium window.' };
       }
       return { ok: true, tab, mode: opened.mode };
-    } catch (error) {
+    } catch (error: any) {
       return {
         ok: false,
         error: error?.message || 'Failed to open Promptium window.',
@@ -1394,7 +1436,7 @@ No quotes, no numbering, no extra text.`;
     }
   };
 
-  const handleOpenLlmTab = async (url) => {
+  const handleOpenLlmTab = async (url: any) => {
     try {
       const parsed = new URL(String(url || ''));
 
@@ -1413,7 +1455,7 @@ No quotes, no numbering, no extra text.`;
     }
   };
 
-  const handleSetSidePanelPayload = async (payload) => {
+  const handleSetSidePanelPayload = async (payload: any) => {
     const value = payload && typeof payload === 'object' ? payload : null;
 
     if (!value || !Array.isArray(value.messages)) {
@@ -1423,7 +1465,7 @@ No quotes, no numbering, no extra text.`;
     try {
       await chrome.storage.session.set({ [SIDEPANEL_SESSION_KEY]: value });
       return { ok: true };
-    } catch (error) {
+    } catch (error: any) {
       return {
         ok: false,
         error: error?.message || 'Failed to persist side panel payload.',
@@ -1431,7 +1473,7 @@ No quotes, no numbering, no extra text.`;
     }
   };
 
-  const handleOpenSidePanel = async (_sender, payload = null) => {
+  const handleOpenSidePanel = async (_sender: any, payload: any = null) => {
     try {
       if (payload && typeof payload === 'object') {
         const persisted = await handleSetSidePanelPayload(payload);
@@ -1445,12 +1487,12 @@ No quotes, no numbering, no extra text.`;
       }
 
       return { ok: true };
-    } catch (error) {
+    } catch (error: any) {
       return { ok: false, error: error?.message || 'Unable to handle payload.' };
     }
   };
 
-  const handleOpenContinuationPanel = async (sender) => {
+  const handleOpenContinuationPanel = async (sender: any) => {
     const tabId = sender?.tab?.id;
     const windowId = sender?.tab?.windowId;
     try {
@@ -1459,7 +1501,7 @@ No quotes, no numbering, no extra text.`;
         windowId,
         route: 'continue',
         pendingAction: { type: 'showContinuation' },
-      });
+      } as any);
       if (!opened?.ok) {
         return { ok: false, error: 'Failed to open Promptium panel.' };
       }
@@ -1469,7 +1511,7 @@ No quotes, no numbering, no extra text.`;
         });
       }
       return { ok: true };
-    } catch (error) {
+    } catch (error: any) {
       return {
         ok: false,
         error: error?.message || 'Failed to open Promptium panel.',
@@ -1477,12 +1519,49 @@ No quotes, no numbering, no extra text.`;
     }
   };
 
-  const onRuntimeMessage = (message, sender, sendResponse) => {
+  const validateMessageSchema = (message: any): { valid: boolean; reason?: string } => {
+    if (!message || typeof message !== 'object') {
+      return { valid: false, reason: 'Message must be a non-null object' };
+    }
+    const action = message.action;
+    const type = message.type;
+    if (typeof action !== 'string' && typeof type !== 'string') {
+      return { valid: false, reason: 'Message must specify an action or type string' };
+    }
+
+    if (action === 'SET_SIDEPANEL_PAYLOAD') {
+      if (!message.payload || typeof message.payload !== 'object') {
+        return { valid: false, reason: 'SET_SIDEPANEL_PAYLOAD requires a payload object' };
+      }
+    }
+
+    if (action === 'VALIDATE_GEMINI_KEY') {
+      if (typeof message.key !== 'string') {
+        return { valid: false, reason: 'VALIDATE_GEMINI_KEY requires a key string' };
+      }
+    }
+
+    if (action === 'openLlmTab') {
+      if (typeof message.url !== 'string') {
+        return { valid: false, reason: 'openLlmTab requires a url string' };
+      }
+    }
+
+    return { valid: true };
+  };
+
+  const onRuntimeMessage = (message: any, sender: any, sendResponse: any) => {
     if (message?.type === 'OFFSCREEN_EMBEDDING') {
       return false;
     }
 
-    let panelOpenPromise = null;
+    const validation = validateMessageSchema(message);
+    if (!validation.valid) {
+      sendResponse({ ok: false, error: `Invalid message schema: ${validation.reason}` });
+      return false;
+    }
+
+    let panelOpenPromise: any = null;
 
     if (message?.action === 'OPEN_SIDEPANEL') {
       const tabId = sender?.tab?.id;
@@ -1492,7 +1571,7 @@ No quotes, no numbering, no extra text.`;
         windowId,
         route: 'export',
         pendingAction: { type: 'showExport' },
-      }).catch((err) => err);
+      } as any).catch((err) => err);
     }
 
     void (async () => {
@@ -1500,7 +1579,7 @@ No quotes, no numbering, no extra text.`;
       const mappedType = String(message?.type || message?.action || '').trim();
       const routedMessage = mappedType ? { ...message, type: mappedType } : message;
 
-      const respond = (payload) => {
+      const respond = (payload: any) => {
         if (responded) {
           return;
         }
@@ -1532,7 +1611,7 @@ No quotes, no numbering, no extra text.`;
             windowId,
             route: 'export',
             pendingAction: { type: 'showExport' },
-          });
+          } as any);
           if (!opened?.ok) {
             respond({
               ok: false,
@@ -1557,7 +1636,7 @@ No quotes, no numbering, no extra text.`;
             respond({ ok: false, error: 'No tab ID' });
             return;
           }
-          const opened = await openPromptiumPanel({ tabId, windowId });
+          const opened = await openPromptiumPanel({ tabId, windowId } as any);
           if (!opened?.ok) {
             respond({
               ok: false,
@@ -1611,11 +1690,36 @@ No quotes, no numbering, no extra text.`;
           return;
         }
 
+        if (message?.action === 'OPEN_PROMPTIUM_WINDOW') {
+          const source = message?.source || 'icon';
+          void (async () => {
+            await floatingWindowService.open(source);
+            respond({ ok: true });
+          })();
+          return;
+        }
+
+        if (message?.action === 'FOCUS_PROMPTIUM_WINDOW') {
+          void (async () => {
+            await floatingWindowService.focus();
+            respond({ ok: true });
+          })();
+          return;
+        }
+
+        if (message?.action === 'CLOSE_PROMPTIUM_WINDOW') {
+          void (async () => {
+            await floatingWindowService.close();
+            respond({ ok: true });
+          })();
+          return;
+        }
+
         respond({
           ok: false,
           error: `Unknown action: ${String(message?.action || 'undefined')}`,
         });
-      } catch (error) {
+      } catch (error: any) {
         respond({
           ok: false,
           error: error?.message || 'Unexpected service worker failure.',
@@ -1628,70 +1732,39 @@ No quotes, no numbering, no extra text.`;
 
   chrome.runtime.onInstalled.addListener(() => {
     void onInstalled();
-    void windowManager.initialize();
+    void floatingWindowService.initialize();
   });
 
   chrome.runtime.onStartup.addListener(() => {
     void (async () => {
-      await registerContextMenus();
-      await windowManager.initialize();
+      await contextMenuRegistry.register();
+      await floatingWindowService.initialize();
     })();
   });
 
   chrome.action.onClicked.addListener(() => {
-    void (async () => {
-      const result = await windowManager.openWindow();
-      if (!result.success) {
-        console.warn('[Promptium] Failed to open window:', result);
-      }
-    })();
+    void floatingWindowService.open('icon');
   });
 
   chrome.commands.onCommand.addListener((command) => {
     if (command !== 'open-side-panel') {
       return;
     }
-    void (async () => {
-      const result = await windowManager.openWindow();
-      if (!result.success) {
-        console.warn('[Promptium] Failed to open window:', result);
-      }
-    })();
+    void floatingWindowService.open('shortcut');
   });
 
   chrome.contextMenus.onClicked.addListener((info, tab) => {
-    if (info.menuItemId !== CONTEXT_MENU_SAVE_ID) {
-      return;
-    }
-
-    const selectedText = String(info.selectionText || '').trim();
-    if (!selectedText || !tab?.id || !tab.windowId) {
-      return;
-    }
-
-    void (async () => {
-      const sourceUrl = String(tab.url || '');
-      await chrome.storage.local.set({
-        [BRAND_KEYS.pendingSnippet]: {
-          text: selectedText,
-          sourceUrl,
-          platform: detectPlatformFromUrl(sourceUrl),
-          savedAt: Date.now(),
-        },
-      });
-
-      await openPromptiumPanel({ tabId: tab.id, windowId: tab.windowId }).catch(() => {});
-      await chrome.tabs
-        .sendMessage(tab.id, {
-          action: 'notifyPromptium',
-          text: 'Saved to Promptium',
-        })
-        .catch(() => {});
-    })();
+    void handleContextMenuClick(info, tab);
   });
 
-  chrome.runtime.onSuspend.addListener(() => {
-    // No-op
+  chrome.tabs.onActivated.addListener((activeInfo) => {
+    void contextMenuRegistry.updateContinueChatVisibility(activeInfo.tabId);
+  });
+
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+    if (changeInfo.status === 'complete' || changeInfo.url) {
+      void contextMenuRegistry.updateContinueChatVisibility(tabId);
+    }
   });
 
   chrome.runtime.onMessage.addListener(onRuntimeMessage);

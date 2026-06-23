@@ -8,7 +8,7 @@
     (chrome.storage as any).session = chrome.storage.local;
   }
 
-  const PLATFORM_LABELS = {
+  const PLATFORM_LABELS: Record<string, string> = {
     chatgpt: 'ChatGPT',
     claude: 'Claude',
     gemini: 'Gemini',
@@ -28,7 +28,7 @@
     chrome.storage?.local
       ?.get?.(['promptiumSettings'])
       .then((snapshot) => {
-        const customLabels = snapshot?.promptiumSettings?.platformLabels;
+        const customLabels = (snapshot?.promptiumSettings as any)?.platformLabels;
         if (customLabels && typeof customLabels === 'object') {
           Object.entries(customLabels).forEach(([key, value]) => {
             const normalizedKey = String(key || '')

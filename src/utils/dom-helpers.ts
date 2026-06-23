@@ -6,14 +6,14 @@
    */
 
   /** Returns a required DOM node by id. */
-  const byId = (id) => document.getElementById(id);
+  const byId = (id: string) => document.getElementById(id);
   const TOAST_DURATION_SUCCESS_MS = 2500;
   const TOAST_DURATION_ERROR_MS = 4000;
   const TOAST_MAX_LENGTH = 80;
-  const toastQueue = [];
-  let activeToast = null;
+  const toastQueue: { message: string; kind: string; resolve: (value?: any) => void }[] = [];
+  let activeToast: HTMLElement | null = null;
 
-  const normalizeToastText = (value) => {
+  const normalizeToastText = (value: any) => {
     const trimmed = String(value || '')
       .replace(/!/g, '')
       .replace(/\s+/g, ' ')
@@ -26,12 +26,12 @@
     return `${sentenceCase.slice(0, TOAST_MAX_LENGTH - 1).trimEnd()}…`;
   };
 
-  const isErrorToast = (value) =>
+  const isErrorToast = (value: any) =>
     /\b(error|failed|invalid|unable|retry|missing|expired|quota|cannot|could not|unavailable)\b/i.test(
       String(value || '')
     );
 
-  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   const flushToastQueue = async () => {
     if (activeToast) return;
@@ -68,7 +68,7 @@
   };
 
   /** Creates and displays a short-lived toast message. */
-  const showToast = (message, options = {}) =>
+  const showToast = (message: string, options: any = {}) =>
     new Promise((resolve) => {
       toastQueue.push({
         message,
@@ -81,17 +81,17 @@
     });
 
   /** Builds reusable empty state markup with icon, copy, and optional action button. */
-  const createEmptyState = (messageOrConfig, maybeOptions = {}) => {
+  const createEmptyState = (messageOrConfig: any, maybeOptions: any = {}) => {
     const isConfig =
       messageOrConfig && typeof messageOrConfig === 'object' && !Array.isArray(messageOrConfig);
-    const title = isConfig ? String(messageOrConfig.title || '').trim() : '';
+    const title = isConfig ? String((messageOrConfig as any).title || '').trim() : '';
     const message = isConfig
-      ? String(messageOrConfig.message || '').trim()
+      ? String((messageOrConfig as any).message || '').trim()
       : String(messageOrConfig || '').trim();
     const actionLabel = isConfig
-      ? String(messageOrConfig.actionLabel || '').trim()
+      ? String((messageOrConfig as any).actionLabel || '').trim()
       : String(maybeOptions.actionLabel || '').trim();
-    const onAction = isConfig ? messageOrConfig.onAction : maybeOptions.onAction;
+    const onAction = isConfig ? (messageOrConfig as any).onAction : maybeOptions.onAction;
 
     const stateNode = document.createElement('div');
     stateNode.className = 'pn-empty-state';
@@ -154,7 +154,7 @@
   };
 
   /** Builds a reusable tag pill node. */
-  const createTagPill = (tag) => {
+  const createTagPill = (tag: any) => {
     const pill = document.createElement('span');
     pill.className = 'pn-tag-pill';
     pill.textContent = String(tag || '').trim();
@@ -162,7 +162,7 @@
   };
 
   /** Escapes unsafe markup content. */
-  const escapeHtml = (value) =>
+  const escapeHtml = (value: any) =>
     String(value || '')
       .replaceAll('&', '&amp;')
       .replaceAll('<', '&lt;')
@@ -171,13 +171,13 @@
       .replaceAll("'", '&#39;');
 
   /** Sorts nodes by their document position order. */
-  const sortNodesByDomOrder = (nodes) =>
-    Array.from(nodes || []).sort((a, b) =>
+  const sortNodesByDomOrder = (nodes: any) =>
+    Array.from(nodes || []).sort((a: any, b: any) =>
       a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1
     );
 
   /** Returns true when URL is one of supported LLM hosts. */
-  const isSupportedTabUrl = (url) => {
+  const isSupportedTabUrl = (url: any) => {
     const value = String(url || '').toLowerCase();
     return SUPPORTED_URLS.some((prefix) => value.startsWith(prefix));
   };
@@ -194,14 +194,14 @@
   };
 
   /** Sends one action payload to the active tab content script. */
-  const sendToActiveTab = async (payload) => {
+  const sendToActiveTab = async (payload: any) => {
     const context = await getActiveTabContext();
     if (!context.tabId) {
       return { ok: false, error: 'No active tab found.' };
     }
     try {
       return await chrome.tabs.sendMessage(context.tabId, payload);
-    } catch (error) {
+    } catch (error: any) {
       return { ok: false, error: error?.message || 'Unable to reach content script.' };
     }
   };

@@ -37,7 +37,7 @@ class RecentsAndFavorites {
   ): Promise<void> {
     try {
       const data = await chrome.storage.local.get([STORAGE_KEYS.usage]);
-      const usage: Record<string, UsageRecord> = data[STORAGE_KEYS.usage] || {};
+      const usage = (data[STORAGE_KEYS.usage] || {}) as Record<string, UsageRecord>;
 
       const existing = usage[id] || {
         id,
@@ -74,8 +74,8 @@ class RecentsAndFavorites {
   ): Promise<boolean> {
     try {
       const data = await chrome.storage.local.get([STORAGE_KEYS.usage, STORAGE_KEYS.favorites]);
-      const usage: Record<string, UsageRecord> = data[STORAGE_KEYS.usage] || {};
-      const favorites: Set<string> = new Set(data[STORAGE_KEYS.favorites] || []);
+      const usage = (data[STORAGE_KEYS.usage] || {}) as Record<string, UsageRecord>;
+      const favorites = new Set<string>((data[STORAGE_KEYS.favorites] || []) as string[]);
 
       if (favorites.has(id)) {
         favorites.delete(id);
@@ -83,7 +83,9 @@ class RecentsAndFavorites {
         if (favorites.size >= MAX_FAVORITES) {
           // Remove oldest favorite
           const firstFavorite = Array.from(favorites)[0];
-          favorites.delete(firstFavorite);
+          if (firstFavorite) {
+            favorites.delete(firstFavorite);
+          }
         }
         favorites.add(id);
       }
@@ -124,8 +126,8 @@ class RecentsAndFavorites {
   ): Promise<UsageRecord[]> {
     try {
       const data = await chrome.storage.local.get([STORAGE_KEYS.recents, STORAGE_KEYS.usage]);
-      const recentIds: string[] = data[STORAGE_KEYS.recents] || [];
-      const usage: Record<string, UsageRecord> = data[STORAGE_KEYS.usage] || {};
+      const recentIds = (data[STORAGE_KEYS.recents] || []) as string[];
+      const usage = (data[STORAGE_KEYS.usage] || {}) as Record<string, UsageRecord>;
 
       let recents = recentIds.map((id) => usage[id]).filter((item): item is UsageRecord => !!item);
 
@@ -149,7 +151,7 @@ class RecentsAndFavorites {
   ): Promise<UsageRecord[]> {
     try {
       const data = await chrome.storage.local.get([STORAGE_KEYS.usage]);
-      const usage: Record<string, UsageRecord> = data[STORAGE_KEYS.usage] || {};
+      const usage = (data[STORAGE_KEYS.usage] || {}) as Record<string, UsageRecord>;
 
       let items = Object.values(usage).filter(
         (item): item is UsageRecord => !!item && item.usageCount > 0
@@ -175,8 +177,8 @@ class RecentsAndFavorites {
   ): Promise<UsageRecord[]> {
     try {
       const data = await chrome.storage.local.get([STORAGE_KEYS.favorites, STORAGE_KEYS.usage]);
-      const favorites: string[] = data[STORAGE_KEYS.favorites] || [];
-      const usage: Record<string, UsageRecord> = data[STORAGE_KEYS.usage] || {};
+      const favorites = (data[STORAGE_KEYS.favorites] || []) as string[];
+      const usage = (data[STORAGE_KEYS.usage] || {}) as Record<string, UsageRecord>;
 
       let items = favorites
         .map((id) => usage[id])
@@ -199,7 +201,7 @@ class RecentsAndFavorites {
   async getUsageStats(id: string): Promise<UsageRecord | null> {
     try {
       const data = await chrome.storage.local.get([STORAGE_KEYS.usage]);
-      const usage: Record<string, UsageRecord> = data[STORAGE_KEYS.usage] || {};
+      const usage = (data[STORAGE_KEYS.usage] || {}) as Record<string, UsageRecord>;
       return usage[id] || null;
     } catch (error) {
       console.warn('[Promptium][RecentsAndFavorites] Failed to get usage stats:', error);
@@ -213,7 +215,7 @@ class RecentsAndFavorites {
   async isFavorite(id: string): Promise<boolean> {
     try {
       const data = await chrome.storage.local.get([STORAGE_KEYS.favorites]);
-      const favorites: string[] = data[STORAGE_KEYS.favorites] || [];
+      const favorites = (data[STORAGE_KEYS.favorites] || []) as string[];
       return favorites.includes(id);
     } catch {
       return false;
@@ -241,7 +243,7 @@ class RecentsAndFavorites {
   private async updateRecents(id: string): Promise<void> {
     try {
       const data = await chrome.storage.local.get([STORAGE_KEYS.recents]);
-      const recents: string[] = data[STORAGE_KEYS.recents] || [];
+      const recents = (data[STORAGE_KEYS.recents] || []) as string[];
 
       // Remove if exists
       const index = recents.indexOf(id);

@@ -3,6 +3,8 @@
  * Purpose: Provides prompt CRUD operations backed by chrome.storage.local.
  */
 
+import { Prompt } from '../types/domain/prompt';
+
 const PROMPTS_KEY = 'prompts';
 let lastStorageError = '';
 
@@ -91,11 +93,12 @@ const derivePromptTitle = (text: string) => {
 };
 
 /** Returns prompts array from storage or an empty list when unavailable. */
-const getPrompts = async (): Promise<any[]> => {
+const getPrompts = async (): Promise<Prompt[]> => {
   try {
     const state = await chrome.storage.local.get([PROMPTS_KEY]);
     clearLastStorageError();
-    return Array.isArray(state[PROMPTS_KEY]) ? state[PROMPTS_KEY] : [];
+    const list = state[PROMPTS_KEY];
+    return Array.isArray(list) ? (list as Prompt[]) : [];
   } catch (error) {
     setLastStorageError(error);
     console.error('[Promptium][Store] Failed to read prompts.', error);
@@ -103,8 +106,22 @@ const getPrompts = async (): Promise<any[]> => {
   }
 };
 
+interface SavePromptArgs {
+  title?: string;
+  text: string;
+  tags?: string[];
+  category?: string | null;
+  embedding?: number[] | null;
+}
+
 /** Saves a new prompt entry with UUID and optional embedding payload. */
-const savePrompt = async ({ title, text, tags = [], category = null, embedding = null }: any) => {
+const savePrompt = async ({
+  title,
+  text,
+  tags = [],
+  category = null,
+  embedding = null,
+}: SavePromptArgs): Promise<Prompt | null> => {
   try {
     const prompts = await getPrompts();
     const preprocessed = await preprocessPromptForSave({
@@ -120,7 +137,7 @@ const savePrompt = async ({ title, text, tags = [], category = null, embedding =
         ? embedding.map((value) => Number(value) || 0)
         : null;
     const isTemplate = detectTemplatePrompt(inputText);
-    const nextPrompt = {
+    const nextPrompt: Prompt = {
       id: crypto.randomUUID(),
       title: String(preprocessed.title || '').trim() || derivePromptTitle(inputText),
       text: inputText,
@@ -142,27 +159,30 @@ const savePrompt = async ({ title, text, tags = [], category = null, embedding =
     clearLastStorageError();
     return {
       ...nextPrompt,
-      _aiMeta: preprocessed.aiMeta || null,
     };
   } catch (error) {
     setLastStorageError(error);
     console.error('[Promptium][Store] Failed to save prompt.', error);
-    return false;
+    return null;
   }
 };
 
 /** Updates an existing prompt entry by id and returns the updated prompt or false. */
-const updatePrompt = async (id: string, updates: any) => {
+const updatePrompt = async (id: string, updates: Partial<Prompt>): Promise<Prompt | null> => {
   try {
     const prompts = await getPrompts();
     const index = prompts.findIndex((item) => item.id === id);
 
     if (index === -1) {
-      return false;
+      return null;
     }
 
     const existing = prompts[index];
-    const patched = {
+    if (!existing) {
+      return null;
+    }
+
+    const patched: Prompt = {
       ...existing,
       ...updates,
       id: existing.id,
@@ -172,7 +192,7 @@ const updatePrompt = async (id: string, updates: any) => {
 
     if (updates.tags) {
       patched.tags = Array.isArray(updates.tags)
-        ? updates.tags.map((t) => String(t).trim()).filter(Boolean)
+        ? updates.tags.map((t: string) => String(t).trim()).filter(Boolean)
         : existing.tags;
     }
     if (Object.prototype.hasOwnProperty.call(updates || {}, 'text')) {
@@ -186,12 +206,12 @@ const updatePrompt = async (id: string, updates: any) => {
   } catch (error) {
     setLastStorageError(error);
     console.error('[Promptium][Store] Failed to update prompt.', error);
-    return false;
+    return null;
   }
 };
 
 /** Deletes one prompt entry by id and returns true when complete. */
-const deletePrompt = async (id: string) => {
+const deletePrompt = async (id: string): Promise<boolean> => {
   try {
     const prompts = await getPrompts();
     const nextPrompts = prompts.filter((item) => item.id !== id);
@@ -216,10 +236,10 @@ const Store = {
 
 export const PromptStore = {
   ...Store,
-  async duplicatePrompt(id: string) {
+  async duplicatePrompt(id: string): Promise<Prompt | null> {
     const prompts = await getPrompts();
     const source = prompts.find((item) => item.id === id);
-    if (!source) return false;
+    if (!source) return null;
     return savePrompt({
       title: `${String(source.title || 'Untitled Prompt').trim()} Copy`,
       text: source.text,

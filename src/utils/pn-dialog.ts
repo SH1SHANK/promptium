@@ -24,7 +24,7 @@
     return overlay;
   };
 
-  const createDialog = (title, body, actions) => {
+  const createDialog = (title: string, body: string | HTMLElement, actions: HTMLElement[]) => {
     const overlay = createOverlay();
 
     const dialog = document.createElement('div');
@@ -57,8 +57,8 @@
    * Replacement for window.alert().
    * Returns a Promise that resolves when the user closes the dialog.
    */
-  const alert = (message, { title = '' } = {}) =>
-    new Promise((resolve) => {
+  const alert = (message: string, { title = '' } = {}): Promise<void> =>
+    new Promise<void>((resolve) => {
       const okBtn = document.createElement('button');
       okBtn.className = 'pn-btn pn-btn--primary pn-dialog__btn';
       okBtn.textContent = 'OK';
@@ -76,10 +76,10 @@
    * Returns a Promise<boolean>.
    */
   const confirm = (
-    message,
+    message: string,
     { title = '', confirmLabel = 'Confirm', cancelLabel = 'Cancel', danger = false } = {}
-  ) =>
-    new Promise((resolve) => {
+  ): Promise<boolean> =>
+    new Promise<boolean>((resolve) => {
       const cancelBtn = document.createElement('button');
       cancelBtn.className = 'pn-btn pn-btn--ghost pn-dialog__btn';
       cancelBtn.textContent = cancelLabel;
@@ -111,8 +111,8 @@
    * Replacement for window.prompt().
    * Returns a Promise<string|null>. Resolves null on cancel.
    */
-  const prompt = (message, defaultValue = '', { title = '', placeholder = '' } = {}) =>
-    new Promise((resolve) => {
+  const prompt = (message: string, defaultValue = '', { title = '', placeholder = '' } = {}): Promise<string | null> =>
+    new Promise<string | null>((resolve) => {
       const body = document.createElement('div');
       body.className = 'pn-dialog__body';
 
@@ -172,6 +172,6 @@
   const PnDialog = { alert, confirm, prompt };
 
   if (typeof window !== 'undefined') {
-    window.PnDialog = PnDialog;
+    (window as any).PnDialog = PnDialog;
   }
 })();

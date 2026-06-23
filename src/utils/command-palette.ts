@@ -112,11 +112,6 @@ class CommandPalette {
 // Export singleton instance
 export const commandPalette = new CommandPalette();
 
-if (typeof window !== 'undefined') {
-  (window as any).commandPalette = commandPalette;
-  (window as any).createBuiltinCommands = createBuiltinCommands;
-}
-
 /**
  * Built-in command registry
  * These are the standard commands available in Promptium
@@ -445,3 +440,8 @@ export const createBuiltinCommands = (): Command[] => {
 
   return builtinCommands;
 };
+
+if (typeof window !== 'undefined') {
+  (window as any).commandPalette = commandPalette;
+  (window as any).createBuiltinCommands = createBuiltinCommands;
+}

@@ -4,38 +4,41 @@
    * Purpose: Deterministic duplicate detection using normalized Levenshtein ratio.
    */
 
-  const normalize = (value) =>
+  const normalize = (value: string) =>
     String(value || '')
       .toLowerCase()
       .replace(/[^\w\s]+/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
 
-  const first80 = (value) => String(value || '').slice(0, 80);
+  const first80 = (value: string) => String(value || '').slice(0, 80);
 
-  const buildCandidate = (title, text) => `${normalize(title)}\n${normalize(first80(text))}`.trim();
+  const buildCandidate = (title: string, text: string) => `${normalize(title)}\n${normalize(first80(text))}`.trim();
 
-  const levenshteinDistance = (left, right) => {
+  const levenshteinDistance = (left: string, right: string) => {
     const a = String(left || '');
     const b = String(right || '');
     const rows = a.length + 1;
     const cols = b.length + 1;
 
-    const dp = Array.from({ length: rows }, () => Array(cols).fill(0));
-    for (let i = 0; i < rows; i += 1) dp[i][0] = i;
-    for (let j = 0; j < cols; j += 1) dp[0][j] = j;
+    const dp: number[][] = Array.from({ length: rows }, () => Array(cols).fill(0));
+    for (let i = 0; i < rows; i += 1) dp[i]![0] = i;
+    const dp0 = dp[0]!;
+    for (let j = 0; j < cols; j += 1) dp0[j] = j;
 
     for (let i = 1; i < rows; i += 1) {
+      const r = dp[i]!;
+      const prevR = dp[i - 1]!;
       for (let j = 1; j < cols; j += 1) {
         const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-        dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+        r[j] = Math.min(prevR[j]! + 1, r[j - 1]! + 1, prevR[j - 1]! + cost);
       }
     }
 
-    return dp[rows - 1][cols - 1];
+    return dp[rows - 1]![cols - 1]!;
   };
 
-  const similarity = (left, right) => {
+  const similarity = (left: string, right: string) => {
     const a = String(left || '');
     const b = String(right || '');
     const maxLen = Math.max(a.length, b.length);
@@ -43,7 +46,7 @@
     return 1 - levenshteinDistance(a, b) / maxLen;
   };
 
-  const findDuplicate = (candidatePrompt, prompts, threshold = 0.85) => {
+  const findDuplicate = (candidatePrompt: any, prompts: any[], threshold = 0.85) => {
     const source =
       candidatePrompt && typeof candidatePrompt === 'object'
         ? candidatePrompt
@@ -86,10 +89,10 @@
   };
 
   if (typeof window !== 'undefined') {
-    window.PromptDuplicate = PromptDuplicate;
+    (window as any).PromptDuplicate = PromptDuplicate;
   }
 
   if (typeof self !== 'undefined') {
-    self.PromptDuplicate = PromptDuplicate;
+    (self as any).PromptDuplicate = PromptDuplicate;
   }
 })();

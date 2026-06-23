@@ -1,3 +1,6 @@
+import { getCurrentAdapter } from '../platforms';
+import { toast } from '../utils/toast';
+
 (() => {
   /**
    * File: content/bookmarks.js
@@ -8,11 +11,11 @@
   const SETTINGS_KEY = 'promptiumSettings';
   const URL_WATCH_INTERVAL_MS = 900;
 
-  let currentPlatform = null;
-  let observer = null;
-  let urlWatchTimer = null;
+  let currentPlatform: any = null;
+  let observer: any = null;
+  let urlWatchTimer: any = null;
   let activeUrlKey = '';
-  let currentBookmarks = [];
+  let currentBookmarks: any[] = [];
   let shortcutConfig = {
     alt: true,
     shift: true,
@@ -30,13 +33,13 @@
     }
   };
 
-  const normalizeMessageText = (value) =>
+  const normalizeMessageText = (value: any) =>
     String(value || '')
       .replace(/\s+/g, ' ')
       .trim()
       .toLowerCase();
 
-  const computeMessageHash = (value) => {
+  const computeMessageHash = (value: any) => {
     const source = normalizeMessageText(value);
     let hash = 5381;
     for (let index = 0; index < source.length; index += 1) {
@@ -45,24 +48,20 @@
     return `h${(hash >>> 0).toString(36)}`;
   };
 
-  const readMessageText = (messageEl) => {
+  const readMessageText = (messageEl: any) => {
     if (!(messageEl instanceof HTMLElement)) return '';
-    const clone = messageEl.cloneNode(true);
-    clone.querySelectorAll('.pn-bookmark-icon').forEach((node) => node.remove());
+    const clone = messageEl.cloneNode(true) as HTMLElement;
+    clone.querySelectorAll('.pn-bookmark-icon').forEach((node: any) => node.remove());
     return String(clone.innerText || clone.textContent || '').trim();
   };
 
-  const notify = async (message) => {
+  const notify = async (message: any) => {
     const text = String(message || '').trim();
     if (!text) return;
-    if (window.Toolbar?.showNotification) {
-      await window.Toolbar.showNotification(text);
-      return;
-    }
-    console.info('[Promptium][Bookmarks]', text);
+    toast.info(text);
   };
 
-  const parseShortcutConfig = (raw) => {
+  const parseShortcutConfig = (raw: any) => {
     const value = String(raw || 'Alt+Shift+B').trim();
     const parts = value
       .split('+')
@@ -95,7 +94,7 @@
 
   const loadShortcutConfig = async () => {
     try {
-      const snapshot = await chrome.storage.local.get([SETTINGS_KEY]);
+      const snapshot = await chrome.storage.local.get([SETTINGS_KEY]) as any;
       shortcutConfig = parseShortcutConfig(
         snapshot?.[SETTINGS_KEY]?.bookmarkShortcut || 'Alt+Shift+B'
       );
@@ -104,7 +103,7 @@
     }
   };
 
-  const shortcutMatches = (event) => {
+  const shortcutMatches = (event: any) => {
     const key = String(event.key || '').toLowerCase();
     return (
       event.altKey === shortcutConfig.alt &&
@@ -115,7 +114,7 @@
     );
   };
 
-  const sortNodesByDomOrder = (nodes) => {
+  const sortNodesByDomOrder = (nodes: any[]) => {
     const sorted = [...nodes];
     sorted.sort((left, right) => {
       if (left === right) return 0;
@@ -128,14 +127,15 @@
   };
 
   const getAssistantMessageMeta = async () => {
-    const selectors = await window.Platform.getSelectors(currentPlatform);
-    if (!selectors?.botMsg || !selectors?.userMsg) {
+    const adapter = getCurrentAdapter();
+    if (!adapter) {
       return [];
     }
 
     try {
-      const userNodes = Array.from(document.querySelectorAll(selectors.userMsg));
-      const botNodes = Array.from(document.querySelectorAll(selectors.botMsg));
+      const elements = await adapter.getMessageElements();
+      const userNodes = elements.filter((e) => e.role === 'user').map((e) => e.element);
+      const botNodes = elements.filter((e) => e.role === 'assistant').map((e) => e.element);
       const merged = sortNodesByDomOrder(Array.from(new Set([...userNodes, ...botNodes])));
       const conversationIndexByNode = new Map();
 
@@ -154,15 +154,15 @@
     }
   };
 
-  const getEntryForMessage = (messageIndex, messageHash) =>
+  const getEntryForMessage = (messageIndex: any, messageHash: any) =>
     currentBookmarks.find(
       (entry) =>
         Number(entry?.messageIndex) === Number(messageIndex) &&
         String(entry?.messageHash || '') === String(messageHash || '')
     );
 
-  const updateIconState = (messageEl, isBookmarked) => {
-    const icon = messageEl?.querySelector(':scope > .pn-bookmark-icon');
+  const updateIconState = (messageEl: any, isBookmarked: any) => {
+    const icon = messageEl?.querySelector(':scope > .pn-bookmark-icon') as HTMLElement | null;
     if (!icon) return;
     const newText = isBookmarked ? '⭐' : '☆';
     if (icon.textContent !== newText) {
@@ -188,17 +188,17 @@
       return;
     }
 
-    const snapshot = await chrome.storage.local.get([STORAGE_KEY]).catch(() => ({}));
+    const snapshot = await chrome.storage.local.get([STORAGE_KEY]).catch(() => ({})) as any;
     const all = snapshot?.[STORAGE_KEY] || {};
     const list = Array.isArray(all?.[activeUrlKey]) ? all[activeUrlKey] : [];
-    currentBookmarks = list.filter((entry) => Number.isFinite(Number(entry?.messageIndex)));
+    currentBookmarks = list.filter((entry: any) => Number.isFinite(Number(entry?.messageIndex)));
   };
 
   const persistBookmarks = async () => {
     const urlKey = sanitizeConversationUrl();
     if (!urlKey) return;
 
-    const snapshot = await chrome.storage.local.get([STORAGE_KEY]).catch(() => ({}));
+    const snapshot = await chrome.storage.local.get([STORAGE_KEY]).catch(() => ({})) as any;
     const all =
       snapshot?.[STORAGE_KEY] && typeof snapshot[STORAGE_KEY] === 'object'
         ? snapshot[STORAGE_KEY]
@@ -207,7 +207,7 @@
     await chrome.storage.local.set({ [STORAGE_KEY]: all }).catch(() => {});
   };
 
-  const buildBookmarkPayload = (messageIndex, messageEl) => {
+  const buildBookmarkPayload = (messageIndex: any, messageEl: any) => {
     const text = readMessageText(messageEl);
     const preview = text.slice(0, 140);
     return {
@@ -221,7 +221,7 @@
     };
   };
 
-  const toggleBookmark = async (messageIndex, messageEl) => {
+  const toggleBookmark = async (messageIndex: any, messageEl: any) => {
     const payload = buildBookmarkPayload(messageIndex, messageEl);
     const existingIndex = currentBookmarks.findIndex(
       (entry) =>
@@ -245,7 +245,7 @@
     return true;
   };
 
-  const applyCurrentBookmarkState = (messageEl, messageIndex) => {
+  const applyCurrentBookmarkState = (messageEl: any, messageIndex: any) => {
     const preview = readMessageText(messageEl).slice(0, 140);
     const hash = computeMessageHash(preview);
     const isBookmarked = Boolean(getEntryForMessage(messageIndex, hash));
@@ -258,10 +258,10 @@
     messages.forEach(({ node: messageEl, conversationIndex }) => {
       if (!(messageEl instanceof HTMLElement)) return;
 
-      let icon = messageEl.querySelector(':scope > .pn-bookmark-icon');
+      let icon = messageEl.querySelector(':scope > .pn-bookmark-icon') as HTMLButtonElement | null;
 
       if (!icon) {
-        icon = document.createElement('button');
+        icon = document.createElement('button') as HTMLButtonElement;
         icon.className = 'pn-bookmark-icon';
         icon.type = 'button';
         icon.setAttribute('aria-label', 'Bookmark response');
@@ -313,21 +313,21 @@
         const messages = await getAssistantMessageMeta();
         if (!messages.length) return;
         const last = messages[messages.length - 1];
+        if (!last) return;
         const toggledOn = await toggleBookmark(last.conversationIndex, last.node);
         await notify(toggledOn ? '⭐ Response bookmarked' : 'Bookmark removed');
       })();
     });
   };
 
-  let debounceTimer = null;
+  let debounceTimer: any = null;
 
   const startWatchers = () => {
     if (!observer) {
       observer = new MutationObserver((mutations) => {
         // High-performance, zero-allocation check to prevent infinite loops
         let isPromptiumMutation = true;
-        for (let i = 0; i < mutations.length; i++) {
-          const m = mutations[i];
+        for (const m of mutations) {
           let isLocalMutation = false;
 
           if (m.type === 'childList') {
@@ -404,13 +404,13 @@
     }
   };
 
-  const init = async (platform) => {
+  const init = async (platform: any) => {
     currentPlatform = platform;
     await loadShortcutConfig();
     chrome.storage.onChanged.addListener((changes, areaName) => {
       if (areaName !== 'local' || !changes[SETTINGS_KEY]) return;
       shortcutConfig = parseShortcutConfig(
-        changes[SETTINGS_KEY].newValue?.bookmarkShortcut || 'Alt+Shift+B'
+        (changes[SETTINGS_KEY].newValue as any)?.bookmarkShortcut || 'Alt+Shift+B'
       );
     });
     await loadBookmarks();
@@ -429,6 +429,6 @@
   };
 
   if (typeof window !== 'undefined') {
-    window.Bookmarks = Bookmarks;
+    (window as any).Bookmarks = Bookmarks;
   }
 })();

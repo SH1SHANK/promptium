@@ -6,8 +6,12 @@
 
   const { KEYS, state } = window.SidepanelState;
   const STYLE_RULE_TYPE = typeof CSSRule === 'undefined' ? 1 : CSSRule.STYLE_RULE;
+  const byId = (id: string) => document.getElementById(id) as any;
 
-  const callbacks = {
+  const callbacks: {
+    onRunExport: (() => Promise<void> | void) | null;
+    onSelectMessages: (() => Promise<void> | void) | null;
+  } = {
     onRunExport: null,
     onSelectMessages: null,
   };
@@ -20,18 +24,18 @@
 
   const SUPPORTED_EXPORT_FORMATS = new Set(['markdown', 'json', 'pdf']);
 
-  const normalizeExportFormat = (value, fallback = 'markdown') => {
+  const normalizeExportFormat = (value: any, fallback = 'markdown') => {
     const raw = String(value || '')
       .toLowerCase()
       .trim();
-    const aliased = EXPORT_FORMAT_ALIASES[raw] || raw;
+    const aliased = (EXPORT_FORMAT_ALIASES as any)[raw] || raw;
     if (SUPPORTED_EXPORT_FORMATS.has(aliased)) {
       return aliased;
     }
     return fallback;
   };
 
-  const normalizeExportPrefs = (raw, fallback = state.exportPrefs || {}) => {
+  const normalizeExportPrefs = (raw: any, fallback = state.exportPrefs || {}) => {
     const source = raw && typeof raw === 'object' ? raw : {};
     const base = fallback && typeof fallback === 'object' ? fallback : {};
     return {
@@ -94,7 +98,7 @@
   const hydrateExportPrefsFromStorage = async () => {
     if (exportPrefsHydrated) return;
 
-    const snapshot = await chrome.storage.local.get([EXPORT_PREFS_KEY]).catch(() => ({}));
+    const snapshot = (await chrome.storage.local.get([EXPORT_PREFS_KEY]).catch(() => ({}))) as any;
     const storedPrefs = snapshot?.[EXPORT_PREFS_KEY];
     state.exportPrefs = normalizeExportPrefs(storedPrefs, state.exportPrefs);
     exportPrefsHydrated = true;
@@ -146,11 +150,11 @@
   };
 
   // Safety guard: sidepanel export must never use html2pdf/html2canvas due MV3 CSP.
-  if (typeof window !== 'undefined' && typeof window.html2pdf === 'function') {
+  if (typeof window !== 'undefined' && typeof (window as any).html2pdf === 'function') {
     try {
-      delete window.html2pdf;
+      delete (window as any).html2pdf;
     } catch (_) {
-      window.html2pdf = undefined;
+      (window as any).html2pdf = undefined;
     }
     console.warn(
       '[Promptium] Disabled html2pdf in sidepanel (CSP-safe PDF path uses jsPDF exporter).'
@@ -158,13 +162,13 @@
   }
 
   // Prevent accidental html2canvas/doc.html() path usage in MV3 extension pages.
-  if (window?.jspdf?.jsPDF?.API && typeof window.jspdf.jsPDF.API.html === 'function') {
-    window.jspdf.jsPDF.API.html = function blockedHtmlPlugin() {
+  if ((window as any)?.jspdf?.jsPDF?.API && typeof (window as any).jspdf.jsPDF.API.html === 'function') {
+    (window as any).jspdf.jsPDF.API.html = function blockedHtmlPlugin() {
       throw new Error('CSP-safe mode: jsPDF html() is disabled. Use Exporter.toPDF().');
     };
   }
 
-  const getPlatformLabel = (platform) => {
+  const getPlatformLabel = (platform: any) => {
     const key = String(platform || '').toLowerCase();
     return PLATFORM_LABELS[key] || String(platform || 'Unknown');
   };
@@ -172,7 +176,7 @@
   const BOOKMARKS_KEY = 'bookmarks';
   const BOOKMARK_PREVIEW_LEN = 140;
 
-  const stripInlineStylesFromHtml = (rawHtml) =>
+  const stripInlineStylesFromHtml = (rawHtml: any) =>
     String(rawHtml || '')
       .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
       .replace(/\sstyle\s*=\s*"[^"]*"/gi, '')
@@ -183,7 +187,7 @@
   const URL_LIKE_ATTRS = new Set(['href', 'src', 'xlink:href', 'formaction']);
   const URL_PROTOCOL_ALLOWLIST = new Set(['http:', 'https:', 'mailto:', 'tel:']);
 
-  const isSafeUrlValue = (rawValue) => {
+  const isSafeUrlValue = (rawValue: any) => {
     const value = String(rawValue || '').trim();
     if (!value) return false;
 
@@ -218,9 +222,9 @@
     return true;
   };
 
-  const sanitizeFragmentAttributes = (root) => {
-    root.querySelectorAll('*').forEach((element) => {
-      Array.from(element.attributes).forEach((attribute) => {
+  const sanitizeFragmentAttributes = (root: any) => {
+    root.querySelectorAll('*').forEach((element: any) => {
+      Array.from(element.attributes).forEach((attribute: any) => {
         const attrName = String(attribute.name || '').toLowerCase();
         const attrValue = String(attribute.value || '').trim();
 
@@ -241,7 +245,7 @@
     });
   };
 
-  const sanitizeConversationUrl = (value) => {
+  const sanitizeConversationUrl = (value: any) => {
     try {
       const parsed = new URL(String(value || '').trim());
       return `${parsed.origin}${parsed.pathname}`;
@@ -250,13 +254,13 @@
     }
   };
 
-  const normalizeMessageText = (value) =>
+  const normalizeMessageText = (value: any) =>
     String(value || '')
       .replace(/\s+/g, ' ')
       .trim()
       .toLowerCase();
 
-  const computeMessageHash = (value) => {
+  const computeMessageHash = (value: any) => {
     const source = normalizeMessageText(value);
     let hash = 5381;
     for (let index = 0; index < source.length; index += 1) {
@@ -330,7 +334,7 @@
     return `pn-export-size-${size}`;
   };
 
-  const normalizeHexColor = (value) => {
+  const normalizeHexColor = (value: any) => {
     const raw = String(value || '')
       .trim()
       .toLowerCase();
@@ -343,7 +347,7 @@
     return raw;
   };
 
-  const parseHexToRgb = (hexColor) => {
+  const parseHexToRgb = (hexColor: any) => {
     const normalized = normalizeHexColor(hexColor);
     if (!normalized) return null;
     return {
@@ -353,7 +357,7 @@
     };
   };
 
-  const applyCustomExportThemeRules = (colorValue) => {
+  const applyCustomExportThemeRules = (colorValue: any) => {
     const hex = normalizeHexColor(colorValue || state.exportPrefs.customBackground);
     if (!hex) return;
 
@@ -383,7 +387,7 @@
       } catch (_) {
         continue;
       }
-      for (const rule of rules) {
+      for (const rule of rules as any[]) {
         if (rule.type !== STYLE_RULE_TYPE) continue;
         const match = selectors.find((entry) => entry.selector === rule.selectorText);
         if (!match) continue;
@@ -394,7 +398,7 @@
     }
   };
 
-  const normalizePayload = async (rawPayload) => {
+  const normalizePayload = async (rawPayload: any) => {
     const value = rawPayload && typeof rawPayload === 'object' ? rawPayload : {};
     const messages = Array.isArray(value.messages) ? value.messages : [];
     const url = String(value.url || '').trim();
@@ -402,23 +406,24 @@
     let bookmarkEntries = [];
 
     if (urlKey) {
-      const bookmarkState = await chrome.storage.local.get([BOOKMARKS_KEY]).catch(() => ({}));
-      const allBookmarks =
+      const bookmarkState = (await chrome.storage.local.get([BOOKMARKS_KEY]).catch(() => ({}))) as any;
+      const allBookmarks = (
         bookmarkState?.[BOOKMARKS_KEY] && typeof bookmarkState[BOOKMARKS_KEY] === 'object'
           ? bookmarkState[BOOKMARKS_KEY]
-          : {};
+          : {}
+      ) as any;
       bookmarkEntries = Array.isArray(allBookmarks?.[urlKey]) ? allBookmarks[urlKey] : [];
     }
 
     const normalizedMessages = messages
-      .map((message, fallbackIndex) => {
+      .map((message: any, fallbackIndex: number) => {
         const indexCandidate = Number(message?.index);
         const sourceIndex = Number.isFinite(indexCandidate) ? indexCandidate : fallbackIndex;
         const text = String(message?.text || '').trim();
         const preview = text.slice(0, BOOKMARK_PREVIEW_LEN);
         const messageHash = computeMessageHash(preview);
 
-        const bookmarkMatch = bookmarkEntries.find((entry) => {
+        const bookmarkMatch = bookmarkEntries.find((entry: any) => {
           const sameIndex = Number(entry?.messageIndex) === sourceIndex;
           if (!sameIndex) return false;
           const entryHash = String(entry?.messageHash || '').trim();
@@ -440,7 +445,7 @@
           },
         };
       })
-      .filter((message) => message.text.length > 0);
+      .filter((message: any) => message.text.length > 0);
 
     return {
       title: String(value.title || 'Promptium Chat').trim(),
@@ -462,7 +467,7 @@
     return state.exportPayload;
   };
 
-  const hasPayloadMessages = (payload) =>
+  const hasPayloadMessages = (payload: any) =>
     Array.isArray(payload?.messages) && payload.messages.length > 0;
 
   const applyLatestSnapshot = async () => {
@@ -480,7 +485,7 @@
     await setStatus('Latest selection loaded.');
   };
 
-  const ingestIncomingPayload = async (rawPayload) => {
+  const ingestIncomingPayload = async (rawPayload: any) => {
     const normalized = await normalizePayload(rawPayload);
     state.exportPayload = normalized;
 
@@ -501,24 +506,25 @@
   };
 
   const getTurndownService = async () => {
-    if (state.turndown) {
-      return state.turndown;
+    const s = state as any;
+    if (s.turndown) {
+      return s.turndown;
     }
 
     if (!window.TurndownService) {
       return null;
     }
 
-    state.turndown = new window.TurndownService({
+    s.turndown = new window.TurndownService({
       codeBlockStyle: 'fenced',
       headingStyle: 'atx',
       bulletListMarker: '-',
     });
 
-    return state.turndown;
+    return s.turndown;
   };
 
-  const toMessageContentMarkdown = async (message) => {
+  const toMessageContentMarkdown = async (message: any) => {
     const service = await getTurndownService();
     const rawHtml = String(message?.html || '').trim();
     const safeHtml = stripInlineStylesFromHtml(rawHtml);
@@ -539,7 +545,7 @@
     return String(message?.text || '').trim();
   };
 
-  const toStructuredMessageMarkdown = async (message, index) => {
+  const toStructuredMessageMarkdown = async (message: any, index: number) => {
     const roleLabel = message.role === 'user' ? 'You' : 'Assistant';
     const messageNumber = state.exportPrefs.includeMessageNumbers ? `${index + 1}. ` : '';
     const bookmarkTag = message?.bookmarkMeta?.isBookmarked ? ' ⭐' : '';
@@ -601,13 +607,13 @@
     return `pn-export-sheet ${themeClass} ${fontClass} ${fontSizeClass}`;
   };
 
-  const wrapExportPreviewSheet = (bodyMarkup, extraClass = '') => `
+  const wrapExportPreviewSheet = (bodyMarkup: string, extraClass = '') => `
   <section id="pn-export-snapshot" class="${buildExportSheetClassNames()} ${extraClass}">
     ${bodyMarkup}
   </section>
 `;
 
-  const buildEmptyPreviewState = ({ title, message, actionLabel, onAction }) => ({
+  const buildEmptyPreviewState = ({ title, message, actionLabel, onAction }: any) => ({
     kind: 'empty',
     title,
     message,
@@ -615,15 +621,16 @@
     onAction,
   });
 
-  const buildHtmlPreviewState = (html) => ({
+  const buildHtmlPreviewState = (html: string) => ({
     kind: 'html',
     html,
   });
 
   const getMarkdownParser = async () => {
-    if (state.markdownParser) return state.markdownParser;
-    state.markdownParser = window.ExportPreviewRenderer.createMarkdownParser(window.markdownit);
-    return state.markdownParser;
+    const s = state as any;
+    if (s.markdownParser) return s.markdownParser;
+    s.markdownParser = window.ExportPreviewRenderer.createMarkdownParser(window.markdownit);
+    return s.markdownParser;
   };
 
   const buildVisualPreviewMarkup = async () => {
@@ -645,14 +652,14 @@
     const parser = await getMarkdownParser();
 
     const platformTitle = state.exportPrefs.includePlatform
-      ? `<h2>${escapeHtml(payload.title || getPlatformLabel(payload.platform) || 'Conversation')}</h2>`
+      ? `<h2>${window.DomHelpers.escapeHtml(payload.title || getPlatformLabel(payload.platform) || 'Conversation')}</h2>`
       : '';
     const platformLine = state.exportPrefs.includePlatform
-      ? `<p class="pn-export-meta-line">Platform: ${escapeHtml(getPlatformLabel(payload.platform))}</p>`
+      ? `<p class="pn-export-meta-line">Platform: ${window.DomHelpers.escapeHtml(getPlatformLabel(payload.platform))}</p>`
       : '';
 
     const dateLine = state.exportPrefs.includeDate
-      ? `<p class="pn-export-meta-line">Exported: ${escapeHtml(new Date().toLocaleString())}</p>`
+      ? `<p class="pn-export-meta-line">Exported: ${window.DomHelpers.escapeHtml(new Date().toLocaleString())}</p>`
       : '';
 
     const rows = [];
@@ -667,7 +674,7 @@
       const merged = chunks.filter(Boolean).join('\n\n');
       const contentHtml = parser
         ? parser.render(merged)
-        : escapeHtml(merged).replaceAll('\n', '<br />');
+        : window.DomHelpers.escapeHtml(merged).replaceAll('\n', '<br />');
       rows.push(`
       <article class="pn-export-card">
         <div class="pn-export-card-content pn-markdown-body pn-export-card-content--body">${contentHtml}</div>
@@ -677,12 +684,12 @@
       for (let index = 0; index < payload.messages.length; index += 1) {
         const message = payload.messages[index];
         const messageNumber = state.exportPrefs.includeMessageNumbers ? `${index + 1}. ` : '';
-        const roleLabel = escapeHtml(message.role === 'user' ? 'You' : 'Assistant');
+        const roleLabel = window.DomHelpers.escapeHtml(message.role === 'user' ? 'You' : 'Assistant');
         const bookmarkTag = message?.bookmarkMeta?.isBookmarked ? ' ⭐' : '';
         const mdText = await toMessageContentMarkdown(message);
         const contentHtml = parser
           ? parser.render(mdText)
-          : escapeHtml(mdText).replaceAll('\n', '<br />');
+          : window.DomHelpers.escapeHtml(mdText).replaceAll('\n', '<br />');
         rows.push(`
         <article class="pn-export-card">
           <h3 class="pn-export-message-heading">${messageNumber}${roleLabel}${bookmarkTag}</h3>
@@ -709,7 +716,7 @@
     return buildHtmlPreviewState(
       wrapExportPreviewSheet(`
     <article class="pn-export-card pn-export-card--single">
-      <pre class="pn-export-raw pn-export-raw--markdown">${escapeHtml(markdown)}</pre>
+      <pre class="pn-export-raw pn-export-raw--markdown">${window.DomHelpers.escapeHtml(markdown)}</pre>
     </article>
   `)
     );
@@ -722,7 +729,7 @@
       title: payload.title,
       platform: payload.platform,
       createdAt: payload.createdAt,
-      messages: payload.messages.map((message) => ({
+      messages: payload.messages.map((message: any) => ({
         role: message.role,
         text: message.text,
         thinking: message.thinking || '',
@@ -735,10 +742,10 @@
 
   const buildExporterPrefs = () => {
     const payload = getActivePayload();
-    const bookmarkedIndices = new Set(
+    const bookmarkedIndices: Set<number> = new Set(
       (payload?.messages || [])
-        .filter((message) => message?.bookmarkMeta?.isBookmarked)
-        .map((message, idx) =>
+        .filter((message: any) => message?.bookmarkMeta?.isBookmarked)
+        .map((message: any, idx: number) =>
           Number.isFinite(Number(message?.index)) ? Number(message.index) : idx
         )
     );
@@ -769,7 +776,7 @@
     };
   };
 
-  const buildTextPreviewMarkup = async (format) => {
+  const buildTextPreviewMarkup = async (format: string) => {
     const chat = buildExporterChatPayload();
     if (!chat) {
       return buildEmptyPreviewState({
@@ -819,7 +826,7 @@
           : await window.Exporter.toObsidian(chat, prefs);
       const html = window.ExportPreviewRenderer?.renderMarkdownDocument
         ? window.ExportPreviewRenderer.renderMarkdownDocument(parser, markdownText)
-        : escapeHtml(markdownText).replaceAll('\n', '<br />');
+        : window.DomHelpers.escapeHtml(markdownText).replaceAll('\n', '<br />');
       return buildHtmlPreviewState(
         wrapExportPreviewSheet(`
       <article class="pn-export-card pn-export-card--single pn-markdown-body">
@@ -833,7 +840,7 @@
     return buildHtmlPreviewState(
       wrapExportPreviewSheet(`
     <article class="pn-export-card pn-export-card--single">
-      <pre class="pn-export-raw pn-export-raw--txt">${escapeHtml(plainText)}</pre>
+      <pre class="pn-export-raw pn-export-raw--txt">${window.DomHelpers.escapeHtml(plainText)}</pre>
     </article>
   `)
     );
@@ -859,7 +866,7 @@
     return buildMarkdownPreviewMarkup();
   };
 
-  const setStatus = async (message, isError = false, options = {}) => {
+  const setStatus = async (message: string, isError: boolean = false, options: any = {}) => {
     const node = byId('export-status');
 
     if (!node) {
@@ -975,7 +982,7 @@
     const wordCountEl = byId('export-word-count');
     const fmt = normalizeExportFormat(state.exportPrefs.format);
 
-    const formatLabels = {
+    const formatLabels: Record<string, string> = {
       markdown: 'Markdown',
       txt: 'Plain Text',
       json: 'JSON',
@@ -1003,7 +1010,7 @@
       const msgs = payload?.messages || [];
       if (msgs.length > 0) {
         const wordTotal = msgs.reduce(
-          (sum, m) => sum + (m.text || '').split(/\s+/).filter(Boolean).length,
+          (sum: number, m: any) => sum + (m.text || '').split(/\s+/).filter(Boolean).length,
           0
         );
         msgCountEl.textContent = `${msgs.length} msg${msgs.length === 1 ? '' : 's'}`;
@@ -1047,7 +1054,7 @@
     if (!payload || !payload.messages.length) {
       preview.innerHTML = '';
       preview.appendChild(
-        createEmptyState({
+        window.DomHelpers.createEmptyState({
           title: 'No messages selected',
           message: 'Select a message range in your chat to generate an export preview.',
           actionLabel: 'Select Messages',
@@ -1062,12 +1069,16 @@
       return;
     }
 
-    preview.innerHTML = '<div class="pn-export-loading pn-loading-state">Loading preview…</div>';
+    preview.replaceChildren();
+    const loadingDiv = document.createElement('div');
+    loadingDiv.className = 'pn-export-loading pn-loading-state';
+    loadingDiv.textContent = 'Loading preview…';
+    preview.appendChild(loadingDiv);
 
-    const previewResult = await buildFormatAwarePreviewMarkup();
+    const previewResult = (await buildFormatAwarePreviewMarkup()) as any;
     if (previewResult?.kind === 'empty') {
-      preview.innerHTML = '';
-      preview.appendChild(createEmptyState(previewResult));
+      preview.replaceChildren();
+      preview.appendChild(window.DomHelpers.createEmptyState(previewResult));
       await renderMeta();
       return;
     }
@@ -1075,12 +1086,12 @@
     if (previewResult?.kind === 'html') {
       preview.innerHTML = previewResult.html;
     } else {
-      preview.innerHTML = previewResult || '';
+      preview.textContent = previewResult || '';
     }
     await renderMeta();
   };
 
-  const applyDefaultsFromSettings = (settings) => {
+  const applyDefaultsFromSettings = (settings: any) => {
     const input = settings || state.settings || {};
     state.exportPrefs = {
       format: normalizeExportFormat(input.defaultExportFormat || 'markdown'),
@@ -1116,7 +1127,7 @@
     if (formatNode) {
       const nextFormat = normalizeExportFormat(state.exportPrefs.format);
       const hasOption = Array.from(formatNode.options).some(
-        (option) => option.value === nextFormat
+        (option: any) => option.value === nextFormat
       );
       formatNode.value = hasOption ? nextFormat : 'markdown';
       state.exportPrefs.format = formatNode.value;
@@ -1160,7 +1171,7 @@
       'export-bg-style',
     ];
 
-    let renderTimeout;
+    let renderTimeout: any;
     const debouncedRerender = () => {
       clearTimeout(renderTimeout);
       renderTimeout = setTimeout(() => {
@@ -1195,12 +1206,12 @@
     });
   };
 
-  const setCallbacks = (nextCallbacks = {}) => {
+  const setCallbacks = (nextCallbacks: any = {}) => {
     callbacks.onRunExport = nextCallbacks.onRunExport || null;
     callbacks.onSelectMessages = nextCallbacks.onSelectMessages || null;
   };
 
-  window.ExportPayloadUI = {
+  (window as any).ExportPayloadUI = {
     loadPayload,
     normalizePayload,
     hasPayloadMessages,
@@ -1221,3 +1232,6 @@
     getPlatformLabel,
   };
 })();
+
+export {};
+

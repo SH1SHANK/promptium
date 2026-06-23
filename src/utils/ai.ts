@@ -237,7 +237,7 @@ let aiAvailable = false;
 const getStatusNode = () => document.getElementById('ai-status');
 
 /** Ensures AI status markup has dedicated dot and text nodes for rich updates. */
-const ensureStatusStructure = (statusNode) => {
+const ensureStatusStructure = (statusNode: any) => {
   if (!statusNode) {
     return { dot: null, text: null };
   }
@@ -256,7 +256,7 @@ const ensureStatusStructure = (statusNode) => {
 };
 
 /** Updates the AI badge text and visual status style. */
-const setStatus = async (text, statusClass) => {
+const setStatus = async (text: any, statusClass?: any) => {
   const statusNode = getStatusNode();
 
   if (!statusNode) {
@@ -293,7 +293,7 @@ const getProgressNodes = () => ({
 });
 
 /** Clears model progress UI and shows mode message. */
-const showModeMessage = (message) => {
+const showModeMessage = (message: any) => {
   const nodes = getProgressNodes();
 
   if (nodes.track) {
@@ -310,7 +310,7 @@ const showModeMessage = (message) => {
 };
 
 /** Normalizes text for deterministic token matching. */
-const normalizeText = (value) =>
+const normalizeText = (value: any) =>
   String(value || '')
     .toLowerCase()
     .replace(/[^\w\s]+/g, ' ')
@@ -318,7 +318,7 @@ const normalizeText = (value) =>
     .trim();
 
 /** Tokenizes normalized text into unique terms (minimum 2 chars). */
-const toTokenSet = (value) => {
+const toTokenSet = (value: any): Set<string> => {
   const normalized = normalizeText(value);
 
   if (!normalized) {
@@ -369,8 +369,8 @@ const _synonymMap = (() => {
 })();
 
 /** Expands a set of query tokens with synonyms. */
-const expandWithSynonyms = (tokens) => {
-  const expanded = new Set(tokens);
+const expandWithSynonyms = (tokens: string[]): Set<string> => {
+  const expanded = new Set<string>(tokens);
   for (const token of tokens) {
     const syns = _synonymMap.get(token);
     if (syns) for (const s of syns) expanded.add(s);
@@ -379,7 +379,7 @@ const expandWithSynonyms = (tokens) => {
 };
 
 /** Checks if a term appears as a whole word (or word-prefix) in text. */
-const wordBoundaryMatch = (text, term) => {
+const wordBoundaryMatch = (text: any, term: any) => {
   // Quick check first
   if (!text.includes(term)) return false;
   // Exact word-boundary regex: \bterm or term as prefix of a word
@@ -392,7 +392,7 @@ const wordBoundaryMatch = (text, term) => {
 };
 
 /** Checks if any word in text starts with the given prefix. */
-const prefixMatch = (text, prefix) => {
+const prefixMatch = (text: any, prefix: any) => {
   if (prefix.length < 3) return false;
   try {
     const re = new RegExp(`\\b${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\w*`, 'i');
@@ -403,7 +403,7 @@ const prefixMatch = (text, prefix) => {
 };
 
 /** Filters prompts by keyword match (fallback path). */
-const keywordFilter = (query, prompts) => {
+const keywordFilter = (query: any, prompts: any) => {
   const normalizedQuery = normalizeText(query);
 
   if (!normalizedQuery) {
@@ -434,7 +434,7 @@ const keywordFilter = (query, prompts) => {
  * - Field weighting (title > tags > category > text)
  * - Query-length-aware normalization
  */
-const scorePrompt = (query, prompt) => {
+const scorePrompt = (query: any, prompt: any) => {
   const normalizedQuery = normalizeText(query);
   if (!normalizedQuery) return 0;
 
@@ -503,13 +503,13 @@ const initModel = async () => {
 const isAvailable = async () => aiAvailable;
 
 /** Model-free embedding is not used; kept for API compatibility. */
-const embedText = async (_text) => null;
+const embedText = async (_text: any) => null;
 
 /** Model-free cosine similarity is not used; kept for API compatibility. */
-const cosineSimilarity = async (_vecA, _vecB) => 0;
+const cosineSimilarity = async (_vecA: any, _vecB: any) => 0;
 
 /** Ranks prompts by deterministic relevance and falls back to keyword filtering. */
-const semanticSearch = async (query, prompts) => {
+const semanticSearch = async (query: any, prompts: any) => {
   const normalizedQuery = normalizeText(query);
 
   if (!normalizedQuery) {
@@ -539,7 +539,7 @@ const semanticSearch = async (query, prompts) => {
 };
 
 /** Suggests top tags by matching keyword rules and user context text. */
-const suggestTags = async (text) => {
+const suggestTags = async (text: any) => {
   const baseText = String(text || '').trim();
 
   if (!baseText) {
@@ -587,7 +587,7 @@ const suggestTags = async (text) => {
 };
 
 /** Detects near-duplicate prompts via normalized Levenshtein ratio on title + first 80 chars. */
-const isDuplicate = (candidatePrompt, existingPrompts) => {
+const isDuplicate = (candidatePrompt: any, existingPrompts: any) => {
   if (window.PromptDuplicate?.findDuplicate) {
     return window.PromptDuplicate.findDuplicate(candidatePrompt, existingPrompts, 0.85);
   }
@@ -614,15 +614,19 @@ const isDuplicate = (candidatePrompt, existingPrompts) => {
     const rows = target.length + 1;
     const cols = candidate.length + 1;
     const dp = Array.from({ length: rows }, () => Array(cols).fill(0));
-    for (let i = 0; i < rows; i += 1) dp[i][0] = i;
-    for (let j = 0; j < cols; j += 1) dp[0][j] = j;
+    for (let i = 0; i < rows; i += 1) dp[i]![0] = i;
+    const dp0 = dp[0]!;
+    for (let j = 0; j < cols; j += 1) dp0[j] = j;
     for (let i = 1; i < rows; i += 1) {
+      const r = dp[i]!;
+      const prevR = dp[i - 1]!;
       for (let j = 1; j < cols; j += 1) {
         const cost = target[i - 1] === candidate[j - 1] ? 0 : 1;
-        dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+        r[j] = Math.min(prevR[j]! + 1, r[j - 1]! + 1, prevR[j - 1]! + cost);
       }
     }
-    const ratio = 1 - dp[rows - 1][cols - 1] / maxLen;
+    const lastRow = dp[rows - 1]!;
+    const ratio = 1 - lastRow[cols - 1]! / maxLen;
     if (ratio > bestRatio) {
       bestRatio = ratio;
       bestMatch = prompt;
@@ -637,7 +641,7 @@ const isDuplicate = (candidatePrompt, existingPrompts) => {
 };
 
 /** No embedding hydration needed in model-free mode. */
-const rehydratePromptEmbeddings = (_prompts) => false;
+const rehydratePromptEmbeddings = (_prompts: any) => false;
 
 const AI = {
   initModel,

@@ -544,7 +544,7 @@
     },
   ];
 
-  const countVariables = (text) => {
+  const countVariables = (text: any) => {
     if (window.TemplateParser?.parse) {
       return window.TemplateParser.parse(String(text || '')).length;
     }

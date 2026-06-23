@@ -18,12 +18,12 @@
     copilot: 'https://copilot.microsoft.com/',
   });
 
-  const getPlatformLabel = (platform) => {
+  const getPlatformLabel = (platform: any) => {
     const key = String(platform || '').toLowerCase();
     return window.PLATFORM_LABELS?.[key] || key || 'Unknown';
   };
 
-  const normalizeRole = (role) => {
+  const normalizeRole = (role: any) => {
     const value = String(role || '')
       .trim()
       .toLowerCase();
@@ -32,7 +32,7 @@
     return value.includes('user') ? 'Human' : 'Assistant';
   };
 
-  const cleanContinuationText = (text) => {
+  const cleanContinuationText = (text: any) => {
     let cleaned = String(text || '').trim();
 
     // 1. Remove leaked thinking blocks
@@ -61,7 +61,7 @@
     return cleaned.trim();
   };
 
-  const normalizeMessages = (messages) => {
+  const normalizeMessages = (messages: any) => {
     if (!Array.isArray(messages)) return [];
     return messages
       .map((message) => ({
@@ -71,7 +71,7 @@
       .filter((message) => message.text.length > 0);
   };
 
-  const buildContextPrompt = (messages, sourcePlatform) => {
+  const buildContextPrompt = (messages: any, sourcePlatform: any) => {
     const normalized = normalizeMessages(messages).slice(-MAX_MESSAGES);
     const source = getPlatformLabel(sourcePlatform);
 
@@ -94,8 +94,8 @@
     return `${bounded}\n\n--- Continue from here ---\n`;
   };
 
-  const migrateLegacyPendingContext = async (currentPlatform = '') => {
-    const snapshot = await chrome.storage.local.get([BRIDGE_KEY, LEGACY_CONTEXT_KEY]);
+  const migrateLegacyPendingContext = async (currentPlatform: any = '') => {
+    const snapshot = (await chrome.storage.local.get([BRIDGE_KEY, LEGACY_CONTEXT_KEY])) as Record<string, any>;
     const current = snapshot?.[BRIDGE_KEY];
     const legacy = snapshot?.[LEGACY_CONTEXT_KEY];
 
@@ -128,8 +128,8 @@
     return true;
   };
 
-  const openTargetLlm = async (targetPlatform) => {
-    const url = LLM_URLS[targetPlatform];
+  const openTargetLlm = async (targetPlatform: string) => {
+    const url = (LLM_URLS as Record<string, string>)[targetPlatform];
     if (!url) {
       throw new Error(`Unknown target platform: ${targetPlatform}`);
     }
@@ -143,7 +143,7 @@
     }
   };
 
-  const bridgeTo = async (messages, sourcePlatform, targetPlatform) => {
+  const bridgeTo = async (messages: any, sourcePlatform: any, targetPlatform: any) => {
     const normalized = normalizeMessages(messages);
 
     if (!normalized.length) {
@@ -171,10 +171,10 @@
     return true;
   };
 
-  const checkPendingBridge = async (currentPlatform) => {
+  const checkPendingBridge = async (currentPlatform: any) => {
     await migrateLegacyPendingContext(currentPlatform).catch(() => {});
 
-    const snapshot = await chrome.storage.local.get([BRIDGE_KEY]).catch(() => ({}));
+    const snapshot = (await chrome.storage.local.get([BRIDGE_KEY]).catch(() => ({}))) as Record<string, any>;
     const pending = snapshot?.[BRIDGE_KEY];
 
     if (!pending) {

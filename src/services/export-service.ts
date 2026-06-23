@@ -63,7 +63,7 @@
   /**
    * Strips common AI follow-up offer patterns from the end of assistant messages.
    */
-  function stripTrailingFollowUps(text) {
+  function stripTrailingFollowUps(text: any) {
     const patterns = [
       /\n+(?:if you want|would you like|let me know if|feel free to ask|i can also explain)[^\n]*/gi,
     ];
@@ -77,7 +77,7 @@
   /**
    * Detects ASCII flow patterns and wraps them in code blocks.
    */
-  function wrapAsciiFlows(text) {
+  function wrapAsciiFlows(text: any) {
     return String(text || '').replace(
       /((?:.*(?:→|←|↑|↓|⇒|⟶).*\n){2,})/g,
       (match) => `\n\`\`\`\n${match.trim()}\n\`\`\`\n`
@@ -85,7 +85,7 @@
   }
 
   /** Builds a safe export chat object from unknown input. */
-  const normalizeChat = (chat, options = {}) => {
+  const normalizeChat = (chat: any, options: any = {}) => {
     const value = chat && typeof chat === 'object' ? chat : {};
     const messages = Array.isArray(value.messages) ? value.messages : [];
 
@@ -93,7 +93,7 @@
       title: String(value.title || 'Promptium Chat').trim(),
       platform: String(value.platform || 'unknown').trim(),
       createdAt: String(value.createdAt || new Date().toISOString()),
-      messages: messages.map((message, index) => {
+      messages: messages.map((message: any, index: number) => {
         const indexCandidate = Number(message?.index);
         const role = String(message?.role || 'assistant')
           .trim()
@@ -121,7 +121,7 @@
   };
 
   /** Returns a human-readable role label for exported message rows. */
-  const formatRole = (role) => {
+  const formatRole = (role: any) => {
     const safeRole = String(role || 'unknown')
       .trim()
       .toLowerCase();
@@ -131,7 +131,7 @@
   };
 
   /** Returns a timestamp prefix when enabled by preferences. */
-  const buildTimestampPrefix = (message, prefs) => {
+  const buildTimestampPrefix = (message: any, prefs: any) => {
     if (!prefs.includeTimestamps) {
       return '';
     }
@@ -146,7 +146,7 @@
     return `[${stamp.toLocaleTimeString()}] `;
   };
 
-  const isMessageBookmarked = (message, index, prefs) => {
+  const isMessageBookmarked = (message: any, index: any, prefs: any) => {
     if (message?.bookmarkMeta?.isBookmarked) {
       return true;
     }
@@ -157,11 +157,11 @@
     return prefs.bookmarkedIndices.has(index);
   };
 
-  const bookmarkTag = (message, index, prefs) =>
+  const bookmarkTag = (message: any, index: any, prefs: any) =>
     isMessageBookmarked(message, index, prefs) ? ' ⭐' : '';
-  const bookmarkPrefix = (message, index, prefs) =>
+  const bookmarkPrefix = (message: any, index: any, prefs: any) =>
     isMessageBookmarked(message, index, prefs) ? '⭐ ' : '';
-  const getRoleIcon = (role) => {
+  const getRoleIcon = (role: any) => {
     const safeRole = String(role || 'unknown')
       .trim()
       .toLowerCase();
@@ -171,18 +171,18 @@
   };
 
   /** Returns plain message text rows in original order. */
-  const getMessageTextRows = (chat, prefs) =>
+  const getMessageTextRows = (chat: any, prefs: any) =>
     (chat.messages || [])
-      .map((message, index) =>
+      .map((message: any, index: any) =>
         `${bookmarkPrefix(message, index, prefs)}${String(message?.text || '').trim()}`.trim()
       )
       .filter(Boolean);
 
   /** Returns one merged text block for combined export mode. */
-  const getCombinedText = (chat, prefs) => getMessageTextRows(chat, prefs).join('\n\n').trim();
+  const getCombinedText = (chat: any, prefs: any) => getMessageTextRows(chat, prefs).join('\n\n').trim();
 
   /** Maps user-facing font selection to an available jsPDF font family. */
-  const resolvePdfFont = (fontStyle) => {
+  const resolvePdfFont = (fontStyle: any) => {
     const normalized = String(fontStyle || '').toLowerCase();
 
     if (normalized.includes('jetbrains')) {
@@ -197,7 +197,7 @@
   };
 
   /** Converts background preference into export-ready hex color and text color values. */
-  const resolveBackgroundColors = (prefs) => {
+  const resolveBackgroundColors = (prefs: any) => {
     const choice = String(prefs.background || 'dark').toLowerCase();
 
     if (choice === 'light') {
@@ -223,7 +223,7 @@
     return { page: '#18181c', text: '#f5f5f5' };
   };
 
-  const resolveImageColors = (prefs) => {
+  const resolveImageColors = (prefs: any) => {
     const base = resolveBackgroundColors(prefs);
     const background = String(base.page || '#18181c');
     const text = String(base.text || '#f5f5f5');
@@ -251,25 +251,28 @@
   };
 
   /** Converts a hex color string into RGB tuple values for jsPDF drawing APIs. */
-  const hexToRgb = (hexColor) => {
+  const hexToRgb = (hexColor: any): [number, number, number] => {
     const hex = String(hexColor || '#000000').replace('#', '');
 
     if (hex.length === 3) {
+      const r = hex[0] || '0';
+      const g = hex[1] || '0';
+      const b = hex[2] || '0';
       return [
-        parseInt(hex[0] + hex[0], 16),
-        parseInt(hex[1] + hex[1], 16),
-        parseInt(hex[2] + hex[2], 16),
+        parseInt(r + r, 16),
+        parseInt(g + g, 16),
+        parseInt(b + b, 16),
       ];
     }
 
     return [
-      parseInt(hex.slice(0, 2), 16),
-      parseInt(hex.slice(2, 4), 16),
-      parseInt(hex.slice(4, 6), 16),
+      parseInt(hex.slice(0, 2), 16) || 0,
+      parseInt(hex.slice(2, 4), 16) || 0,
+      parseInt(hex.slice(4, 6), 16) || 0,
     ];
   };
 
-  const normalizeFileExtension = (extension) => {
+  const normalizeFileExtension = (extension: any) => {
     const raw = String(extension || '')
       .toLowerCase()
       .replace(/^\./, '');
@@ -279,7 +282,7 @@
   };
 
   /** Builds a human-readable export filename from content and platform/date values. */
-  const buildFilename = (chat, extension, prefs = {}) => {
+  const buildFilename = (chat: any, extension: any, prefs: any = {}) => {
     const ext = normalizeFileExtension(extension);
     if (window.SmartName?.getFilename) {
       return window.SmartName.getFilename(
@@ -297,7 +300,7 @@
   };
 
   /** Builds a YAML-style metadata block for text exports. */
-  const buildYamlMetadata = (chat, options) => {
+  const buildYamlMetadata = (chat: any, options: any) => {
     if (options.metadataPosition === 'none') return '';
     const lines = ['---'];
     if (options.includePlatformLabel) lines.push(`platform: ${chat.platform}`);
@@ -310,7 +313,7 @@
   };
 
   /** Converts chat data to markdown with optional metadata controls from prefs. */
-  const toMarkdown = async (chat, prefs = {}) => {
+  const toMarkdown = async (chat: any, prefs: any = {}) => {
     const options = normalizePrefs(prefs);
     const normalizedChat = normalizeChat(chat, options);
     const metadataBlock = buildYamlMetadata(normalizedChat, options);
@@ -352,7 +355,7 @@
   };
 
   /** Converts chat data to plain text with optional metadata controls from prefs. */
-  const toTXT = async (chat, prefs = {}) => {
+  const toTXT = async (chat: any, prefs: any = {}) => {
     const options = normalizePrefs(prefs);
     const normalizedChat = normalizeChat(chat, options);
     const metadataBlock = buildYamlMetadata(normalizedChat, options);
@@ -403,7 +406,7 @@
   };
 
   /** Converts chat data to Notion-compatible markdown. */
-  const toNotion = async (chat, prefs = {}) => {
+  const toNotion = async (chat: any, prefs: any = {}) => {
     const options = normalizePrefs(prefs);
     const normalizedChat = normalizeChat(chat, options);
     const metadataBlock = buildYamlMetadata(normalizedChat, options);
@@ -463,7 +466,7 @@
   };
 
   /** Converts chat data to Obsidian-compatible markdown. */
-  const toObsidian = async (chat, prefs = {}) => {
+  const toObsidian = async (chat: any, prefs: any = {}) => {
     const options = normalizePrefs(prefs);
     const normalizedChat = normalizeChat(chat, options);
     const title = options.headerText || normalizedChat.title;
@@ -524,7 +527,7 @@
   };
 
   /** Ensures there is enough vertical space on the current PDF page before writing text. */
-  const ensurePdfSpace = async (doc, y, lineHeight, margin, pageHeight, backgroundRgb) => {
+  const ensurePdfSpace = async (doc: any, y: any, lineHeight: any, margin: any, pageHeight: any, backgroundRgb: any) => {
     if (y <= pageHeight - margin) {
       return y;
     }
@@ -538,14 +541,14 @@
 
   /** Writes wrapped text into a PDF and returns the next y position with overflow handling. */
   const writePdfLine = async (
-    doc,
-    text,
-    y,
-    pageHeight,
-    margin,
-    maxWidth,
-    lineHeight,
-    backgroundRgb
+    doc: any,
+    text: any,
+    y: any,
+    pageHeight: any,
+    margin: any,
+    maxWidth: any,
+    lineHeight: any,
+    backgroundRgb: any
   ) => {
     const wrappedLines = doc.splitTextToSize(String(text || ''), maxWidth);
     let nextY = y;
@@ -561,7 +564,7 @@
     return nextY;
   };
 
-  const resolveCanvasFontFamily = (fontStyle) => {
+  const resolveCanvasFontFamily = (fontStyle: any) => {
     const normalized = String(fontStyle || '').toLowerCase();
     if (normalized.includes('jetbrains'))
       return "'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace";
@@ -572,12 +575,12 @@
     return "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
   };
 
-  const wrapTextByWidth = (ctx, text, maxWidth) => {
+  const wrapTextByWidth = (ctx: any, text: any, maxWidth: any) => {
     const source = String(text || '').replace(/\r\n/g, '\n');
     const paragraphs = source.split('\n');
-    const lines = [];
+    const lines: string[] = [];
 
-    const splitLongWord = (word) => {
+    const splitLongWord = (word: any) => {
       const chunks = [];
       let current = '';
       for (const ch of word) {
@@ -623,7 +626,7 @@
         }
 
         lines.push(...chunks.slice(0, -1));
-        current = chunks[chunks.length - 1];
+        current = chunks[chunks.length - 1] || '';
       });
 
       if (current) lines.push(current);
@@ -633,7 +636,7 @@
     return lines;
   };
 
-  const drawRoundedRect = (ctx, x, y, width, height, radius, fillStyle, strokeStyle) => {
+  const drawRoundedRect = (ctx: any, x: any, y: any, width: any, height: any, radius: any, fillStyle: any, strokeStyle: any) => {
     const r = Math.max(0, Math.min(radius, Math.min(width, height) / 2));
     ctx.beginPath();
     ctx.moveTo(x + r, y);
@@ -657,7 +660,7 @@
     }
   };
 
-  const toImage = async (chat, prefs = {}, imageFormat = 'png') => {
+  const toImage = async (chat: any, prefs: any = {}, imageFormat = 'png') => {
     if (typeof document === 'undefined') {
       throw new Error('Image export requires a document context.');
     }
@@ -798,8 +801,7 @@
     y += 18;
     let truncated = false;
 
-    for (let index = 0; index < cards.length; index += 1) {
-      const card = cards[index];
+    for (const card of cards) {
       if (y + card.cardHeight + verticalPadding > canvasHeight) {
         truncated = true;
         break;
@@ -871,7 +873,7 @@
   };
 
   /** Converts chat data into a paginated PDF ArrayBuffer using jsPDF with style prefs. */
-  const toPDF = async (chat, prefs = {}) => {
+  const toPDF = async (chat: any, prefs: any = {}) => {
     const options = normalizePrefs(prefs);
     const normalizedChat = normalizeChat(chat, options);
 
@@ -883,7 +885,7 @@
       throw new Error('jsPDF is not loaded in the current context.');
     }
 
-    const doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4', putOnlyUsedFonts: true });
+    const doc = new (window as any).jspdf.jsPDF({ unit: 'pt', format: 'a4', putOnlyUsedFonts: true });
     const margin = 40;
     const pageHeight = doc.internal.pageSize.getHeight();
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -1012,7 +1014,7 @@
   };
 
   /** Downloads content as a file via a Blob-backed temporary anchor. */
-  const downloadBlob = (content, filename, mimeType) => {
+  const downloadBlob = (content: any, filename: any, mimeType: any) => {
     const blob = content instanceof Blob ? content : new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -1025,7 +1027,7 @@
   };
 
   /** Routes chat export to supported formats and returns operation status. */
-  const exportChat = async (chat, format = 'md', prefs = {}) => {
+  const exportChat = async (chat: any, format = 'md', prefs: any = {}) => {
     try {
       const normalized = String(format || 'md').toLowerCase();
       const options = normalizePrefs(prefs);
@@ -1081,16 +1083,23 @@
       }
 
       return { ok: false, error: `Unsupported export format: ${format}` };
-    } catch (error) {
+    } catch (error: any) {
       return { ok: false, error: error.message };
     }
   };
 
   /** Converts chat data to a clean structured JSON string for export. */
-  const toJSON = async (chat, prefs = {}) => {
+  const toJSON = async (chat: any, prefs: any = {}) => {
     const normalizedChat = normalizeChat(chat);
     const options = normalizePrefs(prefs);
-    const output = {
+    const output: {
+      title: string;
+      exportedAt?: string | null;
+      messageCount: number;
+      combinedText?: string;
+      messages?: any[];
+      platform?: string;
+    } = {
       title: normalizedChat.title,
       exportedAt: options.includeExportDate ? new Date().toISOString() : null,
       messageCount: normalizedChat.messages.length,
@@ -1099,8 +1108,8 @@
     if (options.contentMode === 'combined') {
       output.combinedText = getCombinedText(normalizedChat, options);
     } else {
-      output.messages = normalizedChat.messages.map((message, index) => {
-        const entry = {
+      output.messages = normalizedChat.messages.map((message: any, index: any) => {
+        const entry: any = {
           role: String(message.role || 'unknown').trim(),
           text: String(message.text || '').trim(),
           bookmarked: isMessageBookmarked(message, index, options),
@@ -1124,7 +1133,7 @@
   };
 
   /** Converts chat data into clipboard-optimized plain text without dividers. */
-  const toClipboardText = async (chat, prefs = {}) => {
+  const toClipboardText = async (chat: any, prefs: any = {}) => {
     const options = normalizePrefs(prefs);
     const normalizedChat = normalizeChat(chat, options);
     const lines = [`💬 ${normalizedChat.title}`];
@@ -1186,3 +1195,5 @@
     window.Exporter = Exporter;
   }
 })();
+
+export {};
