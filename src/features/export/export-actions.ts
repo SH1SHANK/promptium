@@ -149,10 +149,14 @@
         await persistExportHistory(payload);
         await (window.ExportPayloadUI as any).setStatus('JSON export complete.');
       } catch (err: any) {
-        await (window.ExportPayloadUI as any).setStatus(err?.message || 'JSON export failed.', true, {
-          showRetry: true,
-          debugHint: 'Retry the export. If it fails again, refresh the workspace.',
-        });
+        await (window.ExportPayloadUI as any).setStatus(
+          err?.message || 'JSON export failed.',
+          true,
+          {
+            showRetry: true,
+            debugHint: 'Retry the export. If it fails again, refresh the workspace.',
+          }
+        );
       }
       return;
     }
@@ -178,10 +182,14 @@
       await persistExportHistory(payload);
       await (window.ExportPayloadUI as any).setStatus('PDF export complete.');
     } catch (error: any) {
-      await (window.ExportPayloadUI as any).setStatus(error?.message || 'PDF export failed.', true, {
-        showRetry: true,
-        debugHint: 'Retry export. If it keeps failing, switch format and test again.',
-      });
+      await (window.ExportPayloadUI as any).setStatus(
+        "Couldn't generate the PDF because the conversation couldn't be parsed.",
+        true,
+        {
+          showRetry: true,
+          debugHint: 'Try exporting as Markdown instead.',
+        }
+      );
     }
   };
 
@@ -368,4 +376,3 @@
 })();
 
 export {};
-

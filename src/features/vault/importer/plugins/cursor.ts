@@ -16,7 +16,7 @@ export const cursorPlugin: ImporterPlugin = {
     try {
       if (content.trim().startsWith('{')) {
         const parsed = JSON.parse(content);
-        
+
         // Extract instruction rules
         if (parsed.rules && Array.isArray(parsed.rules)) {
           parsed.rules.forEach((rule: any, idx: number) => {
@@ -28,11 +28,11 @@ export const cursorPlugin: ImporterPlugin = {
               content: ruleText,
               type: 'instruction',
               confidence: 0.95,
-              tags: ['cursor', 'imported']
+              tags: ['cursor', 'imported'],
             });
           });
         }
-        
+
         // Extract project context description
         if (parsed.context || parsed.description) {
           drafts.push({
@@ -41,8 +41,8 @@ export const cursorPlugin: ImporterPlugin = {
             title: `${fileName} Context`,
             content: parsed.context || parsed.description,
             type: 'knowledge',
-            confidence: 0.90,
-            tags: ['cursor', 'imported', 'context']
+            confidence: 0.9,
+            tags: ['cursor', 'imported', 'context'],
           });
         }
       }
@@ -61,7 +61,7 @@ export const cursorPlugin: ImporterPlugin = {
         if (!text) return;
 
         const classification = classifyContent(currentTitle, text, fileName);
-        
+
         drafts.push({
           id: `draft_${Date.now()}_cursor_md_${Math.random().toString(36).substr(2, 9)}`,
           originalSource: fileName,
@@ -69,7 +69,7 @@ export const cursorPlugin: ImporterPlugin = {
           content: text,
           type: classification.type,
           confidence: classification.confidence,
-          tags: ['cursor', 'imported']
+          tags: ['cursor', 'imported'],
         });
         currentContent = [];
       };
@@ -86,5 +86,5 @@ export const cursorPlugin: ImporterPlugin = {
     }
 
     return drafts;
-  }
+  },
 };

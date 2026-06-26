@@ -144,13 +144,13 @@ export const createBuiltinCommands = (): Command[] => {
   });
 
   builtinCommands.push({
-    id: 'search-bookmark',
-    title: 'Search Bookmarks',
-    description: 'Find bookmarks by title or URL',
+    id: 'search-clipping',
+    title: 'Search Clippings',
+    description: 'Find clippings by text, note, or tag',
     category: 'search',
-    icon: '🔖',
+    icon: '📎',
     execute: () => {
-      window.dispatchEvent(new CustomEvent('promptium:search-bookmarks'));
+      window.dispatchEvent(new CustomEvent('promptium:search-clippings'));
     },
   });
 
@@ -391,13 +391,13 @@ export const createBuiltinCommands = (): Command[] => {
   });
 
   builtinCommands.push({
-    id: 'go-bookmarks',
-    title: 'Go To Bookmarks',
-    description: 'View bookmarks',
+    id: 'go-clippings',
+    title: 'Go To Clippings',
+    description: 'View clippings workspace',
     category: 'navigation',
-    icon: '🔖',
+    icon: '📎',
     execute: () => {
-      window.location.hash = '#bookmarks';
+      window.location.hash = '#clippings';
     },
   });
 

@@ -8,6 +8,8 @@ export function createFabElement(): HTMLButtonElement {
   button.id = 'pn-fab-launcher';
   button.type = 'button';
   button.setAttribute('aria-label', 'Open Promptium');
+  button.setAttribute('aria-haspopup', 'menu');
+  button.setAttribute('aria-expanded', 'false');
 
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('class', 'pn-fab-icon');

@@ -12,7 +12,7 @@ export const agentsPlugin: ImporterPlugin = {
   parse: async (fileName, content) => {
     const lines = content.split('\n');
     const drafts: ParsedImportDraft[] = [];
-    
+
     let currentTitle = 'Agent Context';
     let currentContent: string[] = [];
 
@@ -24,12 +24,20 @@ export const agentsPlugin: ImporterPlugin = {
       let type: 'knowledge' | 'instruction' | 'skill' = 'knowledge';
       let confidence = 0.85;
 
-      if (lowerTitle.includes('responsibility') || lowerTitle.includes('role') || lowerTitle.includes('persona')) {
+      if (
+        lowerTitle.includes('responsibility') ||
+        lowerTitle.includes('role') ||
+        lowerTitle.includes('persona')
+      ) {
         type = 'skill';
-        confidence = 0.90;
-      } else if (lowerTitle.includes('guideline') || lowerTitle.includes('workflow') || lowerTitle.includes('criteria')) {
+        confidence = 0.9;
+      } else if (
+        lowerTitle.includes('guideline') ||
+        lowerTitle.includes('workflow') ||
+        lowerTitle.includes('criteria')
+      ) {
         type = 'instruction';
-        confidence = 0.90;
+        confidence = 0.9;
       } else {
         const fallback = classifyContent(currentTitle, text, fileName);
         type = fallback.type;
@@ -43,7 +51,7 @@ export const agentsPlugin: ImporterPlugin = {
         content: text,
         type,
         confidence,
-        tags: ['agents', 'imported']
+        tags: ['agents', 'imported'],
       });
       currentContent = [];
     };
@@ -59,5 +67,5 @@ export const agentsPlugin: ImporterPlugin = {
     flush();
 
     return drafts;
-  }
+  },
 };

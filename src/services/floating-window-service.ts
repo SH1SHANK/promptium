@@ -1,5 +1,8 @@
 import { OpenSource } from '../types/window-manager';
 import { WindowStore } from '../stores/window-store';
+import { createLogger } from '../core/logger';
+
+const logger = createLogger('FloatingWindow');
 
 export class FloatingWindowService {
   async initialize(): Promise<void> {
@@ -16,14 +19,26 @@ export class FloatingWindowService {
     }
   }
 
-  async open(_source: OpenSource): Promise<void> {
+  async open(_source: OpenSource, route = ''): Promise<void> {
     const state = await WindowStore.getState();
-    
+    const targetUrl = chrome.runtime.getURL(
+      route ? `app.html#${String(route).replace(/^#/, '')}` : 'app.html'
+    );
+
     if (state.windowId !== null) {
       try {
         const win = await chrome.windows.get(state.windowId);
         if (win && win.id !== undefined && win.type === 'popup') {
           await chrome.windows.update(win.id, { focused: true });
+          if (route) {
+            const tabs = await chrome.tabs.query({ windowId: win.id }).catch(() => []);
+            const tab =
+              tabs.find((item) =>
+                String(item.url || '').startsWith(chrome.runtime.getURL('app.html'))
+              ) || tabs[0];
+            if (tab?.id)
+              await chrome.tabs.update(tab.id, { active: true, url: targetUrl }).catch(() => {});
+          }
           return;
         }
       } catch {
@@ -42,11 +57,9 @@ export class FloatingWindowService {
       top = placement.top;
     }
 
-    const base = chrome.runtime.getURL('app.html');
-
     try {
       const win = await chrome.windows.create({
-        url: base,
+        url: targetUrl,
         type: 'popup',
         left,
         top,
@@ -57,7 +70,12 @@ export class FloatingWindowService {
 
       if (win?.id) {
         await WindowStore.saveWindowId(win.id);
-        if (win.left !== undefined && win.top !== undefined && win.width !== undefined && win.height !== undefined) {
+        if (
+          win.left !== undefined &&
+          win.top !== undefined &&
+          win.width !== undefined &&
+          win.height !== undefined
+        ) {
           await WindowStore.saveBounds({
             left: win.left,
             top: win.top,
@@ -67,7 +85,7 @@ export class FloatingWindowService {
         }
       }
     } catch (error) {
-      console.error('[Promptium][FloatingWindow] Failed to create window:', error);
+      logger.error('Failed to create window.', error);
     }
   }
 
@@ -123,7 +141,12 @@ export class FloatingWindowService {
   private async calculatePlacement(width: number): Promise<{ left: number; top: number }> {
     try {
       const focusedWindow = await chrome.windows.getLastFocused().catch(() => null);
-      if (focusedWindow && focusedWindow.left !== undefined && focusedWindow.top !== undefined && focusedWindow.width !== undefined) {
+      if (
+        focusedWindow &&
+        focusedWindow.left !== undefined &&
+        focusedWindow.top !== undefined &&
+        focusedWindow.width !== undefined
+      ) {
         const left = Math.max(0, focusedWindow.left + focusedWindow.width - width - 24);
         const top = Math.max(0, focusedWindow.top + 56);
         return { left, top };
@@ -154,7 +177,12 @@ if (typeof chrome !== 'undefined' && chrome.windows) {
     void (async () => {
       const state = await WindowStore.getState();
       if (win.id === state.windowId) {
-        if (win.left !== undefined && win.top !== undefined && win.width !== undefined && win.height !== undefined) {
+        if (
+          win.left !== undefined &&
+          win.top !== undefined &&
+          win.width !== undefined &&
+          win.height !== undefined
+        ) {
           if (boundsSaveTimer) {
             clearTimeout(boundsSaveTimer);
           }

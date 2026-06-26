@@ -1,177 +1,235 @@
-(() => {
-  /**
-   * File: utils/pn-dialog.js
-   * Purpose: Lightweight custom dialog replacement for window.prompt/window.confirm/window.alert.
-   * Matches the Promptium dark theme design system.
-   */
+/**
+ * File: utils/pn-dialog.ts
+ * Purpose: Lightweight custom dialog replacement for window.prompt/window.confirm/window.alert.
+ * Implements strict keyboard trapping, Escape handling, Enter defaults, and focus restoration.
+ */
 
-  const DIALOG_WRAPPER_ID = 'pn-dialog-overlay';
+const DIALOG_WRAPPER_ID = 'pn-dialog-overlay';
+let previousActiveElement: HTMLElement | null = null;
 
-  const removeExisting = () => {
-    document.getElementById(DIALOG_WRAPPER_ID)?.remove();
+const removeExisting = () => {
+  document.getElementById(DIALOG_WRAPPER_ID)?.remove();
+  if (previousActiveElement) {
+    previousActiveElement.focus();
+    previousActiveElement = null;
+  }
+};
+
+const createOverlay = () => {
+  previousActiveElement = document.activeElement as HTMLElement | null;
+  removeExisting();
+
+  const overlay = document.createElement('div');
+  overlay.id = DIALOG_WRAPPER_ID;
+  overlay.className = 'pn-dialog-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('pn-dialog-overlay--visible'));
+  return overlay;
+};
+
+const setupKeyboardTrap = (overlay: HTMLElement, dialog: HTMLElement, onCancel: () => void, onConfirm?: () => void) => {
+  const getFocusable = () => {
+    return Array.from(
+      dialog.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      )
+    ).filter((el) => {
+      return !el.hasAttribute('disabled') && el.style.display !== 'none';
+    });
   };
 
-  const createOverlay = () => {
-    removeExisting();
-
-    const overlay = document.createElement('div');
-    overlay.id = DIALOG_WRAPPER_ID;
-    overlay.className = 'pn-dialog-overlay';
-    overlay.setAttribute('role', 'dialog');
-    overlay.setAttribute('aria-modal', 'true');
-    document.body.appendChild(overlay);
-    requestAnimationFrame(() => overlay.classList.add('pn-dialog-overlay--visible'));
-    return overlay;
-  };
-
-  const createDialog = (title: string, body: string | HTMLElement, actions: HTMLElement[]) => {
-    const overlay = createOverlay();
-
-    const dialog = document.createElement('div');
-    dialog.className = 'pn-dialog';
-
-    const titleEl = document.createElement('h3');
-    titleEl.className = 'pn-dialog__title';
-    titleEl.textContent = String(title || '');
-    dialog.appendChild(titleEl);
-
-    if (typeof body === 'string') {
-      const msg = document.createElement('p');
-      msg.className = 'pn-dialog__message';
-      msg.textContent = body;
-      dialog.appendChild(msg);
-    } else if (body instanceof HTMLElement) {
-      dialog.appendChild(body);
+  overlay.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      onCancel();
+      return;
     }
 
-    const actionsWrap = document.createElement('div');
-    actionsWrap.className = 'pn-dialog__actions';
-    actions.forEach((action) => actionsWrap.appendChild(action));
-    dialog.appendChild(actionsWrap);
+    if (e.key === 'Enter' && onConfirm) {
+      const active = document.activeElement;
+      // If we are focused on a button, let the default click happen. Otherwise, trigger default confirm.
+      if (active && active.tagName === 'BUTTON') {
+        return;
+      }
+      e.preventDefault();
+      onConfirm();
+      return;
+    }
 
-    overlay.appendChild(dialog);
-    return { overlay, dialog };
-  };
+    if (e.key === 'Tab') {
+      const focusables = getFocusable();
+      if (focusables.length === 0) {
+        e.preventDefault();
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (!first || !last) return;
 
-  /**
-   * Replacement for window.alert().
-   * Returns a Promise that resolves when the user closes the dialog.
-   */
-  const alert = (message: string, { title = '' } = {}): Promise<void> =>
-    new Promise<void>((resolve) => {
-      const okBtn = document.createElement('button');
-      okBtn.className = 'pn-btn pn-btn--primary pn-dialog__btn';
-      okBtn.textContent = 'OK';
-      okBtn.addEventListener('click', () => {
-        removeExisting();
-        resolve();
-      });
-
-      createDialog(title || 'Notice', message, [okBtn]);
-      okBtn.focus();
-    });
-
-  /**
-   * Replacement for window.confirm().
-   * Returns a Promise<boolean>.
-   */
-  const confirm = (
-    message: string,
-    { title = '', confirmLabel = 'Confirm', cancelLabel = 'Cancel', danger = false } = {}
-  ): Promise<boolean> =>
-    new Promise<boolean>((resolve) => {
-      const cancelBtn = document.createElement('button');
-      cancelBtn.className = 'pn-btn pn-btn--ghost pn-dialog__btn';
-      cancelBtn.textContent = cancelLabel;
-      cancelBtn.addEventListener('click', () => {
-        removeExisting();
-        resolve(false);
-      });
-
-      const confirmBtn = document.createElement('button');
-      confirmBtn.className = `pn-btn ${danger ? 'pn-btn--danger' : 'pn-btn--primary'} pn-dialog__btn`;
-      confirmBtn.textContent = confirmLabel;
-      confirmBtn.addEventListener('click', () => {
-        removeExisting();
-        resolve(true);
-      });
-
-      const { overlay } = createDialog(title || 'Confirm', message, [cancelBtn, confirmBtn]);
-      confirmBtn.focus();
-
-      overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) {
-          removeExisting();
-          resolve(false);
-        }
-      });
-    });
-
-  /**
-   * Replacement for window.prompt().
-   * Returns a Promise<string|null>. Resolves null on cancel.
-   */
-  const prompt = (message: string, defaultValue = '', { title = '', placeholder = '' } = {}): Promise<string | null> =>
-    new Promise<string | null>((resolve) => {
-      const body = document.createElement('div');
-      body.className = 'pn-dialog__body';
-
-      const label = document.createElement('p');
-      label.className = 'pn-dialog__message';
-      label.textContent = String(message || '');
-      body.appendChild(label);
-
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.className = 'pn-dialog__input';
-      input.value = String(defaultValue || '');
-      input.placeholder = String(placeholder || '');
-      body.appendChild(input);
-
-      const cancelBtn = document.createElement('button');
-      cancelBtn.className = 'pn-btn pn-btn--ghost pn-dialog__btn';
-      cancelBtn.textContent = 'Cancel';
-      cancelBtn.addEventListener('click', () => {
-        removeExisting();
-        resolve(null);
-      });
-
-      const okBtn = document.createElement('button');
-      okBtn.className = 'pn-btn pn-btn--primary pn-dialog__btn';
-      okBtn.textContent = 'OK';
-      okBtn.addEventListener('click', () => {
-        removeExisting();
-        resolve(input.value);
-      });
-
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          last.focus();
           e.preventDefault();
-          removeExisting();
-          resolve(input.value);
         }
-        if (e.key === 'Escape') {
+      } else {
+        if (document.activeElement === last) {
+          first.focus();
           e.preventDefault();
-          removeExisting();
-          resolve(null);
         }
-      });
+      }
+    }
+  });
+};
 
-      const { overlay } = createDialog(title || 'Input', body, [cancelBtn, okBtn]);
-      input.focus();
-      input.select();
+const createDialog = (
+  title: string,
+  body: string | HTMLElement,
+  actions: HTMLElement[],
+  onCancel: () => void,
+  onConfirm?: () => void
+) => {
+  const overlay = createOverlay();
 
-      overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) {
-          removeExisting();
-          resolve(null);
-        }
-      });
-    });
+  const dialog = document.createElement('div');
+  dialog.className = 'pn-dialog';
 
-  const PnDialog = { alert, confirm, prompt };
+  const titleEl = document.createElement('h3');
+  titleEl.className = 'pn-dialog__title';
+  titleEl.textContent = String(title || '');
+  dialog.appendChild(titleEl);
 
-  if (typeof window !== 'undefined') {
-    (window as any).PnDialog = PnDialog;
+  if (typeof body === 'string') {
+    const msg = document.createElement('p');
+    msg.className = 'pn-dialog__message';
+    msg.textContent = body;
+    dialog.appendChild(msg);
+  } else if (body instanceof HTMLElement) {
+    dialog.appendChild(body);
   }
-})();
+
+  const actionsWrap = document.createElement('div');
+  actionsWrap.className = 'pn-dialog__actions';
+  actions.forEach((action) => actionsWrap.appendChild(action));
+  dialog.appendChild(actionsWrap);
+
+  overlay.appendChild(dialog);
+
+  setupKeyboardTrap(overlay, dialog, onCancel, onConfirm);
+
+  return { overlay, dialog };
+};
+
+/**
+ * Replacement for window.alert().
+ */
+export const alert = (message: string, { title = 'Notice' } = {}): Promise<void> =>
+  new Promise<void>((resolve) => {
+    const okBtn = document.createElement('button');
+    okBtn.className = 'pn-btn pn-btn--primary pn-dialog__btn';
+    okBtn.textContent = 'OK';
+    const closeAlert = () => {
+      removeExisting();
+      resolve();
+    };
+    okBtn.addEventListener('click', closeAlert);
+
+    createDialog(title, message, [okBtn], closeAlert, closeAlert);
+    okBtn.focus();
+  });
+
+/**
+ * Replacement for window.confirm().
+ */
+export const confirm = (
+  message: string,
+  { title = 'Confirm', confirmLabel = 'Confirm', cancelLabel = 'Cancel', danger = false } = {}
+): Promise<boolean> =>
+  new Promise<boolean>((resolve) => {
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'pn-btn pn-btn--ghost pn-dialog__btn';
+    cancelBtn.textContent = cancelLabel;
+    const doCancel = () => {
+      removeExisting();
+      resolve(false);
+    };
+    cancelBtn.addEventListener('click', doCancel);
+
+    const confirmBtn = document.createElement('button');
+    confirmBtn.className = `pn-btn ${danger ? 'pn-btn--danger' : 'pn-btn--primary'} pn-dialog__btn`;
+    confirmBtn.textContent = confirmLabel;
+    const doConfirm = () => {
+      removeExisting();
+      resolve(true);
+    };
+    confirmBtn.addEventListener('click', doConfirm);
+
+    const { overlay } = createDialog(title, message, [cancelBtn, confirmBtn], doCancel, doConfirm);
+    confirmBtn.focus();
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        doCancel();
+      }
+    });
+  });
+
+/**
+ * Replacement for window.prompt().
+ */
+export const prompt = (
+  message: string,
+  defaultValue = '',
+  { title = 'Input', placeholder = '' } = {}
+): Promise<string | null> =>
+  new Promise<string | null>((resolve) => {
+    const body = document.createElement('div');
+    body.className = 'pn-dialog__body';
+
+    const label = document.createElement('p');
+    label.className = 'pn-dialog__message';
+    label.textContent = String(message || '');
+    body.appendChild(label);
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'pn-dialog__input';
+    input.value = String(defaultValue || '');
+    input.placeholder = String(placeholder || '');
+    body.appendChild(input);
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'pn-btn pn-btn--ghost pn-dialog__btn';
+    cancelBtn.textContent = 'Cancel';
+    const doCancel = () => {
+      removeExisting();
+      resolve(null);
+    };
+    cancelBtn.addEventListener('click', doCancel);
+
+    const okBtn = document.createElement('button');
+    okBtn.className = 'pn-btn pn-btn--primary pn-dialog__btn';
+    okBtn.textContent = 'OK';
+    const doConfirm = () => {
+      removeExisting();
+      resolve(input.value);
+    };
+    okBtn.addEventListener('click', doConfirm);
+
+    const { overlay } = createDialog(title, body, [cancelBtn, okBtn], doCancel, doConfirm);
+    input.focus();
+    input.select();
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        doCancel();
+      }
+    });
+  });
+
+export const PnDialog = { alert, confirm, prompt };
+
+if (typeof window !== 'undefined') {
+  (window as any).PnDialog = PnDialog;
+}

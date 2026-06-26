@@ -36,12 +36,16 @@ export const analyzePrompt = async (text: string): Promise<PromptIssue[]> => {
   try {
     const linter = await getHarperLinter();
     const lints = await linter.lint(text);
-    
+
     const harperIssues: PromptIssue[] = lints.map((lint: any, idx: number) => {
       const lintKind = lint.lint_kind();
-      
+
       let category: PromptIssue['category'] = 'clarity';
-      if (['Grammar', 'Agreement', 'Capitalization', 'Punctuation', 'Spelling', 'Typo'].includes(lintKind)) {
+      if (
+        ['Grammar', 'Agreement', 'Capitalization', 'Punctuation', 'Spelling', 'Typo'].includes(
+          lintKind
+        )
+      ) {
         category = 'grammar';
       } else if (['Redundancy', 'Repetition'].includes(lintKind)) {
         category = 'redundancy';
@@ -50,16 +54,17 @@ export const analyzePrompt = async (text: string): Promise<PromptIssue[]> => {
       } else if (['Readability', 'WordChoice', 'Enhancement'].includes(lintKind)) {
         category = 'clarity';
       }
-      
+
       let severity: PromptIssue['severity'] = 'low';
       if (category === 'grammar') {
         severity = 'medium';
       } else if (category === 'clarity') {
         severity = 'medium';
       }
-      
+
       const suggestions = lint.suggestions();
-      const replacement = suggestions.length > 0 ? suggestions[0].get_replacement_text() : undefined;
+      const replacement =
+        suggestions.length > 0 ? suggestions[0].get_replacement_text() : undefined;
       const span = lint.span();
 
       return {
@@ -69,13 +74,13 @@ export const analyzePrompt = async (text: string): Promise<PromptIssue[]> => {
         original: lint.get_problem_text(),
         replacement,
         explanation: lint.message(),
-        span: { start: span.start, end: span.end }
+        span: { start: span.start, end: span.end },
       };
     });
 
     return [...localIssues, ...harperIssues];
   } catch (error) {
-    console.error("Failed to run Harper linter, fallback to local rules:", error);
+    console.error('Failed to run Harper linter, fallback to local rules:', error);
     return localIssues;
   }
 };
@@ -90,16 +95,16 @@ export const runIntelligencePipeline = async (text: string): Promise<PromptAnaly
   const [issues, intent, tokenMetrics] = await Promise.all([
     analyzePrompt(text),
     extractIntent(text),
-    calculateTokens(text)
+    calculateTokens(text),
   ]);
 
   return {
     issues,
     intent,
-    tokenMetrics
+    tokenMetrics,
   };
 };
 
 export const analyzePrompts = async (texts: string[]): Promise<PromptIssue[][]> => {
-  return Promise.all(texts.map(text => analyzePrompt(text)));
+  return Promise.all(texts.map((text) => analyzePrompt(text)));
 };

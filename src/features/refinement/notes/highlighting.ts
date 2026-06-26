@@ -3,7 +3,10 @@ import { RefinementNote } from './types';
 /**
  * Highlights a note's selected segment inside the textarea by scrolling it into view and highlighting it.
  */
-export const highlightNoteSegment = (textarea: HTMLTextAreaElement, note: RefinementNote | null): void => {
+export const highlightNoteSegment = (
+  textarea: HTMLTextAreaElement,
+  note: RefinementNote | null
+): void => {
   if (!note) {
     // Clear selection
     textarea.setSelectionRange(textarea.value.length, textarea.value.length);

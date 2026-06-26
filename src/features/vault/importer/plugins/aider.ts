@@ -16,9 +16,9 @@ export const aiderPlugin: ImporterPlugin = {
         title: `${fileName} Rules`,
         content: content.trim(),
         type: 'instruction',
-        confidence: 0.90,
-        tags: ['aider', 'imported']
-      }
+        confidence: 0.9,
+        tags: ['aider', 'imported'],
+      },
     ];
-  }
+  },
 };

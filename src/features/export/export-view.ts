@@ -6,9 +6,11 @@
 export const ExportView = {
   init() {
     if ((window as any).ExportPayloadUI && (window as any).SidepanelState) {
-      (window as any).ExportPayloadUI.applyDefaultsFromSettings((window as any).SidepanelState.state.settings);
+      (window as any).ExportPayloadUI.applyDefaultsFromSettings(
+        (window as any).SidepanelState.state.settings
+      );
     }
-  }
+  },
 };
 
 if (typeof window !== 'undefined') {

@@ -15,8 +15,8 @@ export const windsurfPlugin: ImporterPlugin = {
         content: content.trim(),
         type: 'instruction',
         confidence: 0.95,
-        tags: ['windsurf', 'imported']
-      }
+        tags: ['windsurf', 'imported'],
+      },
     ];
-  }
+  },
 };

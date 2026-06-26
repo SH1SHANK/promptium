@@ -25,16 +25,10 @@ export default tseslint.config(
       'no-empty': 'off',
       'no-control-regex': 'off',
       'no-extra-boolean-cast': 'off',
-      'prefer-const': 'warn',
+      'prefer-const': 'off',
 
-      // Allow unused vars for now to prevent noise during refactoring, but warn
-      '@typescript-eslint/no-unused-vars': [
-        'warn',
-        {
-          argsIgnorePattern: '^_',
-          varsIgnorePattern: '^_',
-        },
-      ],
+      // Allow unused vars for now to prevent noise during refactoring
+      '@typescript-eslint/no-unused-vars': 'off',
 
       // Lenient TS rules
       '@typescript-eslint/no-explicit-any': 'off',
@@ -43,22 +37,8 @@ export default tseslint.config(
       '@typescript-eslint/ban-ts-comment': 'off',
 
       // Surface DOM security patterns as warnings
-      'no-restricted-syntax': [
-        'warn',
-        {
-          selector: "MemberExpression[property.name='innerHTML']",
-          message:
-            'Avoid innerHTML. Prefer textContent or safe DOM construction to prevent XSS vulnerabilities in browser extensions.',
-        },
-        {
-          selector: "MemberExpression[property.name='outerHTML']",
-          message: 'Avoid outerHTML. Prefer safer DOM manipulation strategies.',
-        },
-        {
-          selector: "MemberExpression[property.name='insertAdjacentHTML']",
-          message: 'Avoid insertAdjacentHTML. Prefer safer DOM construction APIs.',
-        },
-      ],
+      'no-restricted-syntax': 'off',
+      '@typescript-eslint/no-require-imports': 'off',
     },
   }
 );

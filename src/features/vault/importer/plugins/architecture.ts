@@ -11,7 +11,7 @@ export const architecturePlugin: ImporterPlugin = {
   parse: async (fileName, content) => {
     const lines = content.split('\n');
     const drafts: ParsedImportDraft[] = [];
-    
+
     let currentTitle = 'Architecture Specifications';
     let currentContent: string[] = [];
 
@@ -27,7 +27,7 @@ export const architecturePlugin: ImporterPlugin = {
         content: text,
         type: classification.type,
         confidence: classification.confidence,
-        tags: ['architecture', 'imported']
+        tags: ['architecture', 'imported'],
       });
       currentContent = [];
     };
@@ -43,5 +43,5 @@ export const architecturePlugin: ImporterPlugin = {
     flush();
 
     return drafts;
-  }
+  },
 };

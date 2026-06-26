@@ -5,17 +5,22 @@
 
 import { getAdapters } from '../../platforms';
 import { floatingWindowService } from '../../services/floating-window-service';
-import { SelectionPayload, PromptSaveMetadata } from './types';
+import { SelectionPayload } from './types';
 import { sendRuntimeMessage, sendTabMessage } from '../../types/messages';
+import { initVaultStore, createItem } from '../vault/store';
+import { classifyContent } from '../vault/importer/classifier';
+import { VaultItemType } from '../vault/types';
 
 // Storage keys
-const IMPROVE_PAYLOAD_KEY = 'promptiumImprovePayload';
 const CONTINUATION_KEY = 'pendingContinuation';
 const PENDING_PANEL_ACTION_KEY = 'promptiumPendingPanelAction';
-const PROMPTS_KEY = 'prompts';
+
+type SmartEntryMode = 'fix' | 'upgrade' | 'rewrite' | 'vault';
 
 function derivePromptTitle(text: string): string {
-  const compact = String(text || '').replace(/\s+/g, ' ').trim();
+  const compact = String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim();
   if (!compact) return 'Untitled Prompt';
   const first = compact.split(/[.!?]/)[0]?.trim() || compact;
   return first.slice(0, 80) || 'Untitled Prompt';
@@ -35,7 +40,10 @@ export function normalizeSelectionText(text: string): string {
     .slice(0, 50000); // 50,000 char cap
 }
 
-async function getSelectionFromTab(info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.Tab): Promise<SelectionPayload> {
+async function getSelectionFromTab(
+  info: chrome.contextMenus.OnClickData,
+  tab?: chrome.tabs.Tab
+): Promise<SelectionPayload> {
   const fallbackText = String(info.selectionText || '').trim();
   const url = String(tab?.url || info.pageUrl || '');
   const platform = detectPlatformFromUrl(url);
@@ -60,7 +68,11 @@ async function getSelectionFromTab(info: chrome.contextMenus.OnClickData, tab?: 
   return { text: fallbackText, url, platform, sourceTitle: fallbackTitle };
 }
 
-async function showToastInTab(tabId: number | undefined, text: string, toastType: 'success' | 'error' | 'info' = 'info') {
+async function showToastInTab(
+  tabId: number | undefined,
+  text: string,
+  toastType: 'success' | 'error' | 'info' = 'info'
+) {
   if (!tabId) return;
   try {
     await sendTabMessage(tabId, 'SHOW_TOAST', {
@@ -76,7 +88,103 @@ export async function openPromptiumAction(): Promise<void> {
   await floatingWindowService.open('context-menu');
 }
 
-export async function saveSelectionAction(info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.Tab): Promise<void> {
+async function openSmartWorkflow(
+  mode: SmartEntryMode,
+  selection: SelectionPayload,
+  tab?: chrome.tabs.Tab
+): Promise<void> {
+  const normalizedText = normalizeSelectionText(selection.text);
+  if (!normalizedText) return;
+
+  await chrome.storage.session.set({
+    [PENDING_PANEL_ACTION_KEY]: {
+      type: mode === 'vault' ? 'saveSelectionToVault' : 'smartRefinement',
+      mode,
+      content: normalizedText,
+      source: 'context-menu',
+      sourceTabId: tab?.id || null,
+      sourceUrl: selection.url || tab?.url || '',
+      sourceTitle: selection.sourceTitle || tab?.title || '',
+      platform:
+        selection.platform || detectPlatformFromUrl(selection.url || tab?.url || '') || null,
+      createdAt: Date.now(),
+    },
+  });
+
+  await floatingWindowService.open('context-menu', mode === 'vault' ? 'vault' : 'prompts');
+}
+
+export async function launchRefinementAction(
+  mode: Exclude<SmartEntryMode, 'vault'>,
+  info: chrome.contextMenus.OnClickData,
+  tab?: chrome.tabs.Tab
+): Promise<void> {
+  const selection = await getSelectionFromTab(info, tab);
+  const normalizedText = normalizeSelectionText(selection.text);
+
+  if (!normalizedText) {
+    if (tab?.id) {
+      await showToastInTab(tab.id, 'No text selected.', 'error');
+    }
+    return;
+  }
+
+  await openSmartWorkflow(mode, { ...selection, text: normalizedText }, tab);
+}
+
+export async function saveClippingAction(
+  info: chrome.contextMenus.OnClickData,
+  tab?: chrome.tabs.Tab
+): Promise<void> {
+  const selection = await getSelectionFromTab(info, tab);
+  const normalizedText = normalizeSelectionText(selection.text);
+
+  if (!normalizedText) {
+    if (tab?.id) {
+      await showToastInTab(tab.id, 'No text selected.', 'error');
+    }
+    return;
+  }
+
+  if (tab?.id) {
+    try {
+      const res = await sendTabMessage(tab.id, 'SAVE_CLIPPING', { text: normalizedText });
+      if (res && res.ok) {
+        return;
+      }
+    } catch (_err) {
+      // Content script not loaded, fall back
+    }
+  }
+
+  try {
+    const platform = detectPlatformFromUrl(selection.url || tab?.url || '') || 'web';
+    const clipping = {
+      id: crypto.randomUUID(),
+      platform,
+      conversationTitle: selection.sourceTitle || tab?.title || 'Conversation',
+      selectedText: normalizedText,
+      tags: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      revisionCount: 1,
+    };
+    const snap = (await chrome.storage.local.get(['clippings']).catch(() => ({}))) as any;
+    const list = Array.isArray(snap.clippings) ? snap.clippings : [];
+    list.push(clipping);
+    await chrome.storage.local.set({ clippings: list });
+    if (tab?.id) {
+      await showToastInTab(tab.id, 'Clipping saved.', 'success');
+    }
+  } catch (error) {
+    console.error('[ContextMenuLogic] Failed to save clipping fallback:', error);
+  }
+}
+
+export async function saveToVaultAction(
+  info: chrome.contextMenus.OnClickData,
+  tab?: chrome.tabs.Tab
+): Promise<void> {
   const selection = await getSelectionFromTab(info, tab);
   const normalizedText = normalizeSelectionText(selection.text);
 
@@ -89,38 +197,37 @@ export async function saveSelectionAction(info: chrome.contextMenus.OnClickData,
 
   try {
     const title = derivePromptTitle(normalizedText);
-    const newPrompt = {
-      id: crypto.randomUUID(),
+    const classification = classifyContent(title, normalizedText, selection.url || 'context-menu');
+    await initVaultStore();
+    await createItem({
+      type: classification.type as VaultItemType,
       title,
-      text: normalizedText, // compatibility field for prompt-store
-      content: normalizedText, // metadata selection field
-      sourcePlatform: selection.platform,
-      sourceUrl: selection.url,
-      sourceTitle: selection.sourceTitle || '',
-      sourceType: 'selection' as const,
-      tags: [] as string[],
-      isTemplate: false,
-      isFavorite: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    const snapshot = await chrome.storage.local.get([PROMPTS_KEY]);
-    const prompts = Array.isArray(snapshot[PROMPTS_KEY]) ? snapshot[PROMPTS_KEY] : [];
-    await chrome.storage.local.set({ [PROMPTS_KEY]: [newPrompt, ...prompts] });
+      content: normalizedText,
+      tags: [
+        'selection',
+        selection.platform ? String(selection.platform) : '',
+        classification.type,
+      ].filter(Boolean),
+      enabled: true,
+      pinned: false,
+      ...(classification.type === 'instruction' ? { priority: 'medium' as const } : {}),
+    });
 
     if (tab?.id) {
-      await showToastInTab(tab.id, 'Prompt saved to library.', 'success');
+      await showToastInTab(tab.id, `Saved to Vault as ${classification.type}.`, 'success');
     }
   } catch (error: any) {
-    console.error('[Promptium][ContextMenuLogic] Failed to save selection.', error);
+    console.error('[Promptium][ContextMenuLogic] Failed to save selection to Vault.', error);
     if (tab?.id) {
-      await showToastInTab(tab.id, 'Failed to save prompt.', 'error');
+      await showToastInTab(tab.id, 'Failed to save to Vault.', 'error');
     }
   }
 }
 
-export async function copyAsPromptAction(info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.Tab): Promise<void> {
+export async function copyAsPromptAction(
+  info: chrome.contextMenus.OnClickData,
+  tab?: chrome.tabs.Tab
+): Promise<void> {
   const selection = await getSelectionFromTab(info, tab);
   const normalizedText = normalizeSelectionText(selection.text);
 
@@ -142,7 +249,10 @@ export async function copyAsPromptAction(info: chrome.contextMenus.OnClickData, 
         throw new Error(response?.error || 'Copy message failed.');
       }
     } catch (error) {
-      console.warn('[Promptium][ContextMenuLogic] Content copy failed, using fallback or info.', error);
+      console.warn(
+        '[Promptium][ContextMenuLogic] Content copy failed, using fallback or info.',
+        error
+      );
       if (tab?.id) {
         await showToastInTab(tab.id, 'Clipboard copy failed.', 'error');
       }
@@ -150,27 +260,16 @@ export async function copyAsPromptAction(info: chrome.contextMenus.OnClickData, 
   }
 }
 
-export async function refineSelectionAction(info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.Tab): Promise<void> {
-  const selection = await getSelectionFromTab(info, tab);
-  const normalizedText = normalizeSelectionText(selection.text);
+export const saveSelectionAction = saveToVaultAction;
+export const refineSelectionAction = (
+  info: chrome.contextMenus.OnClickData,
+  tab?: chrome.tabs.Tab
+): Promise<void> => launchRefinementAction('upgrade', info, tab);
 
-  if (!normalizedText) {
-    return;
-  }
-
-  await chrome.storage.local.set({
-    [IMPROVE_PAYLOAD_KEY]: {
-      text: normalizedText,
-      tags: [],
-      sourceTabId: tab?.id || null,
-      createdAt: Date.now(),
-    },
-  });
-
-  await openPromptiumAction();
-}
-
-export async function continueChatAction(info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.Tab): Promise<void> {
+export async function continueChatAction(
+  info: chrome.contextMenus.OnClickData,
+  tab?: chrome.tabs.Tab
+): Promise<void> {
   const selection = await getSelectionFromTab(info, tab);
   const normalizedText = normalizeSelectionText(selection.text);
 
@@ -200,5 +299,18 @@ export async function continueChatAction(info: chrome.contextMenus.OnClickData, 
     await sendRuntimeMessage('showContinuation');
   } catch (_err) {
     // Expected to fail if floating window is not yet active
+  }
+}
+
+export async function updateContextMenuTitles(isCode: boolean): Promise<void> {
+  try {
+    await chrome.contextMenus
+      .update('pn-fix-prompt', { title: isCode ? 'Improve Code Prompt' : 'Fix Prompt' })
+      .catch(() => {});
+    await chrome.contextMenus
+      .update('pn-upgrade-prompt', { title: isCode ? 'Generate Agent Prompt' : 'Upgrade Prompt' })
+      .catch(() => {});
+  } catch (error) {
+    console.warn('[Promptium][ContextMenuLogic] Failed to update titles.', error);
   }
 }

@@ -10,7 +10,7 @@
 
 export interface UsageRecord {
   id: string;
-  type: 'prompt' | 'template' | 'bookmark';
+  type: 'prompt' | 'template' | 'clipping';
   title: string;
   lastUsed: number;
   usageCount: number;
@@ -32,7 +32,7 @@ class RecentsAndFavorites {
    */
   async recordUsage(
     id: string,
-    type: 'prompt' | 'template' | 'bookmark',
+    type: 'prompt' | 'template' | 'clipping',
     title?: string
   ): Promise<void> {
     try {
@@ -69,7 +69,7 @@ class RecentsAndFavorites {
    */
   async toggleFavorite(
     id: string,
-    type: 'prompt' | 'template' | 'bookmark',
+    type: 'prompt' | 'template' | 'clipping',
     title?: string
   ): Promise<boolean> {
     try {
@@ -121,7 +121,7 @@ class RecentsAndFavorites {
    * Get recently used items
    */
   async getRecents(
-    type?: 'prompt' | 'template' | 'bookmark',
+    type?: 'prompt' | 'template' | 'clipping',
     limit: number = 10
   ): Promise<UsageRecord[]> {
     try {
@@ -146,7 +146,7 @@ class RecentsAndFavorites {
    * Get most used items
    */
   async getMostUsed(
-    type?: 'prompt' | 'template' | 'bookmark',
+    type?: 'prompt' | 'template' | 'clipping',
     limit: number = 10
   ): Promise<UsageRecord[]> {
     try {
@@ -172,7 +172,7 @@ class RecentsAndFavorites {
    * Get favorite items
    */
   async getFavorites(
-    type?: 'prompt' | 'template' | 'bookmark',
+    type?: 'prompt' | 'template' | 'clipping',
     limit: number = 20
   ): Promise<UsageRecord[]> {
     try {

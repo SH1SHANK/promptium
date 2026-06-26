@@ -1,5 +1,8 @@
 import { TokenMetrics } from '../types';
 import { getTokenizer } from '../loaders/intelligence-loader';
+import { createLogger } from '../../../../core/logger';
+
+const logger = createLogger('Tokenizer');
 
 /**
  * Computes exact GPT CL100k token counts using js-tiktoken.
@@ -22,15 +25,15 @@ export async function calculateTokens(text: string): Promise<TokenMetrics> {
     return {
       tokenCount: tokens.length,
       estimatedWords,
-      estimatedCharacters
+      estimatedCharacters,
     };
   } catch (err) {
-    console.error("Tokenization calculation error:", err);
+    logger.warn('Tokenization failed; using character-count fallback.', err);
     // Simple fallback estimate (approx 4 characters per token)
     return {
       tokenCount: Math.round(estimatedCharacters / 4),
       estimatedWords,
-      estimatedCharacters
+      estimatedCharacters,
     };
   }
 }

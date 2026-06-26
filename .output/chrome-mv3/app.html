@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Promptium</title>
     <link rel="icon" type="image/png" sizes="32x32" href="/icons/promptium/icon32.png">
-    <script type="module" crossorigin src="/chunks/app-iuB6z3z6.js"></script>
-    <link rel="modulepreload" crossorigin href="/chunks/preload-helper-zJ_50EbN.js">
-    <link rel="stylesheet" crossorigin href="/assets/app-oUDOgitj.css">
+    <script type="module" crossorigin src="/chunks/app-BdrHJMQz.js"></script>
+    <link rel="modulepreload" crossorigin href="/chunks/preload-helper-Dvn4G9Be.js">
+    <link rel="stylesheet" crossorigin href="/assets/app-DoybAp7c.css">
   </head>
   <body class="pn-popup pn-sidepanel pn-app-window">
     <header class="pn-header pn-sidepanel-header">
@@ -73,6 +73,7 @@
       <button class="tab pn-tab active" data-tab="prompts" type="button">Prompts</button>
       <button class="tab pn-tab" data-tab="tags" type="button">Tags</button>
       <button class="tab pn-tab" data-tab="vault" type="button">Vault</button>
+      <button class="tab pn-tab" data-tab="clippings" type="button">Clippings</button>
     </nav>
 
     <main class="pn-main pn-sidepanel-main">
@@ -376,45 +377,119 @@
       </section>
 
       <section class="tab-content pn-tab-content" data-tab="vault">
-        <div class="pn-vault-view" style="display: flex; flex-direction: column; gap: 16px; height: 100%;">
-          <div class="pn-vault-header" style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+        <div class="pn-vault-view" style="display: flex; flex-direction: column; gap: 16px; height: 100%">
+          <div class="pn-vault-header" style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
             <div>
-              <h3 class="pn-section-title" style="margin: 0;">Promptium Vault</h3>
-              <p class="pn-card-meta" style="margin: 2px 0 0;">Manage context, personas, and system instructions.</p>
+              <h3 class="pn-section-title" style="margin: 0">Promptium Vault</h3>
+              <p class="pn-card-meta" style="margin: 2px 0 0">
+                Manage context, personas, and system instructions.
+              </p>
             </div>
-            <div style="display: flex; gap: 8px;">
-              <button id="pn-vault-import-btn" class="pn-btn pn-btn--ghost" type="button" style="font-size: 12px; padding: 4px 10px; height: 28px;">Import File...</button>
-              <input type="file" id="pn-vault-file-importer" style="display: none;" accept=".md,.sh,.json,.cursorrules,.clinerules,.windsurfrules,*">
-              <button id="pn-vault-add-btn" class="pn-btn pn-btn--primary" type="button" style="font-size: 12px; padding: 4px 10px; height: 28px;">+ Add Item</button>
+            <div style="display: flex; gap: 8px">
+              <button id="pn-vault-import-btn" class="pn-btn pn-btn--ghost" type="button" style="font-size: 12px; padding: 4px 10px; height: 28px">
+                Import File...
+              </button>
+              <input type="file" id="pn-vault-file-importer" style="display: none" accept=".md,.sh,.json,.cursorrules,.clinerules,.windsurfrules,*">
+              <button id="pn-vault-add-btn" class="pn-btn pn-btn--primary" type="button" style="font-size: 12px; padding: 4px 10px; height: 28px">
+                + Add Item
+              </button>
             </div>
           </div>
 
           <!-- Vault sub-tabs navigation -->
-          <nav class="pn-tab-bar" style="background: rgba(255,255,255,0.02); border-radius: var(--radius-sm); padding: 2px; display: flex; gap: 4px;" aria-label="Vault sections">
-            <button class="pn-vault-subtab active" data-subtab="knowledge" type="button" style="flex: 1; border: none; background: none; padding: 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; cursor: pointer; color: var(--text-muted); border-radius: var(--radius-xs);">Knowledge</button>
-            <button class="pn-vault-subtab" data-subtab="skill" type="button" style="flex: 1; border: none; background: none; padding: 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; cursor: pointer; color: var(--text-muted); border-radius: var(--radius-xs);">Skills</button>
-            <button class="pn-vault-subtab" data-subtab="instruction" type="button" style="flex: 1; border: none; background: none; padding: 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; cursor: pointer; color: var(--text-muted); border-radius: var(--radius-xs);">Instructions</button>
+          <nav class="pn-tab-bar" style="
+              background: rgba(255, 255, 255, 0.02);
+              border-radius: var(--radius-sm);
+              padding: 2px;
+              display: flex;
+              gap: 4px;
+            " aria-label="Vault sections">
+            <button class="pn-vault-subtab active" data-subtab="knowledge" type="button" style="
+                flex: 1;
+                border: none;
+                background: none;
+                padding: 6px;
+                font-size: 11px;
+                font-weight: 600;
+                text-transform: uppercase;
+                cursor: pointer;
+                color: var(--text-muted);
+                border-radius: var(--radius-xs);
+              ">
+              Knowledge
+            </button>
+            <button class="pn-vault-subtab" data-subtab="skill" type="button" style="
+                flex: 1;
+                border: none;
+                background: none;
+                padding: 6px;
+                font-size: 11px;
+                font-weight: 600;
+                text-transform: uppercase;
+                cursor: pointer;
+                color: var(--text-muted);
+                border-radius: var(--radius-xs);
+              ">
+              Skills
+            </button>
+            <button class="pn-vault-subtab" data-subtab="instruction" type="button" style="
+                flex: 1;
+                border: none;
+                background: none;
+                padding: 6px;
+                font-size: 11px;
+                font-weight: 600;
+                text-transform: uppercase;
+                cursor: pointer;
+                color: var(--text-muted);
+                border-radius: var(--radius-xs);
+              ">
+              Instructions
+            </button>
           </nav>
 
           <!-- Search Vault -->
-          <div class="pn-search-input-wrap" style="position: relative;">
-            <input id="pn-vault-search" class="pn-search" type="text" placeholder="Search vault items..." style="width: 100%;">
+          <div class="pn-search-input-wrap" style="position: relative">
+            <input id="pn-vault-search" class="pn-search" type="text" placeholder="Search vault items..." style="width: 100%">
           </div>
 
           <!-- List of Vault Items -->
-          <div id="pn-vault-items-list" style="display: flex; flex-direction: column; gap: 10px; overflow-y: auto; flex: 1; max-height: 520px; padding-right: 4px;">
+          <div id="pn-vault-items-list" style="
+              display: flex;
+              flex-direction: column;
+              gap: 10px;
+              overflow-y: auto;
+              flex: 1;
+              max-height: 520px;
+              padding-right: 4px;
+            ">
             <!-- Items dynamically injected here -->
           </div>
         </div>
       </section>
 
       <!-- Add/Edit Vault Item Modal Dialog -->
-      <div id="pn-vault-item-modal" class="pn-modal pn-hidden" role="dialog" aria-modal="true" style="z-index: 1100;">
+      <div id="pn-vault-item-modal" class="pn-modal pn-hidden" role="dialog" aria-modal="true" style="z-index: 1100">
         <div class="pn-modal__backdrop" id="pn-vault-modal-close-backdrop"></div>
-        <div class="pn-modal__panel" style="max-width: 480px; width: calc(100vw - 32px); padding: 20px; background: var(--surface-overlay, #1e293b); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-md);">
-          <h2 id="pn-vault-modal-title" class="pn-modal__title" style="margin-top: 0; font-size: 16px;">Add Vault Item</h2>
-          
-          <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 16px; margin-bottom: 20px;">
+        <div class="pn-modal__panel" style="
+            max-width: 480px;
+            width: calc(100vw - 32px);
+            padding: 20px;
+            background: var(--surface-overlay, #1e293b);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius-md);
+          ">
+          <h2 id="pn-vault-modal-title" class="pn-modal__title" style="margin-top: 0; font-size: 16px">
+            Add Vault Item
+          </h2>
+
+          <div style="
+              display: flex;
+              flex-direction: column;
+              gap: 12px;
+              margin-top: 16px;
+              margin-bottom: 20px;
+            ">
             <label class="pn-field">
               <span>Item Type</span>
               <select id="pn-vault-input-type">
@@ -430,49 +505,301 @@
             </label>
 
             <!-- URL Import Option for Knowledge -->
-            <div id="pn-vault-url-import-wrap" class="pn-hidden" style="display: flex; flex-direction: column; gap: 6px; padding: 10px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.04); border-radius: var(--radius-xs);">
-              <span style="font-size: 11px; font-weight: 600; color: var(--text-muted);">Quick Import from URL</span>
-              <div style="display: flex; gap: 8px;">
-                <input id="pn-vault-import-url" type="url" placeholder="https://docs.anthropic.com/en/..." style="flex: 1; font-size: 12px; padding: 4px 8px; height: 28px; background: rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.08); color: #fff; border-radius: var(--radius-xs);">
-                <button id="pn-vault-url-import-btn" class="pn-btn pn-btn--ghost" type="button" style="font-size: 11px; padding: 0 10px; height: 28px;">Import</button>
+            <div id="pn-vault-url-import-wrap" class="pn-hidden" style="
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+                padding: 10px;
+                background: rgba(255, 255, 255, 0.02);
+                border: 1px solid rgba(255, 255, 255, 0.04);
+                border-radius: var(--radius-xs);
+              ">
+              <span style="font-size: 11px; font-weight: 600; color: var(--text-muted)">Quick Import from URL</span>
+              <div style="display: flex; gap: 8px">
+                <input id="pn-vault-import-url" type="url" placeholder="https://docs.anthropic.com/en/..." style="
+                    flex: 1;
+                    font-size: 12px;
+                    padding: 4px 8px;
+                    height: 28px;
+                    background: rgba(0, 0, 0, 0.15);
+                    border: 1px solid rgba(255, 255, 255, 0.08);
+                    color: #fff;
+                    border-radius: var(--radius-xs);
+                  ">
+                <button id="pn-vault-url-import-btn" class="pn-btn pn-btn--ghost" type="button" style="font-size: 11px; padding: 0 10px; height: 28px">
+                  Import
+                </button>
               </div>
-              <span id="pn-vault-import-status" style="font-size: 11px; color: #4ade80;" class="pn-hidden">Imported successfully!</span>
+              <span id="pn-vault-import-status" style="font-size: 11px; color: #4ade80" class="pn-hidden">Imported successfully!</span>
             </div>
 
             <label class="pn-field">
               <span id="pn-vault-content-label">Content</span>
-              <textarea id="pn-vault-input-content" rows="8" placeholder="Paste guidelines, instructions, or markdown notes..." style="font-family: var(--font-mono); font-size: 12px; resize: none;"></textarea>
+              <textarea id="pn-vault-input-content" rows="8" placeholder="Paste guidelines, instructions, or markdown notes..." style="font-family: var(--font-mono); font-size: 12px; resize: none"></textarea>
             </label>
 
             <label class="pn-field" id="pn-vault-tags-field-wrap">
               <span>Tags (comma separated)</span>
               <input id="pn-vault-input-tags" type="text" placeholder="e.g. coding, claude, database">
             </label>
+
+            <label class="pn-field" id="pn-vault-priority-field-wrap">
+              <span>Instruction Priority</span>
+              <select id="pn-vault-input-priority">
+                <option value="low">Low</option>
+                <option value="medium" selected>Medium</option>
+                <option value="high">High</option>
+              </select>
+            </label>
+            <label class="pn-field" style="flex-direction: row; align-items: center; gap: 8px">
+              <input id="pn-vault-input-pinned" type="checkbox">
+              <span>Always include this context</span>
+            </label>
           </div>
 
-          <div style="display: flex; gap: 10px; justify-content: flex-end;">
-            <button id="pn-vault-modal-cancel" class="pn-btn pn-btn--ghost" type="button">Cancel</button>
-            <button id="pn-vault-modal-save" class="pn-btn pn-btn--primary" type="button">Save Item</button>
+          <div style="display: flex; gap: 10px; justify-content: flex-end">
+            <button id="pn-vault-modal-cancel" class="pn-btn pn-btn--ghost" type="button">
+              Cancel
+            </button>
+            <button id="pn-vault-modal-save" class="pn-btn pn-btn--primary" type="button">
+              Save Item
+            </button>
           </div>
         </div>
       </div>
 
       <!-- Universal AI Context Importer Preview Modal -->
-      <div id="pn-vault-import-preview-modal" class="pn-modal pn-hidden" role="dialog" aria-modal="true" style="z-index: 1200;">
+      <div id="pn-vault-import-preview-modal" class="pn-modal pn-hidden" role="dialog" aria-modal="true" style="z-index: 1200">
         <div class="pn-modal__backdrop" id="pn-vault-import-preview-close-backdrop"></div>
-        <div class="pn-modal__panel" style="max-width: 580px; width: calc(100vw - 32px); padding: 20px; background: var(--surface-overlay, #1e293b); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-md); max-height: 90vh; display: flex; flex-direction: column; gap: 16px;">
-          <h2 class="pn-modal__title" style="margin: 0; font-size: 16px;">Import AI Context Preview</h2>
-          <div style="font-size: 12px; color: var(--text-muted);">
-            Detected format: <strong id="pn-vault-import-detected-format" style="color: #38bdf8;">Markdown</strong>
+        <div class="pn-modal__panel" style="
+            max-width: 580px;
+            width: calc(100vw - 32px);
+            padding: 20px;
+            background: var(--surface-overlay, #1e293b);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius-md);
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+          ">
+          <h2 class="pn-modal__title" style="margin: 0; font-size: 16px">
+            Import AI Context Preview
+          </h2>
+          <div style="font-size: 12px; color: var(--text-muted)">
+            Detected format:
+            <strong id="pn-vault-import-detected-format" style="color: #38bdf8">Markdown</strong>
           </div>
-          
-          <div id="pn-vault-import-drafts-list" style="display: flex; flex-direction: column; gap: 12px; overflow-y: auto; flex: 1; margin: 8px 0; max-height: 380px; padding-right: 4px;">
+
+          <div id="pn-vault-import-drafts-list" style="
+              display: flex;
+              flex-direction: column;
+              gap: 12px;
+              overflow-y: auto;
+              flex: 1;
+              margin: 8px 0;
+              max-height: 380px;
+              padding-right: 4px;
+            ">
             <!-- Draft items injected dynamically -->
           </div>
 
-          <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: auto;">
-            <button id="pn-vault-import-preview-cancel" class="pn-btn pn-btn--ghost" type="button">Cancel</button>
-            <button id="pn-vault-import-preview-confirm" class="pn-btn pn-btn--primary" type="button">Confirm Import</button>
+          <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: auto">
+            <button id="pn-vault-import-preview-cancel" class="pn-btn pn-btn--ghost" type="button">
+              Cancel
+            </button>
+            <button id="pn-vault-import-preview-confirm" class="pn-btn pn-btn--primary" type="button">
+              Confirm Import
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <section class="tab-content pn-tab-content" data-tab="clippings">
+        <div class="pn-clippings-view" style="display: flex; flex-direction: column; gap: 16px; height: 100%">
+          <div class="pn-clippings-header" style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
+            <div>
+              <h3 class="pn-section-title" style="margin: 0">Clippings</h3>
+              <p class="pn-card-meta" style="margin: 2px 0 0">
+                Review and organize highlighted conversation excerpts.
+              </p>
+            </div>
+            <div style="display: flex; gap: 8px">
+              <button id="pn-clippings-review-btn" class="pn-btn pn-btn--ghost" type="button" style="font-size: 12px; padding: 4px 10px; height: 28px">
+                🎴 Review Mode
+              </button>
+            </div>
+          </div>
+
+          <!-- Multi-select Bar -->
+          <div id="pn-clippings-multi-bar" class="pn-hidden" style="
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              padding: 8px 12px;
+              background: rgba(16, 185, 129, 0.1);
+              border: 1px solid rgba(16, 185, 129, 0.2);
+              border-radius: var(--radius-sm);
+              font-size: 12px;
+            ">
+            <span id="pn-clippings-selected-count">0 items selected</span>
+            <div style="display: flex; gap: 6px">
+              <button id="pn-clippings-multi-merge" class="pn-btn pn-btn--ghost" type="button" style="padding: 2px 8px; font-size: 11px">
+                Merge
+              </button>
+              <button id="pn-clippings-multi-export" class="pn-btn pn-btn--ghost" type="button" style="padding: 2px 8px; font-size: 11px">
+                Export
+              </button>
+              <button id="pn-clippings-multi-convert" class="pn-btn pn-btn--ghost" type="button" style="padding: 2px 8px; font-size: 11px">
+                Convert to Vault
+              </button>
+              <button id="pn-clippings-multi-delete" class="pn-btn pn-btn--danger" type="button" style="padding: 2px 8px; font-size: 11px">
+                Delete
+              </button>
+            </div>
+          </div>
+
+          <!-- Search & Filter Row -->
+          <div style="display: flex; flex-direction: column; gap: 10px">
+            <div class="pn-search-input-wrap" style="position: relative; width: 100%">
+              <input id="pn-clippings-search" class="pn-search" type="text" placeholder="Search clippings..." style="width: 100%; box-sizing: border-box">
+            </div>
+            <div id="pn-clippings-tags-filter" style="display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px">
+              <!-- Dynamic tags filter chips will be injected here -->
+            </div>
+          </div>
+
+          <!-- Clippings List -->
+          <div id="pn-clippings-list" style="
+              display: flex;
+              flex-direction: column;
+              gap: 12px;
+              overflow-y: auto;
+              flex: 1;
+              max-height: 520px;
+              padding-right: 4px;
+            ">
+            <!-- Clipping cards injected here -->
+          </div>
+        </div>
+      </section>
+
+      <!-- Review Mode Modal Overlay -->
+      <div id="pn-clippings-review-modal" class="pn-modal pn-hidden" role="dialog" aria-modal="true" style="z-index: 1300">
+        <div class="pn-modal__backdrop" id="pn-clippings-review-close-backdrop"></div>
+        <div class="pn-modal__panel" style="
+            max-width: 520px;
+            width: calc(100vw - 32px);
+            padding: 24px;
+            background: var(--surface-overlay, #0f172a);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: var(--radius-md);
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            gap: 16px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+          ">
+          <div style="display: flex; justify-content: space-between; align-items: center">
+            <span id="pn-clippings-review-index" style="font-size: 12px; font-weight: 600; color: var(--text-muted)">1 / 10</span>
+            <button id="pn-clippings-review-close" class="pn-btn pn-btn--ghost" type="button" style="padding: 2px 8px">
+              ✕ Close
+            </button>
+          </div>
+
+          <div id="pn-clippings-review-card-content" style="
+              flex: 1;
+              overflow-y: auto;
+              min-height: 200px;
+              display: flex;
+              flex-direction: column;
+              gap: 16px;
+            ">
+            <div style="
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                color: var(--text-muted);
+              " id="pn-clippings-review-meta-title">
+              Conversation Title
+            </div>
+            <blockquote id="pn-clippings-review-text" style="
+                font-size: 15px;
+                line-height: 1.6;
+                border-left: 3px solid #10b981;
+                padding-left: 12px;
+                margin: 0;
+                color: #f8fafc;
+                font-style: italic;
+              ">
+              Highlighted Text
+            </blockquote>
+
+            <div id="pn-clippings-review-context-block" class="pn-hidden" style="
+                background: rgba(255, 255, 255, 0.03);
+                padding: 12px;
+                border-radius: var(--radius-sm);
+                border: 1px solid rgba(255, 255, 255, 0.05);
+              ">
+              <div style="
+                  font-size: 10px;
+                  font-weight: 600;
+                  color: var(--text-muted);
+                  margin-bottom: 4px;
+                  text-transform: uppercase;
+                ">
+                Surrounding Context
+              </div>
+              <div id="pn-clippings-review-context-text" style="
+                  font-size: 12px;
+                  color: #cbd5e1;
+                  white-space: pre-wrap;
+                  max-height: 150px;
+                  overflow-y: auto;
+                ">
+                Context text...
+              </div>
+            </div>
+
+            <div id="pn-clippings-review-note-block" class="pn-hidden" style="
+                background: rgba(16, 185, 129, 0.05);
+                padding: 12px;
+                border-radius: var(--radius-sm);
+                border: 1px solid rgba(16, 185, 129, 0.15);
+              ">
+              <div style="
+                  font-size: 10px;
+                  font-weight: 600;
+                  color: #34d399;
+                  margin-bottom: 4px;
+                  text-transform: uppercase;
+                ">
+                Personal Note
+              </div>
+              <div id="pn-clippings-review-note-text" style="font-size: 13px; color: #e2e8f0; font-family: var(--font-mono)">
+                Note text...
+              </div>
+            </div>
+          </div>
+
+          <div style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-top: 8px;
+            ">
+            <button id="pn-clippings-review-reveal" class="pn-btn pn-btn--ghost" type="button" style="font-size: 12px; padding: 4px 10px">
+              👁 Reveal More Context
+            </button>
+            <div style="display: flex; gap: 8px">
+              <button id="pn-clippings-review-prev" class="pn-btn pn-btn--ghost" type="button">
+                ◀ Previous
+              </button>
+              <button id="pn-clippings-review-next" class="pn-btn pn-btn--primary" type="button">
+                Next ▶
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -715,47 +1042,190 @@
     <!-- Improve Prompt Diff Modal -->
     <div id="pn-improve-modal" class="pn-modal pn-hidden" role="dialog" aria-modal="true" aria-labelledby="pn-improve-modal-title">
       <div class="pn-modal__backdrop" data-close-improve=""></div>
-      <div class="pn-modal__panel pn-improve-panel" style="position: relative; max-width: 820px; width: calc(100vw - 32px);">
+      <div class="pn-modal__panel pn-improve-panel" style="position: relative; max-width: 820px; width: calc(100vw - 32px)">
         <!-- Info Overlay -->
-        <div id="pn-improve-info-overlay" class="pn-hidden" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.98); z-index: 100; padding: 24px; border-radius: var(--radius-md); display: flex; flex-direction: column; justify-content: center; border: 1px solid rgba(255,255,255,0.1);">
-          <h3 style="margin-top: 0; color: #fff; font-size: 18px; margin-bottom: 12px;">Prompt Refinement Workflow</h3>
-          <div style="font-size: 13.5px; line-height: 1.6; color: var(--text-secondary); margin-bottom: 20px; text-align: left;">
-            <p style="margin: 8px 0;"><strong>1. Fix (On-device)</strong><br>Corrects grammar, spelling, and local prompt quality rules. Preserves original structure and makes small adjustments. Recommended as the initial step.</p>
-            <p style="margin: 8px 0;"><strong>2. Upgrade (On-device)</strong><br>Applies structured engineering templates (CRISPE/RISEN) and configures skill-based roles offline. Moderately structures the prompt.</p>
-            <p style="margin: 8px 0;"><strong>3. Rewrite (AI Cloud)</strong><br>Uses the Gemini model to optimize the prompt completely, using compiled structural guidelines and rules. Rewrites the prompt significantly.</p>
-            <p style="margin: 12px 0 4px; color: var(--text-primary);"><strong>Recommended Flow</strong>: Fix first to clean rules -&gt; Upgrade to structure layout -&gt; Rewrite if you need advanced AI polishing.</p>
+        <div id="pn-improve-info-overlay" class="pn-hidden" style="
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 23, 42, 0.98);
+            z-index: 100;
+            padding: 24px;
+            border-radius: var(--radius-md);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+          ">
+          <h3 style="margin-top: 0; color: #fff; font-size: 18px; margin-bottom: 12px">
+            Prompt Refinement Workflow
+          </h3>
+          <div style="
+              font-size: 13.5px;
+              line-height: 1.6;
+              color: var(--text-secondary);
+              margin-bottom: 20px;
+              text-align: left;
+            ">
+            <p style="margin: 8px 0">
+              <strong>1. Fix (On-device)</strong><br>Corrects grammar, spelling, and local prompt
+              quality rules. Preserves original structure and makes small adjustments. Recommended
+              as the initial step.
+            </p>
+            <p style="margin: 8px 0">
+              <strong>2. Upgrade (On-device)</strong><br>Applies structured engineering templates
+              (CRISPE/RISEN) and configures skill-based roles offline. Moderately structures the
+              prompt.
+            </p>
+            <p style="margin: 8px 0">
+              <strong>3. Rewrite (AI Cloud)</strong><br>Uses the Gemini model to optimize the
+              prompt completely, using compiled structural guidelines and rules. Rewrites the prompt
+              significantly.
+            </p>
+            <p style="margin: 12px 0 4px; color: var(--text-primary)">
+              <strong>Recommended Flow</strong>: Fix first to clean rules -&gt; Upgrade to structure
+              layout -&gt; Rewrite if you need advanced AI polishing.
+            </p>
           </div>
-          <button id="pn-improve-info-ok" class="pn-btn pn-btn--primary" type="button" style="align-self: flex-end;">Got It</button>
+          <button id="pn-improve-info-ok" class="pn-btn pn-btn--primary" type="button" style="align-self: flex-end">
+            Got It
+          </button>
         </div>
 
         <!-- Rewrite Transparency Overlay -->
-        <div id="pn-improve-transparency-overlay" class="pn-hidden" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.98); z-index: 100; padding: 24px; border-radius: var(--radius-md); display: flex; flex-direction: column; justify-content: center; border: 1px solid rgba(255,255,255,0.1);">
-          <h3 style="margin-top: 0; color: #fff; font-size: 18px; margin-bottom: 12px;">Rewrite Transparency</h3>
-          <p style="font-size: 13px; line-height: 1.5; color: var(--text-secondary); margin-bottom: 16px;">
-            This action will send your prompt context to Gemini for advanced AI rewriting.
+        <div id="pn-improve-transparency-overlay" class="pn-hidden" style="
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 23, 42, 0.98);
+            z-index: 100;
+            padding: 24px;
+            border-radius: var(--radius-md);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            overflow-y: auto;
+          ">
+          <h3 style="
+              margin-top: 0;
+              color: #fff;
+              font-size: 16px;
+              margin-bottom: 8px;
+              font-weight: 600;
+            ">
+            Rewrite Transparency &amp; Context Retrieval
+          </h3>
+          <p style="
+              font-size: 12px;
+              line-height: 1.4;
+              color: var(--text-secondary);
+              margin-bottom: 12px;
+              margin-top: 0;
+            ">
+            Below is the context retrieved and scored by the Context Retrieval Engine that will be
+            injected to guide the Gemini rewrite.
           </p>
-          <div style="font-size: 13.5px; line-height: 1.6; color: var(--text-secondary); margin-bottom: 20px; text-align: left;">
-            <div style="font-weight: 600; margin-bottom: 6px; color: var(--text-primary);">Expected changes during optimization:</div>
-            <p style="margin: 4px 0;">✓ Explicitly adopt recommended role persona</p>
-            <p style="margin: 4px 0;">✓ Restructure content following pattern constraints</p>
-            <p style="margin: 4px 0;">✓ Optimize vocabulary specifically for the target model</p>
-            <p style="margin: 4px 0;">✓ Clean grammatical spelling and structure defects</p>
+
+          <!-- Budget Progress Indicator -->
+          <div style="
+              margin-bottom: 12px;
+              padding: 8px;
+              background: rgba(255, 255, 255, 0.02);
+              border-radius: var(--radius-xs);
+              border: 1px solid rgba(255, 255, 255, 0.04);
+            ">
+            <div style="
+                display: flex;
+                justify-content: space-between;
+                font-size: 11px;
+                margin-bottom: 4px;
+              ">
+              <span style="color: var(--text-secondary); font-weight: 500">Context Budget Allocation</span>
+              <span style="color: var(--text-primary); font-weight: 600"><span id="pn-transparency-token-used">0</span> / 2500 tokens</span>
+            </div>
+            <div style="
+                width: 100%;
+                height: 6px;
+                background: rgba(255, 255, 255, 0.08);
+                border-radius: 3px;
+                overflow: hidden;
+              ">
+              <div id="pn-transparency-token-bar" style="
+                  width: 0%;
+                  height: 100%;
+                  background: var(--color-primary, #38bdf8);
+                  transition: width 0.3s ease;
+                "></div>
+            </div>
+            <div id="pn-transparency-budget-status" style="font-size: 10px; color: var(--text-muted); margin-top: 4px; display: none">
+              ⚠️ Some items were dropped or truncated to fit the token budget limit.
+            </div>
           </div>
-          <div style="display: flex; gap: 10px; align-self: flex-end;">
-            <button id="pn-improve-transparency-cancel" class="pn-btn pn-btn--ghost" type="button">Cancel</button>
-            <button id="pn-improve-transparency-confirm" class="pn-btn pn-btn--primary" type="button">Proceed with Rewrite</button>
+
+          <!-- Retrieved items container -->
+          <div id="pn-transparency-items-list" style="
+              flex: 1;
+              overflow-y: auto;
+              display: flex;
+              flex-direction: column;
+              gap: 8px;
+              margin-bottom: 16px;
+              padding-right: 4px;
+              min-height: 180px;
+            ">
+            <!-- Items dynamically injected here -->
+          </div>
+          <div style="display: flex; gap: 8px; margin-bottom: 12px">
+            <select id="pn-transparency-add-context" style="flex: 1; min-width: 0"></select>
+            <button id="pn-transparency-add-context-btn" class="pn-btn pn-btn--ghost" type="button">
+              Add context
+            </button>
+          </div>
+
+          <div style="
+              display: flex;
+              gap: 10px;
+              align-self: flex-end;
+              width: 100%;
+              justify-content: flex-end;
+              margin-top: auto;
+              border-top: 1px solid rgba(255, 255, 255, 0.06);
+              padding-top: 12px;
+            ">
+            <button id="pn-improve-transparency-cancel" class="pn-btn pn-btn--ghost" type="button" style="font-size: 12px">
+              Cancel
+            </button>
+            <button id="pn-improve-transparency-confirm" class="pn-btn pn-btn--primary" type="button" style="font-size: 12px">
+              Proceed with Rewrite
+            </button>
           </div>
         </div>
 
         <!-- Header -->
-        <div class="pn-improve-header" style="border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 12px; margin-bottom: 16px;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <h2 id="pn-improve-modal-title" class="pn-modal__title" style="margin: 0; font-size: 16px;">
+        <div class="pn-improve-header" style="
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            padding-bottom: 12px;
+            margin-bottom: 16px;
+          ">
+          <div style="display: flex; align-items: center; gap: 8px">
+            <h2 id="pn-improve-modal-title" class="pn-modal__title" style="margin: 0; font-size: 16px">
               Prompt Refinement Workspace
             </h2>
-            <span id="pn-improve-health-badge" class="pn-health-badge" style="font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;"></span>
+            <span id="pn-improve-health-badge" class="pn-health-badge" style="
+                font-size: 11px;
+                padding: 2px 8px;
+                border-radius: 12px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+              "></span>
           </div>
-          <button id="pn-improve-info-btn" class="pn-btn pn-btn--ghost pn-icon-btn" type="button" title="Workflow Guidelines" style="padding: 4px; display: inline-flex; align-items: center; justify-content: center;">
+          <button id="pn-improve-info-btn" class="pn-btn pn-btn--ghost pn-icon-btn" type="button" title="Workflow Guidelines" style="padding: 4px; display: inline-flex; align-items: center; justify-content: center">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10" />
               <line x1="12" y1="16" x2="12" y2="12" />
@@ -765,48 +1235,156 @@
         </div>
 
         <!-- Split Grid Workspace -->
-        <div class="pn-workspace-grid" style="display: grid; grid-template-columns: 240px 1fr 240px; gap: 20px; min-height: 380px; max-height: 480px; overflow: hidden;">
-          
+        <div class="pn-workspace-grid" style="
+            display: grid;
+            grid-template-columns: 240px 1fr 240px;
+            gap: 20px;
+            min-height: 380px;
+            max-height: 480px;
+            overflow: hidden;
+          ">
           <!-- Left Column: Insights & Recommendations -->
-          <div style="display: flex; flex-direction: column; gap: 16px; overflow-y: auto; padding-right: 8px; border-right: 1px solid rgba(255,255,255,0.06);">
+          <div style="
+              display: flex;
+              flex-direction: column;
+              gap: 16px;
+              overflow-y: auto;
+              padding-right: 8px;
+              border-right: 1px solid rgba(255, 255, 255, 0.06);
+            ">
             <!-- Quality Summary -->
-            <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.04); border-radius: var(--radius-sm); padding: 12px;">
-              <h4 style="margin: 0 0 8px; font-size: 12px; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em;">Prompt Insights</h4>
-              <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="
+                background: rgba(255, 255, 255, 0.02);
+                border: 1px solid rgba(255, 255, 255, 0.04);
+                border-radius: var(--radius-sm);
+                padding: 12px;
+              ">
+              <h4 style="
+                  margin: 0 0 8px;
+                  font-size: 12px;
+                  text-transform: uppercase;
+                  color: var(--text-muted);
+                  letter-spacing: 0.05em;
+                ">
+                Prompt Insights
+              </h4>
+              <div style="display: flex; flex-direction: column; gap: 8px">
                 <div>
-                  <div style="font-size: 11px; font-weight: 600; color: #4ade80; margin-bottom: 2px;">Strengths</div>
-                  <ul id="pn-improve-strengths-list" style="margin: 0; padding-left: 14px; font-size: 12px; color: var(--text-secondary); line-height: 1.4;"></ul>
+                  <div style="font-size: 11px; font-weight: 600; color: #4ade80; margin-bottom: 2px">
+                    Strengths
+                  </div>
+                  <ul id="pn-improve-strengths-list" style="
+                      margin: 0;
+                      padding-left: 14px;
+                      font-size: 12px;
+                      color: var(--text-secondary);
+                      line-height: 1.4;
+                    "></ul>
                 </div>
-                <div style="margin-top: 4px;">
-                  <div style="font-size: 11px; font-weight: 600; color: #fca5a5; margin-bottom: 2px;">Needs Improvement</div>
-                  <ul id="pn-improve-weaknesses-list" style="margin: 0; padding-left: 14px; font-size: 12px; color: var(--text-secondary); line-height: 1.4;"></ul>
+                <div style="margin-top: 4px">
+                  <div style="font-size: 11px; font-weight: 600; color: #fca5a5; margin-bottom: 2px">
+                    Needs Improvement
+                  </div>
+                  <ul id="pn-improve-weaknesses-list" style="
+                      margin: 0;
+                      padding-left: 14px;
+                      font-size: 12px;
+                      color: var(--text-secondary);
+                      line-height: 1.4;
+                    "></ul>
                 </div>
               </div>
             </div>
 
             <!-- Recommendation Deck -->
             <div>
-              <h4 style="margin: 0 0 8px; font-size: 12px; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em;">Smart Recommendations</h4>
-              <div id="pn-improve-recommendation-deck" style="display: flex; flex-direction: column; gap: 10px;"></div>
+              <h4 style="
+                  margin: 0 0 8px;
+                  font-size: 12px;
+                  text-transform: uppercase;
+                  color: var(--text-muted);
+                  letter-spacing: 0.05em;
+                ">
+                Smart Recommendations
+              </h4>
+              <div id="pn-improve-recommendation-deck" style="display: flex; flex-direction: column; gap: 10px"></div>
             </div>
           </div>
 
           <!-- Middle Column: Before / After Split -->
-          <div style="display: flex; flex-direction: column; gap: 12px; overflow-y: auto; position: relative;">
-            
+          <div style="
+              display: flex;
+              flex-direction: column;
+              gap: 12px;
+              overflow-y: auto;
+              position: relative;
+            ">
             <!-- Before Box -->
-            <div style="display: flex; flex-direction: column; gap: 4px;">
-              <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; font-weight: 600;">Original Prompt</div>
-              <div id="pn-improve-original-preview" style="background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.04); border-radius: var(--radius-sm); padding: 10px; color: var(--text-secondary); font-size: 13px; line-height: 1.5; max-height: 120px; overflow-y: auto; white-space: pre-wrap; font-family: var(--font-mono);"></div>
+            <div style="display: flex; flex-direction: column; gap: 4px">
+              <div style="
+                  font-size: 11px;
+                  text-transform: uppercase;
+                  color: var(--text-muted);
+                  letter-spacing: 0.05em;
+                  font-weight: 600;
+                ">
+                Original Prompt
+              </div>
+              <div id="pn-improve-original-preview" style="
+                  background: rgba(255, 255, 255, 0.01);
+                  border: 1px solid rgba(255, 255, 255, 0.04);
+                  border-radius: var(--radius-sm);
+                  padding: 10px;
+                  color: var(--text-secondary);
+                  font-size: 13px;
+                  line-height: 1.5;
+                  max-height: 120px;
+                  overflow-y: auto;
+                  white-space: pre-wrap;
+                  font-family: var(--font-mono);
+                "></div>
             </div>
 
             <!-- After Box -->
-            <div style="display: flex; flex-direction: column; gap: 4px; flex: 1; position: relative;">
-              <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; font-weight: 600;">Refined Prompt</div>
-              <div style="position: relative; flex: 1; display: flex; flex-direction: column;">
-                <textarea id="pn-improve-text-area" style="flex: 1; min-height: 180px; width: 100%; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); color: #fff; padding: 10px; border-radius: var(--radius-sm); font-family: var(--font-mono); font-size: 13px; line-height: 1.5; resize: none;"></textarea>
+            <div style="display: flex; flex-direction: column; gap: 4px; flex: 1; position: relative">
+              <div style="
+                  font-size: 11px;
+                  text-transform: uppercase;
+                  color: var(--text-muted);
+                  letter-spacing: 0.05em;
+                  font-weight: 600;
+                ">
+                Refined Prompt
+              </div>
+              <div style="position: relative; flex: 1; display: flex; flex-direction: column">
+                <textarea id="pn-improve-text-area" style="
+                    flex: 1;
+                    min-height: 180px;
+                    width: 100%;
+                    background: rgba(0, 0, 0, 0.25);
+                    border: 1px solid rgba(255, 255, 255, 0.08);
+                    color: #fff;
+                    padding: 10px;
+                    border-radius: var(--radius-sm);
+                    font-family: var(--font-mono);
+                    font-size: 13px;
+                    line-height: 1.5;
+                    resize: none;
+                  "></textarea>
                 <!-- Floating Add Note Button -->
-                <button id="pn-floating-add-note" class="pn-btn pn-btn--primary pn-hidden" type="button" style="position: absolute; bottom: 12px; right: 12px; font-size: 11px; padding: 4px 8px; height: 26px; z-index: 50; display: flex; align-items: center; gap: 4px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.5);">
+                <button id="pn-floating-add-note" class="pn-btn pn-btn--primary pn-hidden" type="button" style="
+                    position: absolute;
+                    bottom: 12px;
+                    right: 12px;
+                    font-size: 11px;
+                    padding: 4px 8px;
+                    height: 26px;
+                    z-index: 50;
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+                  ">
                   <span>+</span> Add Note
                 </button>
               </div>
@@ -814,17 +1392,33 @@
           </div>
 
           <!-- Right Column: Refinement Notes Sidebar -->
-          <div style="display: flex; flex-direction: column; gap: 16px; overflow-y: auto; padding-left: 8px; border-left: 1px solid rgba(255,255,255,0.06);">
+          <div style="
+              display: flex;
+              flex-direction: column;
+              gap: 16px;
+              overflow-y: auto;
+              padding-left: 8px;
+              border-left: 1px solid rgba(255, 255, 255, 0.06);
+            ">
             <div>
-              <h4 style="margin: 0 0 4px; font-size: 12px; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em;">Refinement Notes</h4>
-              <p style="margin: 0 0 10px; font-size: 11px; color: var(--text-muted);">Annotate segments to guide Rewrite engine.</p>
-              <div id="pn-notes-sidebar-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
+              <h4 style="
+                  margin: 0 0 4px;
+                  font-size: 12px;
+                  text-transform: uppercase;
+                  color: var(--text-muted);
+                  letter-spacing: 0.05em;
+                ">
+                Refinement Notes
+              </h4>
+              <p style="margin: 0 0 10px; font-size: 11px; color: var(--text-muted)">
+                Annotate segments to guide Rewrite engine.
+              </p>
+              <div id="pn-notes-sidebar-list" style="display: flex; flex-direction: column; gap: 8px"></div>
             </div>
           </div>
-
         </div>
 
-        <div id="pn-improve-loading" class="pn-improve-loading pn-hidden" style="text-align: center; margin-bottom: 12px; padding: 8px 0;">
+        <div id="pn-improve-loading" class="pn-improve-loading pn-hidden" style="text-align: center; margin-bottom: 12px; padding: 8px 0">
           <p class="pn-improve-loading-text">Optimizing with Gemini...</p>
         </div>
 
@@ -833,13 +1427,25 @@
         </div>
 
         <!-- Action Buttons -->
-        <div class="pn-improve-actions" style="margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 12px;">
+        <div class="pn-improve-actions" style="
+            margin-top: 16px;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            padding-top: 12px;
+          ">
           <button id="pn-improve-close" class="pn-btn pn-btn--ghost" type="button">Cancel</button>
-          <div style="display: flex; gap: 8px; margin-left: auto;">
-            <button id="pn-improve-btn-fix" class="pn-btn pn-btn--ghost" type="button" style="color: #60a5fa; border-color: rgba(96, 165, 250, 0.3);">Fix</button>
-            <button id="pn-improve-btn-upgrade" class="pn-btn pn-btn--ghost" type="button" style="color: #fbbf24; border-color: rgba(251, 191, 36, 0.3);">Upgrade</button>
-            <button id="pn-improve-btn-rewrite" class="pn-btn pn-btn--ghost" type="button" style="color: #c084fc; border-color: rgba(192, 132, 252, 0.3);">Rewrite</button>
-            <button id="pn-improve-accept" class="pn-btn pn-btn--primary" type="button">Apply</button>
+          <div style="display: flex; gap: 8px; margin-left: auto">
+            <button id="pn-improve-btn-fix" class="pn-btn pn-btn--ghost" type="button" style="color: #60a5fa; border-color: rgba(96, 165, 250, 0.3)">
+              Fix
+            </button>
+            <button id="pn-improve-btn-upgrade" class="pn-btn pn-btn--ghost" type="button" style="color: #fbbf24; border-color: rgba(251, 191, 36, 0.3)">
+              Upgrade
+            </button>
+            <button id="pn-improve-btn-rewrite" class="pn-btn pn-btn--ghost" type="button" style="color: #c084fc; border-color: rgba(192, 132, 252, 0.3)">
+              Rewrite
+            </button>
+            <button id="pn-improve-accept" class="pn-btn pn-btn--primary" type="button">
+              Apply
+            </button>
           </div>
         </div>
       </div>

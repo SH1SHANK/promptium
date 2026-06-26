@@ -24,12 +24,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: var(--space-1);
   border: 1px solid var(--border-default);
-  border-radius: var(--radius-button-ghost, 7px);
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-primary);
-  padding: 7px 11px;
+  padding: var(--space-2) var(--space-3);
   font-size: var(--font-size-md);
   cursor: pointer;
   font-family: var(--font-body);
@@ -225,12 +225,12 @@
 
 .pn-btn--ghost,
 .pn-fill-cancel {
-  border-radius: var(--radius-button-ghost);
+  border-radius: var(--radius-sm);
 }
 
 .pn-btn--primary,
 .pn-fill-inject {
-  border-radius: var(--radius-button-primary);
+  border-radius: var(--radius-sm);
 }
 
 .pn-btn,
@@ -272,13 +272,13 @@ textarea:focus-visible,
 }
 
 .pn-btn {
-  border-radius: var(--radius-button-ghost);
+  border-radius: var(--radius-sm);
   transition-duration: var(--motion-fast);
   transition-timing-function: var(--motion-ease);
 }
 
 .pn-btn--primary {
-  border-radius: var(--radius-button-primary);
+  border-radius: var(--radius-sm);
 }
 
 .pn-btn--loading {

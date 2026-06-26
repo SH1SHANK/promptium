@@ -1,4 +1,5 @@
 import { byId, assertElement } from '../utils/dom-safe';
+import { createItem, initVaultStore } from '../features/vault/store';
 
 (() => {
   /**
@@ -114,7 +115,8 @@ import { byId, assertElement } from '../utils/dom-safe';
         { top: '55%', left: '30%', top2: '25%', left2: '65%' },
         { top: '40%', left: '40%', top2: '50%', left2: '55%' },
       ];
-      const gp = glowPositions[state.onboardingIndex] ?? glowPositions[0] ?? { top: '65%', left: '55%', top2: '22%', left2: '35%' };
+      const gp = glowPositions[state.onboardingIndex] ??
+        glowPositions[0] ?? { top: '65%', left: '55%', top2: '22%', left2: '35%' };
       const glow = document.querySelector('#pn-onboarding .pn-onboarding-glow') as HTMLElement;
       const glow2 = document.querySelector('#pn-onboarding .pn-onboarding-glow-2') as HTMLElement;
       if (glow) {
@@ -186,7 +188,8 @@ import { byId, assertElement } from '../utils/dom-safe';
       ONBOARDING_CARDS.map((card: any, index: number) => renderOnboardingCard(card, index))
     );
     const dotsMarkup = ONBOARDING_CARDS.map(
-      (_: any, index: number) => `<span class="pn-ob-dot visible${index === 0 ? ' active' : ''}"></span>`
+      (_: any, index: number) =>
+        `<span class="pn-ob-dot visible${index === 0 ? ' active' : ''}"></span>`
     ).join('');
 
     overlay.innerHTML = `
@@ -290,6 +293,9 @@ import { byId, assertElement } from '../utils/dom-safe';
     } else if (requested === 'vault') {
       const { initVaultUI } = await import('../features/vault/vault-ui');
       await initVaultUI();
+    } else if (requested === 'clippings') {
+      const { ClippingsUI } = await import('../features/clippings/clippings-ui');
+      await ClippingsUI.init();
     }
 
     const tabs = Array.from(document.querySelectorAll('.tab'));
@@ -317,7 +323,7 @@ import { byId, assertElement } from '../utils/dom-safe';
 
     if (tabBar) tabBar.classList.toggle('hidden', isStandaloneView);
     if (searchWrap) {
-      searchWrap.classList.toggle('hidden', isStandaloneView);
+      searchWrap.classList.toggle('hidden', isStandaloneView || tabName === 'clippings');
     }
 
     if (backBtn) backBtn.classList.toggle('hidden', !isStandaloneView);
@@ -327,7 +333,11 @@ import { byId, assertElement } from '../utils/dom-safe';
 
     if (headerPageTitle) {
       headerPageTitle.classList.toggle('hidden', !isStandaloneView);
-      const pageTitles: Record<string, string> = { settings: 'Settings', export: 'Export', continue: 'Continue' };
+      const pageTitles: Record<string, string> = {
+        settings: 'Settings',
+        export: 'Export',
+        continue: 'Continue',
+      };
       headerPageTitle.textContent = pageTitles[tabName] || '';
     }
 
@@ -592,11 +602,13 @@ import { byId, assertElement } from '../utils/dom-safe';
       .toLowerCase();
     const staticCommands = window.commandPalette.getAllCommands();
     const prompts = await (window.PromptStore || window.Store)?.getPrompts?.().catch(() => []);
-    const promptCommands = (Array.isArray(prompts) ? prompts : []).slice(0, 200).map((prompt: any) => ({
-      title: String(prompt.title || 'Untitled Prompt'),
-      subtitle: [prompt.category, ...(prompt.tags || [])].filter(Boolean).join(' · '),
-      type: 'prompt',
-    }));
+    const promptCommands = (Array.isArray(prompts) ? prompts : [])
+      .slice(0, 200)
+      .map((prompt: any) => ({
+        title: String(prompt.title || 'Untitled Prompt'),
+        subtitle: [prompt.category, ...(prompt.tags || [])].filter(Boolean).join(' · '),
+        type: 'prompt',
+      }));
     commandState.items = [...staticCommands, ...promptCommands]
       .filter((item: any) => {
         if (!normalized) return true;
@@ -665,7 +677,10 @@ import { byId, assertElement } from '../utils/dom-safe';
 
   const consumePendingSnippet = async () => {
     try {
-      const snapshot = (await chrome.storage.local.get([KEYS.PENDING_SNIPPET_KEY])) as Record<string, any>;
+      const snapshot = (await chrome.storage.local.get([KEYS.PENDING_SNIPPET_KEY])) as Record<
+        string,
+        any
+      >;
       const snippet = snapshot?.[KEYS.PENDING_SNIPPET_KEY];
       const text = String(snippet?.text || '').trim();
       if (!text) {
@@ -690,7 +705,9 @@ import { byId, assertElement } from '../utils/dom-safe';
       }
       await chrome.storage.session.remove([KEYS.PENDING_PANEL_ACTION_KEY]).catch(() => {});
 
-      const normalized = (typeof rawAction === 'string' ? { type: rawAction } : rawAction) as Record<string, unknown>;
+      const normalized = (
+        typeof rawAction === 'string' ? { type: rawAction } : rawAction
+      ) as Record<string, unknown>;
       if (!normalized?.type) {
         return null;
       }
@@ -709,6 +726,59 @@ import { byId, assertElement } from '../utils/dom-safe';
         context: 'fab',
         sourceTabId: normalizedImprove.sourceTabId,
       });
+    }
+  };
+
+  const handleSmartRefinement = async (action: any) => {
+    const content = String(action?.content || '').trim();
+    if (!content) return;
+
+    await loadRefinementFeature();
+    await switchTab('prompts');
+    window.ImproveUI.open(null, content, [], {
+      context: action?.source || 'context-menu',
+      sourceTabId: action?.sourceTabId || null,
+      initialAction: action?.mode || 'upgrade',
+      entrySource: action?.source || 'context-menu',
+      sourceUrl: action?.sourceUrl || '',
+      platform: action?.platform || null,
+    });
+  };
+
+  const handleSaveSelectionToVault = async (action: any) => {
+    const content = String(action?.content || '').trim();
+    if (!content) return;
+
+    const { classifyContent } = await import('../features/vault/importer/classifier');
+    const title =
+      String(action?.sourceTitle || content.split(/[.!?\n]/)[0] || 'Selection')
+        .trim()
+        .slice(0, 80) || 'Selection';
+    const classification = classifyContent(
+      title,
+      content,
+      String(action?.sourceUrl || action?.source || 'fab')
+    );
+    await initVaultStore();
+    await createItem({
+      type: classification.type,
+      title,
+      content,
+      tags: [
+        'selection',
+        action?.platform ? String(action.platform) : '',
+        classification.type,
+      ].filter(Boolean),
+      enabled: true,
+      pinned: false,
+      ...(classification.type === 'instruction' ? { priority: 'medium' as const } : {}),
+    });
+
+    await switchTab('vault');
+    const searchInput = document.getElementById('pn-vault-search') as HTMLInputElement | null;
+    if (searchInput) {
+      searchInput.value = title;
+      searchInput.dispatchEvent(new Event('input', { bubbles: true }));
     }
   };
 
@@ -759,6 +829,16 @@ import { byId, assertElement } from '../utils/dom-safe';
 
       void handleImprovePayload(improveChange.newValue);
     });
+
+    window.addEventListener('promptium:search-clippings', () => {
+      void switchTab('clippings');
+      setTimeout(() => {
+        const searchInput = document.getElementById(
+          'pn-clippings-search'
+        ) as HTMLInputElement | null;
+        if (searchInput) searchInput.focus();
+      }, 50);
+    });
   };
 
   const flushPendingActions = async () => {
@@ -776,6 +856,14 @@ import { byId, assertElement } from '../utils/dom-safe';
       }
       if (action.type === 'showContinuation') {
         await handleShowContinuation();
+        continue;
+      }
+      if (action.type === 'smartRefinement') {
+        await handleSmartRefinement(action);
+        continue;
+      }
+      if (action.type === 'saveSelectionToVault') {
+        await handleSaveSelectionToVault(action);
         continue;
       }
       if (action.type === 'pendingSnippet') {
@@ -803,7 +891,7 @@ import { byId, assertElement } from '../utils/dom-safe';
     window.ExportPayloadUI.applyDefaultsFromSettings(state.settings);
     const initialExportPayload = await window.ExportPayloadUI.loadPayload();
     state.exportSnapshotPayload = window.SessionStorage.cloneExportPayload(initialExportPayload);
-    
+
     if (state.exportSnapshotPayload?.messages?.length) {
       await window.ExportPayloadUI.setStatus('Selection loaded.');
     } else {
@@ -932,7 +1020,9 @@ import { byId, assertElement } from '../utils/dom-safe';
     try {
       const snapshot = await chrome.storage.local.get([KEYS.IMPROVE_PAYLOAD_KEY]);
       const promptiumImprovePayload = snapshot?.[KEYS.IMPROVE_PAYLOAD_KEY];
-      const settingsSnap = (await chrome.storage.local.get([KEYS.SETTINGS_KEY]).catch(() => ({}))) as Record<string, any>;
+      const settingsSnap = (await chrome.storage.local
+        .get([KEYS.SETTINGS_KEY])
+        .catch(() => ({}))) as Record<string, any>;
       const activeProvider = String(settingsSnap?.[KEYS.SETTINGS_KEY]?.activeProvider || 'gemini')
         .trim()
         .toLowerCase();
@@ -958,22 +1048,35 @@ import { byId, assertElement } from '../utils/dom-safe';
       // non-fatal
     }
 
-    const pendingPanelAction = (await consumePendingPanelAction()) as Record<string, unknown> | null;
+    const pendingPanelAction = (await consumePendingPanelAction()) as Record<
+      string,
+      unknown
+    > | null;
     const hasSelectionPayload = Boolean(state.exportPayload?.messages?.length);
     const route = String(window.location.hash || '')
       .replace(/^#/, '')
       .trim()
       .toLowerCase();
-    const routableTabs = new Set(['prompts', 'export', 'tags', 'settings', 'continue']);
+    const routableTabs = new Set([
+      'prompts',
+      'export',
+      'tags',
+      'settings',
+      'continue',
+      'vault',
+      'clippings',
+    ]);
     const initialTab = routableTabs.has(route)
       ? route
       : pendingPanelAction?.type === 'showExport'
         ? 'export'
         : pendingPanelAction?.type === 'showContinuation'
           ? 'continue'
-          : hasSelectionPayload
-            ? 'export'
-            : 'prompts';
+          : pendingPanelAction?.type === 'saveSelectionToVault'
+            ? 'vault'
+            : hasSelectionPayload
+              ? 'export'
+              : 'prompts';
     await switchTab(initialTab);
 
     await window.PromptsUI.render('');

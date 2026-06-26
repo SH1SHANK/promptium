@@ -1,5 +1,10 @@
 import { PlatformAdapter } from '../base/adapter';
-import { Conversation, PlatformCapabilities, ValidationFailureReason, MessageElement } from '../base/types';
+import {
+  Conversation,
+  PlatformCapabilities,
+  ValidationFailureReason,
+  MessageElement,
+} from '../base/types';
 import { SELECTORS } from './selectors';
 import { extractConversation } from './extractor';
 import { injectPrompt, focusComposer } from './injector';

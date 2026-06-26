@@ -11,7 +11,7 @@ export const codexPlugin: ImporterPlugin = {
   parse: async (fileName, content) => {
     const lines = content.split('\n');
     const drafts: ParsedImportDraft[] = [];
-    
+
     let currentTitle = 'Codex Context';
     let currentContent: string[] = [];
 
@@ -27,7 +27,7 @@ export const codexPlugin: ImporterPlugin = {
         content: text,
         type: classification.type,
         confidence: classification.confidence,
-        tags: ['codex', 'imported']
+        tags: ['codex', 'imported'],
       });
       currentContent = [];
     };
@@ -43,5 +43,5 @@ export const codexPlugin: ImporterPlugin = {
     flush();
 
     return drafts;
-  }
+  },
 };

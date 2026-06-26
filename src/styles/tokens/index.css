@@ -1,0 +1,19 @@
+@import '../foundations/colors.css';
+@import '../foundations/typography.css';
+@import '../foundations/spacing.css';
+@import '../foundations/radius.css';
+@import '../foundations/shadows.css';
+
+:root {
+  --motion-fast: 150ms;
+  --motion-panel: 200ms;
+  --motion-slow: 240ms;
+  --motion-ease: cubic-bezier(0.2, 0, 0.2, 1);
+  --motion-spring: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --pn-transition-fast: 120ms ease;
+  --pn-transition-base: 180ms ease;
+  --pn-transition-slow: 260ms ease;
+  --pn-focus-ring: 0 0 0 3px rgba(124, 92, 255, 0.28);
+  --pn-surface-border: 1px solid var(--pn-color-border, rgba(255, 255, 255, 0.12));
+}

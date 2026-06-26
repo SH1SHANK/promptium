@@ -24,7 +24,7 @@ export async function getFuse(): Promise<any> {
 
 export async function getTokenizer(): Promise<any> {
   if (!tokenizerInstance) {
-    const mod = await import('js-tiktoken') as any;
+    const mod = (await import('js-tiktoken')) as any;
     tokenizerInstance = mod.default || mod;
   }
   return tokenizerInstance;

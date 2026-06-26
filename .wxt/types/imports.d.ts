@@ -7,10 +7,14 @@ declare global {
   const MODEL_REGISTRY: typeof import('/Users/shashankmergu/Desktop/promptium/src/utils/model-registry').MODEL_REGISTRY
   const MatchPattern: typeof import('wxt/utils/match-patterns').MatchPattern
   const PROVIDER_IDS: typeof import('/Users/shashankmergu/Desktop/promptium/src/utils/model-registry').PROVIDER_IDS
+  const PnDialog: typeof import('/Users/shashankmergu/Desktop/promptium/src/utils/pn-dialog').PnDialog
+  const TERMINOLOGY: typeof import('/Users/shashankmergu/Desktop/promptium/src/utils/terminology').TERMINOLOGY
+  const alert: typeof import('/Users/shashankmergu/Desktop/promptium/src/utils/pn-dialog').alert
   const assertElement: typeof import('/Users/shashankmergu/Desktop/promptium/src/utils/dom-safe').assertElement
   const browser: typeof import('wxt/browser').browser
   const byId: typeof import('/Users/shashankmergu/Desktop/promptium/src/utils/dom-safe').byId
   const commandPalette: typeof import('/Users/shashankmergu/Desktop/promptium/src/utils/command-palette').commandPalette
+  const confirm: typeof import('/Users/shashankmergu/Desktop/promptium/src/utils/pn-dialog').confirm
   const createBuiltinCommands: typeof import('/Users/shashankmergu/Desktop/promptium/src/utils/command-palette').createBuiltinCommands
   const createBuiltinShortcuts: typeof import('/Users/shashankmergu/Desktop/promptium/src/utils/keyboard-shortcuts').createBuiltinShortcuts
   const createIframeUi: typeof import('wxt/utils/content-script-ui/iframe').createIframeUi
@@ -28,6 +32,7 @@ declare global {
   const getGeminiModels: typeof import('/Users/shashankmergu/Desktop/promptium/src/utils/model-registry').getGeminiModels
   const injectScript: typeof import('wxt/utils/inject-script').injectScript
   const keyboardManager: typeof import('/Users/shashankmergu/Desktop/promptium/src/utils/keyboard-shortcuts').keyboardManager
+  const prompt: typeof import('/Users/shashankmergu/Desktop/promptium/src/utils/pn-dialog').prompt
   const recentsAndFavorites: typeof import('/Users/shashankmergu/Desktop/promptium/src/utils/recents-favorites').recentsAndFavorites
   const searchRanker: typeof import('/Users/shashankmergu/Desktop/promptium/src/utils/search-ranker').searchRanker
   const storage: typeof import('wxt/utils/storage').storage

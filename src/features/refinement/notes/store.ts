@@ -4,7 +4,7 @@ let notesDb: RefinementNote[] = [];
 
 export const addNote = (note: RefinementNote): void => {
   // Check if note with same ID or overlapping spans exists (standard validation)
-  const existingIdx = notesDb.findIndex(n => n.id === note.id);
+  const existingIdx = notesDb.findIndex((n) => n.id === note.id);
   if (existingIdx !== -1) {
     notesDb[existingIdx] = note;
   } else {
@@ -13,14 +13,14 @@ export const addNote = (note: RefinementNote): void => {
 };
 
 export const updateNote = (id: string, instruction: string): void => {
-  const note = notesDb.find(n => n.id === id);
+  const note = notesDb.find((n) => n.id === id);
   if (note) {
     note.instruction = instruction;
   }
 };
 
 export const removeNote = (id: string): void => {
-  notesDb = notesDb.filter(n => n.id !== id);
+  notesDb = notesDb.filter((n) => n.id !== id);
 };
 
 export const getNotes = (): RefinementNote[] => {
@@ -68,7 +68,7 @@ export const adjustOffsetsAfterTextChange = (oldText: string, newText: string): 
       adjusted.push({
         ...note,
         startOffset: foundIndex,
-        endOffset: foundIndex + targetText.length
+        endOffset: foundIndex + targetText.length,
       });
     } else {
       // 2. Substring not found exactly, try to find a partial match or discard/shift

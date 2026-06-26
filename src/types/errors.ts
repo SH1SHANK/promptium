@@ -3,9 +3,7 @@
  * Purpose: Unified Result<T> pattern for standardized error boundaries.
  */
 
-export type Result<T> =
-  | { success: true; data: T }
-  | { success: false; error: string };
+export type Result<T> = { success: true; data: T } | { success: false; error: string };
 
 export function makeSuccess<T>(data: T): Result<T> {
   return { success: true, data };

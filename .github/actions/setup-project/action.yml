@@ -1,0 +1,31 @@
+name: 'Setup Project'
+description: 'Standard setup for Node, PNPM, caching, and dependency installation'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js 22
+      uses: actions/setup-node@392252c8007ce3a90117b118b740346A31b3e763 # v4.2.0
+      with:
+        node-version: 22
+
+    - name: Setup pnpm
+      uses: pnpm/action-setup@a32e240623a1165539c2da1c05a1e2607f0f6385 # v4.1.0
+
+    - name: Get pnpm store directory
+      id: pnpm-cache
+      shell: bash
+      run: |
+        echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+    - name: Setup pnpm Cache
+      uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+      with:
+        path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-pnpm-store-
+
+    - name: Install Dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile

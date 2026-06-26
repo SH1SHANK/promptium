@@ -22,7 +22,9 @@ declare module '#imports' {
   export { byId, assertElement } from '../src/utils/dom-safe';
   export { keyboardManager, createBuiltinShortcuts, KeyboardShortcut } from '../src/utils/keyboard-shortcuts';
   export { PROVIDER_IDS, MODEL_REGISTRY, getGeminiModels, getGeminiDefaultModel, getGeminiModelById } from '../src/utils/model-registry';
+  export { alert, confirm, prompt, PnDialog } from '../src/utils/pn-dialog';
   export { recentsAndFavorites, UsageRecord } from '../src/utils/recents-favorites';
   export { searchRanker, SearchableItem, RankedResult } from '../src/utils/search-ranker';
+  export { TERMINOLOGY } from '../src/utils/terminology';
   export { toast, Toast } from '../src/utils/toast';
 }

@@ -76,7 +76,8 @@
   };
 
   /** Returns export snapshot when available, otherwise current payload. */
-  const getActiveExportPayload = (state: any) => state?.exportSnapshotPayload || state?.exportPayload;
+  const getActiveExportPayload = (state: any) =>
+    state?.exportSnapshotPayload || state?.exportPayload;
 
   const SessionStorage = {
     PROVIDER_KEY_MAP,

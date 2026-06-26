@@ -1,4 +1,9 @@
-import { Conversation, PlatformCapabilities, ValidationFailureReason, MessageElement } from './types';
+import {
+  Conversation,
+  PlatformCapabilities,
+  ValidationFailureReason,
+  MessageElement,
+} from './types';
 
 export interface PlatformAdapter {
   readonly id: string;

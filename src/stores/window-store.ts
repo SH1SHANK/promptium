@@ -1,4 +1,7 @@
 import { PromptiumWindowState, WindowBounds } from '../types/window-manager';
+import { createLogger } from '../core/logger';
+
+const logger = createLogger('WindowStore');
 
 const STORAGE_KEY = 'promptiumWindowState';
 const CURRENT_VERSION = 1;
@@ -15,7 +18,7 @@ export class WindowStore {
     try {
       const data = await chrome.storage.local.get([STORAGE_KEY]);
       const state = data[STORAGE_KEY] as Partial<PromptiumWindowState> | undefined;
-      
+
       if (state && typeof state === 'object' && state.version === CURRENT_VERSION) {
         return {
           version: CURRENT_VERSION,
@@ -23,13 +26,17 @@ export class WindowStore {
           bounds: {
             left: typeof state.bounds?.left === 'number' ? state.bounds.left : DEFAULT_BOUNDS.left,
             top: typeof state.bounds?.top === 'number' ? state.bounds.top : DEFAULT_BOUNDS.top,
-            width: typeof state.bounds?.width === 'number' ? state.bounds.width : DEFAULT_BOUNDS.width,
-            height: typeof state.bounds?.height === 'number' ? state.bounds.height : DEFAULT_BOUNDS.height,
+            width:
+              typeof state.bounds?.width === 'number' ? state.bounds.width : DEFAULT_BOUNDS.width,
+            height:
+              typeof state.bounds?.height === 'number'
+                ? state.bounds.height
+                : DEFAULT_BOUNDS.height,
           },
         };
       }
     } catch (e) {
-      console.warn('[Promptium][WindowStore] Failed to read state:', e);
+      logger.warn('Failed to read state.', e);
     }
 
     return {
@@ -43,7 +50,7 @@ export class WindowStore {
     try {
       await chrome.storage.local.set({ [STORAGE_KEY]: state });
     } catch (e) {
-      console.warn('[Promptium][WindowStore] Failed to save state:', e);
+      logger.warn('Failed to save state.', e);
     }
   }
 

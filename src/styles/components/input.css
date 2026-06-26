@@ -227,7 +227,7 @@ body .pn-textarea-wrap textarea:focus {
 .pn-sv-textarea,
 .pn-sv-select,
 .pn-platform-label-input {
-  border-radius: var(--radius-input);
+  border-radius: var(--radius-sm);
 }
 
 .pn-search-row {

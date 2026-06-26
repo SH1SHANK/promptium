@@ -12,7 +12,11 @@ import {
 } from '../services/gemini-service';
 import { floatingWindowService } from '../services/floating-window-service';
 import { getAdapters } from '../platforms';
-import { contextMenuRegistry, handleContextMenuClick } from '../features/context-menu';
+import {
+  contextMenuRegistry,
+  handleContextMenuClick,
+  updateContextMenuTitles,
+} from '../features/context-menu';
 
 export default defineBackground(() => {
   if (chrome?.storage && !chrome.storage.session) {
@@ -612,7 +616,19 @@ ${tagContext}
 ONLY return the improved prompt text. Do not add quotes, do not explain your changes, and do not add headings.`;
 
     if (context) {
-      const { category, skillPack, pattern, modelRecommendations, agentRecommendations, promptIssues, notes, intent, vaultKnowledge, vaultSkill, vaultInstructions } = context;
+      const {
+        category,
+        skillPack,
+        pattern,
+        modelRecommendations,
+        agentRecommendations,
+        promptIssues,
+        notes,
+        intent,
+        vaultKnowledge,
+        vaultSkill,
+        vaultInstructions,
+      } = context;
 
       const ruleIssues = (promptIssues || []).filter((i: any) => i.category === 'rule');
       const rulesFeedback = ruleIssues.map((i: any) => `- ${i.explanation}`).join('\n');
@@ -620,9 +636,10 @@ ONLY return the improved prompt text. Do not add quotes, do not explain your cha
       const modelGuidelinesText = (modelRecommendations || []).map((r: any) => `- ${r}`).join('\n');
       const agentGuidelinesText = (agentRecommendations || []).map((r: any) => `- ${r}`).join('\n');
 
-      const refinementNotesText = Array.isArray(notes) && notes.length > 0
-        ? notes.map((n: any) => `- On segment "${n.selectedText}": ${n.instruction}`).join('\n')
-        : '';
+      const refinementNotesText =
+        Array.isArray(notes) && notes.length > 0
+          ? notes.map((n: any) => `- On segment "${n.selectedText}": ${n.instruction}`).join('\n')
+          : '';
 
       let intentContext = '';
       if (intent) {
@@ -630,8 +647,10 @@ ONLY return the improved prompt text. Do not add quotes, do not explain your cha
         intentContext = `Parsed Intent Profile:\n`;
         if (action) intentContext += `  - Primary Action Requested: ${action}\n`;
         if (subject) intentContext += `  - Core Subject: ${subject}\n`;
-        if (entities && entities.length > 0) intentContext += `  - Target Entities: ${entities.join(', ')}\n`;
-        if (keywords && keywords.length > 0) intentContext += `  - Context Keywords: ${keywords.join(', ')}\n`;
+        if (entities && entities.length > 0)
+          intentContext += `  - Target Entities: ${entities.join(', ')}\n`;
+        if (keywords && keywords.length > 0)
+          intentContext += `  - Context Keywords: ${keywords.join(', ')}\n`;
       }
 
       // Vault parameters incorporation
@@ -642,14 +661,18 @@ ONLY return the improved prompt text. Do not add quotes, do not explain your cha
 
       let vaultKnowledgeText = '';
       if (Array.isArray(vaultKnowledge) && vaultKnowledge.length > 0) {
-        vaultKnowledgeText = `\nRELEVANT KNOWLEDGE DOCUMENTATION REFERENCE:\n` +
-          vaultKnowledge.map((k: any) => `### Reference: ${k.title}\n${k.content}`).join('\n\n') + `\n`;
+        vaultKnowledgeText =
+          `\nRELEVANT KNOWLEDGE DOCUMENTATION REFERENCE:\n` +
+          vaultKnowledge.map((k: any) => `### Reference: ${k.title}\n${k.content}`).join('\n\n') +
+          `\n`;
       }
 
       let vaultInstructionsText = '';
       if (Array.isArray(vaultInstructions) && vaultInstructions.length > 0) {
-        vaultInstructionsText = `\nPERSISTENT USER PREFERENCES & CONSTRAINTS:\n` +
-          vaultInstructions.map((i: any) => `- ${i.content}`).join('\n') + `\n`;
+        vaultInstructionsText =
+          `\nPERSISTENT USER PREFERENCES & CONSTRAINTS:\n` +
+          vaultInstructions.map((i: any) => `- ${i.content}`).join('\n') +
+          `\n`;
       }
 
       systemPrompt = `You are an expert prompt engineer rewriting a prompt to optimize its effectiveness.
@@ -663,7 +686,7 @@ ${vaultKnowledgeText}
 ${vaultInstructionsText}
 
 GUIDELINES FOR THE REWRITE:
-1. Adopt the Persona/Role: Make sure the final prompt explicitly sets the role: "${vaultSkill ? vaultSkill.title : (skillPack?.role || 'Expert')}".
+1. Adopt the Persona/Role: Make sure the final prompt explicitly sets the role: "${vaultSkill ? vaultSkill.title : skillPack?.role || 'Expert'}".
 2. Follow the Recommended Structure: Organize the rewritten prompt sections logically following:
 ${(pattern?.structure || []).map((s: string) => `   - ${s}`).join('\n')}
 3. Incorporate Target Model Guidelines:
@@ -770,52 +793,10 @@ REWRITE OUTPUT CONSTRAINTS:
     explicitKey = '',
     _forceLocal = false
   ) {
-    const safeMessages = Array.isArray(messages) ? messages : [];
-    if (!safeMessages.length) {
-      return { ok: false, error: 'No messages to summarize.' };
-    }
-
-    const key = String(explicitKey || '').trim();
-    const activeProvider = PROVIDER_IDS.GEMINI;
-    const activeProviderKey = key || (await getGeminiApiKey());
-    const hasActiveKey = Boolean(activeProviderKey);
-    const longConversation = safeMessages.length > CONTINUATION_LONG_THRESHOLD;
-    const forceProvider = longConversation && hasActiveKey ? activeProvider : '';
-    const activeLabel = getProviderLabel(activeProvider);
-    const longAdvisory = longConversation
-      ? hasActiveKey
-        ? `For best results, ${activeLabel} will be used for this long conversation.`
-        : 'Long conversations work best with a configured provider key in Settings.'
-      : '';
-
-    try {
-      const result = await runWithConfiguredBackend({
-        feature: 'continueSummary',
-        inputText: safeMessages.map((m) => String(m?.content || m?.text || '')).join(' '),
-        forceProvider,
-        geminiApiKey: key,
-        cloudTask: ({ providerId, apiKey, modelId }: any) =>
-          buildContinuationHandoffViaCloud(safeMessages, mode, userNote, {
-            providerId,
-            apiKey,
-            modelId,
-          }),
-        noCloudMessage: 'No cloud API key found in Settings.',
-      }) as any;
-
-      return {
-        ok: true,
-        text: limitWords(String(result?.text || '').trim(), CONTINUATION_WORD_LIMIT),
-        backend: 'gemini',
-        advisory: String(result?.advisory || longAdvisory || '').trim() || undefined,
-      };
-    } catch (error: any) {
-      return {
-        ok: false,
-        error: String(error?.message || 'Failed to generate continuation handoff.'),
-        advisory: longAdvisory || undefined,
-      };
-    }
+    // Dynamically require handoff-builder to keep structure decoupled
+    const { generateContinuationHandoff } = require('../features/continuation/handoff-builder');
+    const result = await generateContinuationHandoff(messages, userNote, explicitKey);
+    return result;
   }
 
   async function generatePromptTitleViaCloudStrict({ providerId, apiKey, modelId, text }: any) {
@@ -829,12 +810,12 @@ Return ONLY the title text.
 No quotes, no numbering, no extra text.`;
 
     const result = await callProviderTextTask({
-        providerId,
-        modelId,
-        apiKey,
-        systemPrompt: instruction,
-        userPrompt: `Prompt:\n${source}`,
-      });
+      providerId,
+      modelId,
+      apiKey,
+      systemPrompt: instruction,
+      userPrompt: `Prompt:\n${source}`,
+    });
     const firstLine = (result.split('\n')[0] || '').trim();
     const title = firstLine
       .replace(/^["'`]+|["'`]+$/g, '')
@@ -870,7 +851,12 @@ No quotes, no numbering, no extra text.`;
     return parseClarityFromText(raw, source);
   }
 
-  const improvePrompt = async (text: any, tags: any = [], style: any = 'general', context?: any) => {
+  const improvePrompt = async (
+    text: any,
+    tags: any = [],
+    style: any = 'general',
+    context?: any
+  ) => {
     try {
       const result = (await runWithConfiguredBackend({
         feature: 'improvePrompt',
@@ -1148,7 +1134,9 @@ No quotes, no numbering, no extra text.`;
           return true;
 
         case 'AI_IMPROVE_PROMPT':
-          sendResponse(await improvePrompt(message.text, message.tags, message.style, message.context));
+          sendResponse(
+            await improvePrompt(message.text, message.tags, message.style, message.context)
+          );
           return true;
 
         case 'AI_GENERATE_PROMPT_TITLE':
@@ -1367,7 +1355,12 @@ No quotes, no numbering, no extra text.`;
     return await createPopupPanel({ route, focus, windowId } as any);
   };
 
-  const openPromptiumPanel = async ({ tabId, windowId, route = '', pendingAction = null }: { tabId?: number; windowId?: number; route?: string; pendingAction?: any } = {}) => {
+  const openPromptiumPanel = async ({
+    tabId,
+    windowId,
+    route = '',
+    pendingAction = null,
+  }: { tabId?: number; windowId?: number; route?: string; pendingAction?: any } = {}) => {
     usePopupMode = true;
 
     if (pendingAction) {
@@ -1693,7 +1686,37 @@ No quotes, no numbering, no extra text.`;
         if (message?.action === 'OPEN_PROMPTIUM_WINDOW') {
           const source = message?.source || 'icon';
           void (async () => {
-            await floatingWindowService.open(source);
+            const mode = String(message?.mode || '')
+              .trim()
+              .toLowerCase();
+            const content = String(message?.content || '').trim();
+            if (content && ['fix', 'upgrade', 'rewrite', 'vault'].includes(mode)) {
+              await chrome.storage.session.set({
+                promptiumPendingPanelAction: {
+                  type: mode === 'vault' ? 'saveSelectionToVault' : 'smartRefinement',
+                  mode,
+                  content,
+                  source,
+                  sourceTabId: sender?.tab?.id || null,
+                  sourceUrl: sender?.tab?.url || '',
+                  sourceTitle: sender?.tab?.title || '',
+                  platform: null,
+                  createdAt: Date.now(),
+                },
+              });
+            }
+            await floatingWindowService.open(source, mode === 'vault' ? 'vault' : '');
+            respond({ ok: true });
+          })();
+          return;
+        }
+
+        if (
+          message?.action === 'UPDATE_CONTEXT_MENU_TITLES' ||
+          message?.type === 'UPDATE_CONTEXT_MENU_TITLES'
+        ) {
+          void (async () => {
+            await updateContextMenuTitles(message.isCode);
             respond({ ok: true });
           })();
           return;

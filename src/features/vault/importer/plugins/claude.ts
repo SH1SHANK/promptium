@@ -4,29 +4,38 @@ import { classifyContent } from '../classifier';
 export const claudePlugin: ImporterPlugin = {
   id: 'claude',
   name: 'CLAUDE.md Parser',
-  match: (fileName, content) => 
-    fileName.toLowerCase() === 'claude.md' || 
+  match: (fileName, content) =>
+    fileName.toLowerCase() === 'claude.md' ||
     content.toLowerCase().includes('# claude.md') ||
     content.toLowerCase().includes('## build commands'),
   parse: async (fileName, content) => {
     const lines = content.split('\n');
     const drafts: ParsedImportDraft[] = [];
-    
+
     let currentTitle = 'CLAUDE Context';
     let currentContent: string[] = [];
 
     const flush = () => {
       const text = currentContent.join('\n').trim();
       if (!text) return;
-      
+
       // Smart auto-classification for CLAUDE sections
       let type: 'knowledge' | 'instruction' | 'skill' = 'knowledge';
-      let confidence = 0.90;
+      let confidence = 0.9;
 
       const lowerTitle = currentTitle.toLowerCase();
-      if (lowerTitle.includes('command') || lowerTitle.includes('run') || lowerTitle.includes('test')) {
+      if (
+        lowerTitle.includes('command') ||
+        lowerTitle.includes('run') ||
+        lowerTitle.includes('test')
+      ) {
         type = 'knowledge';
-      } else if (lowerTitle.includes('style') || lowerTitle.includes('rule') || lowerTitle.includes('guideline') || lowerTitle.includes('standard')) {
+      } else if (
+        lowerTitle.includes('style') ||
+        lowerTitle.includes('rule') ||
+        lowerTitle.includes('guideline') ||
+        lowerTitle.includes('standard')
+      ) {
         type = 'instruction';
       } else {
         const fallback = classifyContent(currentTitle, text, fileName);
@@ -41,7 +50,7 @@ export const claudePlugin: ImporterPlugin = {
         content: text,
         type,
         confidence,
-        tags: ['claude', 'imported']
+        tags: ['claude', 'imported'],
       });
       currentContent = [];
     };
@@ -57,5 +66,5 @@ export const claudePlugin: ImporterPlugin = {
     flush();
 
     return drafts;
-  }
+  },
 };

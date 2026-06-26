@@ -1,0 +1,1 @@
+import{t as e}from"./BinaryModule-DTTQwokQ-jb08UHpA.js";var t=``+new URL(`/assets/harper_wasm_bg-C0DPov_6.wasm`,``+self.location.href).href,n=e.create(t,`full`);export{n as binary};

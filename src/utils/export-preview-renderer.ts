@@ -996,7 +996,12 @@
     return regex;
   };
 
-  const tokenizeCodeSegments = (source: string, regex: RegExp, className: string, tokenStore: string[]) =>
+  const tokenizeCodeSegments = (
+    source: string,
+    regex: RegExp,
+    className: string,
+    tokenStore: string[]
+  ) =>
     source.replace(regex, (match: string) => {
       const token = `__pn_token_${tokenStore.length}__`;
       tokenStore.push(`<span class="${className}">${match}</span>`);

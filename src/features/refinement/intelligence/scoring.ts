@@ -13,14 +13,14 @@ export const calculateEffectivenessScore = (
       conciseness: 0,
       structure: 0,
       rules: 0,
-      overall: 0
+      overall: 0,
     };
   }
 
   // 1. Grammar (10% weight)
   // Deduct based on grammar issues
   let grammar = 100;
-  const grammarIssues = issues.filter(i => i.category === 'grammar');
+  const grammarIssues = issues.filter((i) => i.category === 'grammar');
   for (const issue of grammarIssues) {
     if (issue.severity === 'high') grammar -= 25;
     else if (issue.severity === 'medium') grammar -= 15;
@@ -31,14 +31,14 @@ export const calculateEffectivenessScore = (
   // 2. Clarity (25% weight)
   // Deduct for clarity issues, unclear objectives, etc.
   let clarity = 100;
-  const clarityIssues = issues.filter(i => i.category === 'clarity');
+  const clarityIssues = issues.filter((i) => i.category === 'clarity');
   for (const issue of clarityIssues) {
     if (issue.severity === 'high') clarity -= 20;
     else if (issue.severity === 'medium') clarity -= 10;
     else clarity -= 5;
   }
   // If missing objective rule is triggered
-  if (issues.some(i => i.id === 'rule_missing_objective')) {
+  if (issues.some((i) => i.id === 'rule_missing_objective')) {
     clarity -= 30;
   }
   clarity = Math.max(0, Math.min(100, clarity));
@@ -46,7 +46,9 @@ export const calculateEffectivenessScore = (
   // 3. Conciseness (15% weight)
   // Deduct for redundancies, styling fillers, or excessive length without structure
   let conciseness = 100;
-  const redundancyIssues = issues.filter(i => i.category === 'redundancy' || i.category === 'style');
+  const redundancyIssues = issues.filter(
+    (i) => i.category === 'redundancy' || i.category === 'style'
+  );
   for (const issue of redundancyIssues) {
     if (issue.severity === 'high') conciseness -= 15;
     else if (issue.severity === 'medium') conciseness -= 10;
@@ -62,7 +64,7 @@ export const calculateEffectivenessScore = (
   // 4. Structure (20% weight)
   // Evaluates formatting structure, headers, lists, code blocks, xml tags
   let structure = 50; // baseline
-  
+
   if (/#|##|###/.test(normalized)) {
     structure += 20; // uses headers
   }
@@ -75,7 +77,7 @@ export const calculateEffectivenessScore = (
   if (/<[a-zA-Z0-9_-]+>.*<\/[a-zA-Z0-9_-]+>/.test(normalized)) {
     structure += 15; // uses XML tags
   }
-  
+
   // Deduct if it's long but has absolutely no structural separators
   if (normalized.length > 250 && !hasStructureElements) {
     structure -= 30;
@@ -85,20 +87,16 @@ export const calculateEffectivenessScore = (
   // 5. Rules (30% weight)
   // Deduct directly for missing prompt engineering rules
   let rules = 100;
-  if (issues.some(i => i.id === 'rule_missing_objective')) rules -= 30;
-  if (issues.some(i => i.id === 'rule_missing_context')) rules -= 25;
-  if (issues.some(i => i.id === 'rule_missing_constraints')) rules -= 25;
-  if (issues.some(i => i.id === 'rule_missing_format')) rules -= 20;
-  if (issues.some(i => i.id === 'rule_contains_placeholder')) rules -= 15;
+  if (issues.some((i) => i.id === 'rule_missing_objective')) rules -= 30;
+  if (issues.some((i) => i.id === 'rule_missing_context')) rules -= 25;
+  if (issues.some((i) => i.id === 'rule_missing_constraints')) rules -= 25;
+  if (issues.some((i) => i.id === 'rule_missing_format')) rules -= 20;
+  if (issues.some((i) => i.id === 'rule_contains_placeholder')) rules -= 15;
   rules = Math.max(0, Math.min(100, rules));
 
   // Overall Score Calculation
   const overall = Math.round(
-    grammar * 0.10 +
-    conciseness * 0.15 +
-    clarity * 0.25 +
-    structure * 0.20 +
-    rules * 0.30
+    grammar * 0.1 + conciseness * 0.15 + clarity * 0.25 + structure * 0.2 + rules * 0.3
   );
 
   return {
@@ -107,6 +105,6 @@ export const calculateEffectivenessScore = (
     conciseness,
     structure,
     rules,
-    overall
+    overall,
   };
 };

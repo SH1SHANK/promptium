@@ -23,7 +23,10 @@ declare global {
       duplicatePrompt(id: string): Promise<any>;
       setFavorite(id: string, isFavorite: boolean): Promise<any>;
       buildSearchText(prompt: any): string;
-      benchmarkSearch(prompts: any[], query?: string): { count: number; resultCount: number; durationMs: number };
+      benchmarkSearch(
+        prompts: any[],
+        query?: string
+      ): { count: number; resultCount: number; durationMs: number };
     };
     SettingsStore: {
       getSettings(defaults?: any): Promise<UserSettings>;
@@ -38,10 +41,10 @@ declare global {
       getSession(key: string): Promise<any>;
       removeSession(key: string): Promise<void>;
     };
-    BookmarkStore: {
+    ClippingStore: {
       KEY: string;
       getAll(): Promise<Record<string, any>>;
-      setAll(bookmarks?: any): Promise<any>;
+      setAll(clippings?: any): Promise<any>;
     };
 
     // Services
@@ -213,7 +216,12 @@ declare global {
       CONTINUATION_KEY: string;
       CONTINUATION_TTL_MS: number;
       normalizeMode(value: any): string;
-      buildHandoff(messages: any[], mode?: string, userNote?: string, cloudKey?: string): Promise<any>;
+      buildHandoff(
+        messages: any[],
+        mode?: string,
+        userNote?: string,
+        cloudKey?: string
+      ): Promise<any>;
       buildFallback(messages: any[]): string;
       store(handoffText: string, targetPlatform: string, sourcePlatform?: string): Promise<void>;
       checkPending(currentPlatform: string): Promise<any>;
@@ -230,7 +238,7 @@ declare global {
     __PN?: any;
     Scraper?: any;
     Injector?: any;
-    Bookmarks?: any;
+    Clippings?: any;
     PromptSuggestions?: any;
   }
 

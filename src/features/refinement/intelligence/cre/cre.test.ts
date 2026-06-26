@@ -13,9 +13,9 @@ const mockStorage: Record<string, any> = {};
       },
       set: async (items: Record<string, any>) => {
         Object.assign(mockStorage, items);
-      }
-    }
-  }
+      },
+    },
+  },
 };
 
 import { initVaultStore } from '../../../vault/store';
@@ -46,15 +46,16 @@ async function runTests() {
       title: 'Senior Database Administrator',
       content: 'You are an expert DBA. Provide detailed SQL queries and index recommendations.',
       tags: ['database', 'sql', 'postgres'],
-      enabled: true
+      enabled: true,
     },
     {
       id: 'knowledge_1',
       type: 'knowledge',
       title: 'PostgreSQL Indexing Guide',
-      content: 'Always prefer using EXPLAIN ANALYZE to analyze queries. B-Tree indexes are standard.',
+      content:
+        'Always prefer using EXPLAIN ANALYZE to analyze queries. B-Tree indexes are standard.',
       tags: ['database', 'postgres'],
-      enabled: true
+      enabled: true,
     },
     {
       id: 'knowledge_2',
@@ -62,34 +63,39 @@ async function runTests() {
       title: 'Rust Programming Best Practices',
       content: 'Prefer strict safety guidelines, match statements, and borrow checker rules.',
       tags: ['rust', 'coding'],
-      enabled: true
+      enabled: true,
     },
     {
       id: 'instruction_1',
       type: 'instruction',
       title: 'No commentary preference',
       content: 'Avoid outputting preamble or conversational chatter.',
-      enabled: true
-    }
+      enabled: true,
+    },
   ];
 
   await initVaultStore();
 
   // 1. Test retrieval by matching tags and categories
   const res = await retrieveContext('How to optimize a PostgreSQL query index?');
-  console.log("TEST CONTEXT RETRIEVED RESULT:", JSON.stringify(res, null, 2));
 
   assert(res.skill !== null, 'Skill retrieved correctly.');
   assert(res.skill?.item.id === 'skill_1', 'Matched database skill correctly.');
-  assert(res.skill?.explanation.includes('postgres') || res.skill?.explanation.includes('database'), 'Explanation includes matched keywords/tags.');
+  assert(
+    !!(res.skill?.explanation.includes('postgres') || res.skill?.explanation.includes('database')),
+    'Explanation includes matched keywords/tags.'
+  );
 
   assert(res.knowledge.length >= 1, 'At least one knowledge item retrieved.');
-  const pgGuide = res.knowledge.find(k => k.item.id === 'knowledge_1');
+  const pgGuide = res.knowledge.find((k) => k.item.id === 'knowledge_1');
   assert(!!pgGuide, 'Indexing Guide knowledge item retrieved.');
-  assert(pgGuide?.explanation.includes('postgres') || pgGuide?.explanation.includes('database'), 'Knowledge explanation lists tags or keywords.');
+  assert(
+    !!(pgGuide?.explanation.includes('postgres') || pgGuide?.explanation.includes('database')),
+    'Knowledge explanation lists tags or keywords.'
+  );
 
   // The Rust guide shouldn't be matched because it has no overlap
-  const rustGuide = res.knowledge.find(k => k.item.id === 'knowledge_2');
+  const rustGuide = res.knowledge.find((k) => k.item.id === 'knowledge_2');
   assert(!rustGuide, 'Irrelevant Rust guide not retrieved.');
 
   // Global instructions should always be retrieved
@@ -100,13 +106,17 @@ async function runTests() {
   const dummyItems: RetrievedItem<string>[] = [
     { item: 'a', score: 0.9, explanation: 'high', tokenCount: 1500 },
     { item: 'b', score: 0.8, explanation: 'med', tokenCount: 1200 },
-    { item: 'c', score: 0.5, explanation: 'low', tokenCount: 200 }
+    { item: 'c', score: 0.5, explanation: 'low', tokenCount: 200 },
   ];
 
   // Budget is 2500. Prompt starts with e.g. 100.
   const budgetRes = await budgetItems(dummyItems, 100);
   assert(budgetRes.budgeted.length === 2, 'Only budgeted items that fit the limit are selected.');
-  assert(budgetRes.budgeted.some(i => i.item === 'a') && budgetRes.budgeted.some(i => i.item === 'c'), 'Selected highest scoring items that fit the budget.');
+  assert(
+    budgetRes.budgeted.some((i) => i.item === 'a') &&
+      budgetRes.budgeted.some((i) => i.item === 'c'),
+    'Selected highest scoring items that fit the budget.'
+  );
   assert(budgetRes.isTruncated === true, 'Flagged as truncated since not all items fit.');
 
   if (failed) {
@@ -118,7 +128,7 @@ async function runTests() {
   }
 }
 
-runTests().catch(err => {
+runTests().catch((err) => {
   console.error('Unhandled test execution error:', err);
   process.exit(1);
 });

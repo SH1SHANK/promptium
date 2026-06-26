@@ -8,6 +8,11 @@ declare module "wxt/browser" {
     | "/app.html"
     | "/background.js"
     | "/content-scripts/content.js"
+    | "/icons/promptium/icon128.png"
+    | "/icons/promptium/icon16.png"
+    | "/icons/promptium/icon32.png"
+    | "/icons/promptium/icon48.png"
+    | "/icons/promptium/webstore/README.md"
   type HtmlPublicPath = Extract<PublicPath, `${string}.html`>
   export interface WxtRuntime {
     getURL(path: PublicPath): string;

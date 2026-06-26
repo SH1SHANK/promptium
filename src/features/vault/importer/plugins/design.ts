@@ -11,7 +11,7 @@ export const designPlugin: ImporterPlugin = {
   parse: async (fileName, content) => {
     const lines = content.split('\n');
     const drafts: ParsedImportDraft[] = [];
-    
+
     let currentTitle = 'Design Specifications';
     let currentContent: string[] = [];
 
@@ -27,7 +27,7 @@ export const designPlugin: ImporterPlugin = {
         content: text,
         type: classification.type,
         confidence: classification.confidence,
-        tags: ['design', 'imported']
+        tags: ['design', 'imported'],
       });
       currentContent = [];
     };
@@ -43,5 +43,5 @@ export const designPlugin: ImporterPlugin = {
     flush();
 
     return drafts;
-  }
+  },
 };

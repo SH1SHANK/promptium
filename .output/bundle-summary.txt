@@ -1,0 +1,22 @@
+| File Path | Size (Bytes) | Size (KB) | Status |
+|:---|:---|:---|:---|
+| `background.js` | 67702 | 66.12 KB | ✅ OK |
+| `content-scripts/content.js` | 491214 | 479.70 KB | ✅ OK |
+| `chunks/BinaryModule-DTTQwokQ-jb08UHpA.js` | 42682 | 41.68 KB | ✅ OK |
+| `chunks/app-BdrHJMQz.js` | 103021 | 100.61 KB | ✅ OK |
+| `chunks/binary-BcS7j9NA.js` | 181 | 0.18 KB | ✅ OK |
+| `chunks/classifier-BGwsB8EX.js` | 1868 | 1.82 KB | ✅ OK |
+| `chunks/clippings-ui-T7JAyFkS.js` | 13493 | 13.18 KB | ✅ OK |
+| `chunks/compromise-BlL1-Cyp.js` | 803 | 0.78 KB | ✅ OK |
+| `chunks/continuation-v_r2Ua43.js` | 5558 | 5.43 KB | ✅ OK |
+| `chunks/dist-CGLgx_79.js` | 112158 | 109.53 KB | ✅ OK |
+| `chunks/dist-CZamEHe7.js` | 5605062 | 5473.69 KB | ⚠️ LARGE |
+| `chunks/export-CDNoc1iO.js` | 30710 | 29.99 KB | ✅ OK |
+| `chunks/export-preview-renderer-BiCbYf8a.js` | 15274 | 14.92 KB | ✅ OK |
+| `chunks/export-service-C0lD6uvz.js` | 17204 | 16.80 KB | ✅ OK |
+| `chunks/fuse-CFO-lOBN.js` | 26064 | 25.45 KB | ✅ OK |
+| `chunks/preload-helper-Dvn4G9Be.js` | 1259 | 1.23 KB | ✅ OK |
+| `chunks/refinement-DcnxtYAc.js` | 57749 | 56.40 KB | ✅ OK |
+| `chunks/three-EljfG4Lj.js` | 348702 | 340.53 KB | ✅ OK |
+| `chunks/tokenizer-CtDBtjUz.js` | 534 | 0.52 KB | ✅ OK |
+| `chunks/vault-ui-Bj-zwTyd.js` | 24436 | 23.86 KB | ✅ OK |

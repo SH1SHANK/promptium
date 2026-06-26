@@ -12,100 +12,144 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-jobs:
-  build:
-    name: Build & Quality Gates
-    runs-on: ubuntu-latest
+permissions:
+  contents: read
 
+jobs:
+  lint-format:
+    name: Lint & Format (Fast Feedback)
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Setup Node.js 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
+      - name: Setup Project
+        uses: ./.github/actions/setup-project
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - name: Get pnpm store directory
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm Cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
-      - name: Install Dependencies
-        run: pnpm install --frozen-lockfile
-
-      # CI-2A: Formatting & Linter Gates
       - name: Run Prettier Check
         run: pnpm prettier:check
 
       - name: Run ESLint Check
         run: pnpm lint
 
+  typecheck:
+    name: TypeScript Check (Fast Feedback)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Project
+        uses: ./.github/actions/setup-project
+
       - name: Run Type Check
         run: pnpm typecheck
 
-      # Build & Packaging
-      - name: Build Extension
-        run: pnpm build
+  test:
+    name: Run Test Suites
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      # CI-2A: Upload Build Artifacts
-      - name: Package Extension (Zip)
-        run: pnpm zip
+      - name: Setup Project
+        uses: ./.github/actions/setup-project
 
-      - name: Verify Build Artifacts
-        shell: bash
-        run: |
-          if [ ! -f .output/chrome-mv3/manifest.json ]; then
-            echo "Error: manifest.json is missing!"
-            exit 1
-          fi
+      - name: Run Knip Verification
+        run: pnpm knip --exclude exports,types,nsExports,nsTypes,classMembers,enumMembers,duplicates,unlisted,binaries
 
-          ZIP_COUNT=$(ls .output/*.zip 2>/dev/null | wc -l)
-          if [ "$ZIP_COUNT" -eq 0 ]; then
-            echo "Error: zip package is missing!"
-            exit 1
-          fi
-          echo "Build and packaging verified successfully."
+      - name: Run Adapter Tests
+        run: pnpm test:adapters
 
-      - name: Upload Build Artifacts
-        uses: actions/upload-artifact@v4
+      - name: Run Context Menu Tests
+        run: pnpm test:context-menu
+
+      - name: Run Importer Tests
+        run: pnpm test:importer
+
+      - name: Run CRE Tests
+        run: pnpm test:cre
+
+      - name: Run Retrieval Tests
+        run: pnpm test:retrieval
+
+      - name: Run Clippings Tests
+        run: pnpm test:clippings
+
+  build:
+    name: Compile & Validate Production Bundle
+    runs-on: ubuntu-latest
+    needs: [lint-format, typecheck]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Project
+        uses: ./.github/actions/setup-project
+
+      # Run build, check build reproducibility, zip, and validate artifact structure
+      - name: Run Build and Verification Checks
+        run: pnpm verify:build
+
+      # Upload Build Artifacts for release verification (7 days retention)
+      - name: Upload Production Extension Bundle
+        uses: actions/upload-artifact@4bec3efae2027e8a97d2d85d7b913e00e2a720e5 # v4.6.0
         with:
           name: promptium-chrome-extension
+          path: .output/chrome-mv3
+          retention-days: 7
+
+      - name: Upload Packaged Zip Archive
+        uses: actions/upload-artifact@4bec3efae2027e8a97d2d85d7b913e00e2a720e5 # v4.6.0
+        with:
+          name: promptium-packaged-zip
+          path: .output/*.zip
+          retention-days: 7
+
+      # Upload Bundle Analysis Report (30 days retention)
+      - name: Upload Bundle Analysis Report
+        uses: actions/upload-artifact@4bec3efae2027e8a97d2d85d7b913e00e2a720e5 # v4.6.0
+        with:
+          name: bundle-analysis-report
+          path: .output/bundle-analysis.html
+          retention-days: 30
+
+      # Capture and upload failure diagnostics if the build/tests fail
+      - name: Upload Failure Diagnostics
+        if: failure()
+        uses: actions/upload-artifact@4bec3efae2027e8a97d2d85d7b913e00e2a720e5 # v4.6.0
+        with:
+          name: failure-diagnostics
           path: |
-            .output/chrome-mv3
-            .output/*.zip
+            .output/
+            *.log
+          retention-days: 7
 
-      # CI-2B: Knip Dead Dependency Analysis (Report-Only)
-      - name: Run Knip Report
-        run: pnpm knip || true
-
-      # CI-2B: Bundle Size Reporting (Report-Only)
-      - name: Bundle Size Report
+      # Generate step summaries
+      - name: Generate GHA Summary Reports
         shell: bash
         run: |
-          echo "=========================================="
-          echo "           BUNDLE SIZE REPORT             "
-          echo "=========================================="
-          for file in .output/chrome-mv3/background.js .output/chrome-mv3/content-scripts/content.js .output/chrome-mv3/chunks/app-*.js; do
-            if [ -f "$file" ]; then
-              size_bytes=$(wc -c < "$file" | xargs)
-              size_kb=$(echo "scale=2; $size_bytes / 1024" | bc 2>/dev/null || awk "BEGIN {print $size_bytes/1024}")
-              printf "%-50s: %10s bytes (%6.2f KB)\n" "$file" "$size_bytes" "$size_kb"
-            else
-              echo "$file: NOT FOUND"
-            fi
-          done
-          echo "=========================================="
+          echo "### Promptium Build Verification Dashboard 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### 📋 Build Metadata" >> $GITHUB_STEP_SUMMARY
+          if [ -f .output/chrome-mv3/metadata.json ]; then
+            echo "\`\`\`json" >> $GITHUB_STEP_SUMMARY
+            cat .output/chrome-mv3/metadata.json >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Metadata file not found." >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### 📦 Bundle Size Verification" >> $GITHUB_STEP_SUMMARY
+          if [ -f .output/bundle-summary.txt ]; then
+            cat .output/bundle-summary.txt >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Bundle size report not found." >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### 🔏 Dependency License Report" >> $GITHUB_STEP_SUMMARY
+          if [ -f .output/license-report.md ]; then
+            cat .output/license-report.md >> $GITHUB_STEP_SUMMARY
+          else
+            echo "License report not found." >> $GITHUB_STEP_SUMMARY
+          fi

@@ -905,7 +905,8 @@ import { toast } from '../utils/toast';
     const elements = await adapter.getMessageElements();
     const uniqueNodes = elements.map((e) => e.element);
     const topLevelNodes = uniqueNodes.filter(
-      (node) => !uniqueNodes.some((candidate: any) => candidate !== node && candidate.contains(node))
+      (node) =>
+        !uniqueNodes.some((candidate: any) => candidate !== node && candidate.contains(node))
     );
     return sortContentNodesByDomOrder(topLevelNodes);
   };
@@ -1551,8 +1552,8 @@ import { toast } from '../utils/toast';
     // Legacy toolbar is disabled in Phase S4.5 in favor of the new lightweight FAB launcher
     await hydratePendingBridge(platform);
     await hydratePendingContinuation(platform);
-    if (window.Bookmarks?.init) {
-      await window.Bookmarks.init(platform);
+    if (window.Clippings?.init) {
+      await window.Clippings.init(platform);
     }
     await initExportSelectionUi(platform);
 
@@ -1573,7 +1574,7 @@ import { toast } from '../utils/toast';
 
     const syncHighlightSettings = async () => {
       try {
-        const snap = await chrome.storage.local.get('promptiumSettings') as any;
+        const snap = (await chrome.storage.local.get('promptiumSettings')) as any;
         exportSelectionState.chatHighlightStyle =
           snap?.promptiumSettings?.chatHighlightStyle || 'solid';
         getSelectionControls().forEach((entry: any) => {
@@ -1600,6 +1601,36 @@ import { toast } from '../utils/toast';
       { once: true }
     );
   };
+
+  const looksLikeCode = (text: string): boolean => {
+    const codeSignals = [
+      /function\s+\w+\s*\(/i,
+      /import\s+[\s\S]+?\s+from\s+['"]/i,
+      /const\s+\w+\s*=/i,
+      /let\s+\w+\s*=/i,
+      /class\s+\w+/i,
+      /def\s+\w+\s*\(/i,
+      /fn\s+\w+\s*\(/i,
+      /\{\s*[\s\S]*?\}/,
+      /;\s*$/m,
+      /\/\//,
+    ];
+    return codeSignals.some((regex) => regex.test(text));
+  };
+
+  document.addEventListener('contextmenu', () => {
+    const selection = window.getSelection()?.toString() || '';
+    if (selection.trim()) {
+      const isCode = looksLikeCode(selection);
+      chrome.runtime
+        .sendMessage({
+          action: 'UPDATE_CONTEXT_MENU_TITLES',
+          isCode,
+          selectionLength: selection.length,
+        })
+        .catch(() => {});
+    }
+  });
 
   chrome.runtime.onMessage.addListener(onRuntimeMessage);
   void init();

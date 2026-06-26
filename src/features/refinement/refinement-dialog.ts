@@ -5,12 +5,24 @@ import { getSelectionContext } from './notes/selection';
 import { showNoteDialog } from './notes/dialog';
 import { renderNotesSidebar } from './notes/sidebar';
 import { adjustOffsetsAfterTextChange, clear as clearNotes } from './notes/store';
+import { getItems } from '../vault/store';
+import {
+  KeywordRetrievalProvider,
+  adjustUsageWeight,
+  clearRetrievalCache,
+  recordRetrievalSnapshot,
+} from '../retrieval';
 
 let currentPromptId: string | null = null;
 let currentTags: string[] = [];
 let currentOptions: any = {};
 let currentContext: PromptRefinementContext | null = null;
-let originalPromptText: string = "";
+let originalPromptText: string = '';
+let manualContextIds: string[] = [];
+let removedContextIds: string[] = [];
+let initialActionApplied = false;
+let previousActiveElement: HTMLElement | null = null;
+const retrievalProvider = new KeywordRetrievalProvider();
 
 const callbacks = {
   onPromptTextReplaced: null as (() => void) | null,
@@ -24,12 +36,17 @@ export const setCallbacks = (nextCallbacks: any = {}): void => {
   callbacks.onSwitchTab = nextCallbacks.onSwitchTab || null;
 };
 
-const byId = <T extends HTMLElement>(id: string): T | null => document.getElementById(id) as T | null;
+const byId = <T extends HTMLElement>(id: string): T | null =>
+  document.getElementById(id) as T | null;
 
 export const close = (): void => {
   const modal = byId('pn-improve-modal');
   if (modal) modal.classList.add('pn-hidden');
   clearNotes();
+  if (previousActiveElement) {
+    previousActiveElement.focus();
+    previousActiveElement = null;
+  }
 };
 
 let analysisDebounceTimeout: any = null;
@@ -39,9 +56,28 @@ const runAnalysisAndRender = async (text: string): Promise<void> => {
     const context = await PromptIntelligenceEngine.generateRewriteContext(text);
     currentContext = context;
     renderWorkspace(context);
+    applyInitialActionIfNeeded();
   } catch (err: any) {
-    console.error("Analysis failed:", err);
+    console.error('Analysis failed:', err);
   }
+};
+
+const applyInitialActionIfNeeded = (): void => {
+  if (initialActionApplied) return;
+  const action = String(currentOptions?.initialAction || '').toLowerCase();
+  if (!['fix', 'upgrade', 'rewrite'].includes(action)) return;
+
+  const buttonId =
+    action === 'fix'
+      ? 'pn-improve-btn-fix'
+      : action === 'upgrade'
+        ? 'pn-improve-btn-upgrade'
+        : 'pn-improve-btn-rewrite';
+  const button = byId<HTMLButtonElement>(buttonId);
+  if (!button || button.disabled) return;
+
+  initialActionApplied = true;
+  window.setTimeout(() => button.click(), 0);
 };
 
 const getHealthLabelAndClass = (score: number): { label: string; className: string } => {
@@ -69,7 +105,7 @@ const renderWorkspace = (context: PromptRefinementContext) => {
   // Render Strengths and Weaknesses lists
   const strengthsList = byId('pn-improve-strengths-list');
   const weaknessesList = byId('pn-improve-weaknesses-list');
-  
+
   if (strengthsList && weaknessesList) {
     strengthsList.innerHTML = '';
     weaknessesList.innerHTML = '';
@@ -77,7 +113,7 @@ const renderWorkspace = (context: PromptRefinementContext) => {
     const strengths: string[] = [];
     const weaknesses: string[] = [];
 
-    const issuesMap = new Set(context.promptIssues.map(i => i.id));
+    const issuesMap = new Set(context.promptIssues.map((i) => i.id));
 
     if (issuesMap.has('rule_missing_objective')) {
       weaknesses.push('Unclear objective');
@@ -113,23 +149,25 @@ const renderWorkspace = (context: PromptRefinementContext) => {
       weaknesses.push('Grammar or spelling issues');
     }
 
-    strengths.forEach(s => {
+    strengths.forEach((s) => {
       const li = document.createElement('li');
       li.textContent = `✓ ${s}`;
       strengthsList.appendChild(li);
     });
 
-    weaknesses.forEach(w => {
+    weaknesses.forEach((w) => {
       const li = document.createElement('li');
       li.textContent = `• ${w}`;
       weaknessesList.appendChild(li);
     });
 
     if (strengths.length === 0) {
-      strengthsList.innerHTML = '<span style="font-size: 11px; color: var(--text-muted);">None detected</span>';
+      strengthsList.innerHTML =
+        '<span style="font-size: 11px; color: var(--text-muted);">None detected</span>';
     }
     if (weaknesses.length === 0) {
-      weaknessesList.innerHTML = '<span style="font-size: 11px; color: var(--text-muted);">None detected</span>';
+      weaknessesList.innerHTML =
+        '<span style="font-size: 11px; color: var(--text-muted);">None detected</span>';
     }
   }
 
@@ -138,15 +176,18 @@ const renderWorkspace = (context: PromptRefinementContext) => {
   if (deck) {
     deck.innerHTML = '';
 
-    context.recommendations.forEach(rec => {
+    context.recommendations.forEach((rec) => {
       const card = document.createElement('div');
       card.className = 'pn-rec-card';
 
       // Setup Group Category Color indicator styles
       let catColor = '#38bdf8'; // light blue default (Context/Clarity)
-      if (rec.category === 'Constraints') catColor = '#fbbf24'; // yellow
-      else if (rec.category === 'Output Format') catColor = '#f472b6'; // pink
-      else if (rec.category === 'Structure') catColor = '#c084fc'; // purple
+      if (rec.category === 'Constraints')
+        catColor = '#fbbf24'; // yellow
+      else if (rec.category === 'Output Format')
+        catColor = '#f472b6'; // pink
+      else if (rec.category === 'Structure')
+        catColor = '#c084fc'; // purple
       else if (rec.category === 'Model Optimization') catColor = '#34d399'; // green
 
       // Build before/after impact previews if available
@@ -191,7 +232,7 @@ const renderWorkspace = (context: PromptRefinementContext) => {
           newText = `${currentText}\n\nOutput Format:\n- Format response using markdown headings/lists.`;
         } else if (rec.applyId === 'rule_contains_placeholder') {
           textArea.focus();
-          const pIssue = context.promptIssues.find(i => i.id === rec.id);
+          const pIssue = context.promptIssues.find((i) => i.id === rec.id);
           if (pIssue) {
             const index = currentText.indexOf(pIssue.original);
             if (index !== -1) {
@@ -215,10 +256,11 @@ const renderWorkspace = (context: PromptRefinementContext) => {
           newText = `### Role\n${context.skillPack.role}\n\n${currentText}`;
         } else {
           // Fallback check: could be Harper grammar replacement
-          const grammarIssue = context.promptIssues.find(i => i.id === rec.id);
+          const grammarIssue = context.promptIssues.find((i) => i.id === rec.id);
           if (grammarIssue && grammarIssue.span && grammarIssue.replacement) {
             const { start, end } = grammarIssue.span;
-            newText = currentText.slice(0, start) + grammarIssue.replacement + currentText.slice(end);
+            newText =
+              currentText.slice(0, start) + grammarIssue.replacement + currentText.slice(end);
           }
         }
 
@@ -231,7 +273,8 @@ const renderWorkspace = (context: PromptRefinementContext) => {
     });
 
     if (deck.children.length === 0) {
-      deck.innerHTML = '<div style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 16px 0;">No active recommendations — prompt is well optimized!</div>';
+      deck.innerHTML =
+        '<div style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 16px 0;">No active recommendations — prompt is well optimized!</div>';
     }
   }
 };
@@ -242,11 +285,13 @@ export const open = (
   tags: string[],
   options: any = {}
 ): void => {
+  previousActiveElement = document.activeElement as HTMLElement | null;
   currentPromptId = promptId;
   currentTags = tags || [];
   currentOptions = options || {};
   currentContext = null;
   originalPromptText = text;
+  initialActionApplied = false;
   clearNotes();
 
   const modal = byId('pn-improve-modal');
@@ -275,6 +320,61 @@ export const open = (
 };
 
 export const bindEvents = (): void => {
+  const modal = byId('pn-improve-modal');
+  if (modal) {
+    modal.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (document.getElementById('pn-note-dialog')) return; // handled by note dialog
+
+        const transparencyOverlay = byId('pn-improve-transparency-overlay');
+        if (transparencyOverlay && !transparencyOverlay.classList.contains('pn-hidden')) {
+          transparencyOverlay.classList.add('pn-hidden');
+          e.preventDefault();
+          return;
+        }
+
+        const infoOverlay = byId('pn-improve-info-overlay');
+        if (infoOverlay && !infoOverlay.classList.contains('pn-hidden')) {
+          infoOverlay.classList.add('pn-hidden');
+          e.preventDefault();
+          return;
+        }
+
+        close();
+        e.preventDefault();
+        return;
+      }
+
+      if (e.key === 'Tab') {
+        const focusables = Array.from(
+          modal.querySelectorAll<HTMLElement>(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+          )
+        ).filter((el) => {
+          return !el.hasAttribute('disabled') && !el.closest('.pn-hidden');
+        });
+
+        if (focusables.length > 0) {
+          const first = focusables[0];
+          const last = focusables[focusables.length - 1];
+          if (!first || !last) return;
+
+          if (e.shiftKey) {
+            if (document.activeElement === first) {
+              last.focus();
+              e.preventDefault();
+            }
+          } else {
+            if (document.activeElement === last) {
+              first.focus();
+              e.preventDefault();
+            }
+          }
+        }
+      }
+    });
+  }
+
   const closeBtn = byId('pn-improve-close');
   if (closeBtn) {
     closeBtn.addEventListener('click', close);
@@ -359,18 +459,18 @@ export const bindEvents = (): void => {
   if (btnFix) {
     btnFix.addEventListener('click', async () => {
       if (!currentContext || !textArea) return;
-      
+
       const originalVal = textArea.value;
       let textToFix = originalVal;
       const fixable = [...currentContext.promptIssues]
-        .filter(i => i.span && typeof i.replacement === 'string')
+        .filter((i) => i.span && typeof i.replacement === 'string')
         .sort((a, b) => b.span!.start - a.span!.start);
-      
+
       for (const issue of fixable) {
         const { start, end } = issue.span!;
         textToFix = textToFix.slice(0, start) + issue.replacement + textToFix.slice(end);
       }
-      
+
       adjustOffsetsAfterTextChange(originalVal, textToFix);
       textArea.value = textToFix;
       await runAnalysisAndRender(textToFix);
@@ -399,6 +499,8 @@ export const bindEvents = (): void => {
     const bar = byId('pn-transparency-token-bar');
     const status = byId('pn-transparency-budget-status');
     const list = byId('pn-transparency-items-list');
+    const addSelect = byId<HTMLSelectElement>('pn-transparency-add-context');
+    const addButton = byId<HTMLButtonElement>('pn-transparency-add-context-btn');
 
     if (used) used.textContent = String(result.budget.totalTokens);
     if (bar) {
@@ -411,7 +513,14 @@ export const bindEvents = (): void => {
 
     if (list) {
       list.innerHTML = '';
-      const allItems: { type: string; title: string; explanation: string; score: number; tokens: number; color: string }[] = [];
+      const allItems: {
+        type: string;
+        title: string;
+        explanation: string;
+        score: number;
+        tokens: number;
+        color: string;
+      }[] = [];
 
       if (result.skill) {
         allItems.push({
@@ -420,49 +529,50 @@ export const bindEvents = (): void => {
           explanation: result.skill.explanation,
           score: result.skill.score,
           tokens: result.skill.tokenCount,
-          color: '#c084fc'
+          color: '#c084fc',
         });
       }
 
-      result.notes.forEach(n => {
+      result.notes.forEach((n) => {
         allItems.push({
           type: 'Refinement Note',
           title: `"${n.item.selectedText.slice(0, 30)}..."`,
           explanation: n.explanation,
           score: n.score,
           tokens: n.tokenCount,
-          color: '#fbbf24'
+          color: '#fbbf24',
         });
       });
 
-      result.instructions.forEach(i => {
+      result.instructions.forEach((i) => {
         allItems.push({
           type: 'Instruction',
           title: i.item.title || 'Preference Rule',
           explanation: i.explanation,
           score: i.score,
           tokens: i.tokenCount,
-          color: '#34d399'
+          color: '#34d399',
         });
       });
 
-      result.knowledge.forEach(k => {
+      result.knowledge.forEach((k) => {
         allItems.push({
           type: 'Knowledge Guide',
           title: k.item.title,
           explanation: k.explanation,
           score: k.score,
           tokens: k.tokenCount,
-          color: '#38bdf8'
+          color: '#38bdf8',
         });
       });
 
       if (allItems.length === 0) {
-        list.innerHTML = '<div style="font-size: 11px; color: var(--text-muted); text-align: center; padding: 12px 0;">No context retrieved. Only base prompt will be processed.</div>';
+        list.innerHTML =
+          '<div style="font-size: 11px; color: var(--text-muted); text-align: center; padding: 12px 0;">No context retrieved. Only base prompt will be processed.</div>';
         return;
       }
 
-      allItems.forEach(i => {
+      allItems.forEach((i) => {
         const card = document.createElement('div');
         card.style.background = 'rgba(255, 255, 255, 0.03)';
         card.style.border = '1px solid rgba(255, 255, 255, 0.05)';
@@ -479,15 +589,69 @@ export const bindEvents = (): void => {
           </div>
           <div style="font-size: 12px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${i.title}</div>
           <div style="font-size: 11px; color: var(--text-muted); font-style: italic;">${i.explanation}</div>
+          ${i.type === 'Refinement Note' ? '' : '<button class="pn-retrieval-remove pn-btn pn-btn--ghost" type="button" style="align-self:flex-end; font-size:10px; padding:2px 6px;">Remove</button>'}
         `;
+        card.querySelector('.pn-retrieval-remove')?.addEventListener('click', async () => {
+          const item = [result.skill, ...result.instructions, ...result.knowledge].find(
+            (entry) => entry?.item.title === i.title
+          );
+          if (!item || !textArea) return;
+          removedContextIds = [...new Set([...removedContextIds, item.item.id])];
+          manualContextIds = manualContextIds.filter((id) => id !== item.item.id);
+          await adjustUsageWeight(item.item.id, -0.03);
+          clearRetrievalCache();
+          const next = await retrievalProvider.retrieve(textArea.value, {
+            manualItemIds: manualContextIds,
+            removedItemIds: removedContextIds,
+          });
+          context.retrievalResult = next;
+          context.vaultKnowledge = next.knowledge.map((entry) => entry.item);
+          context.vaultSkill = next.skill?.item || null;
+          context.vaultInstructions = next.instructions.map((entry) => entry.item);
+          renderTransparencyOverlay(context);
+        });
         list.appendChild(card);
       });
     }
+    if (addSelect) {
+      const selected = new Set([
+        ...(result.skill ? [result.skill.item.id] : []),
+        ...result.knowledge.map((entry) => entry.item.id),
+        ...result.instructions.map((entry) => entry.item.id),
+        ...removedContextIds,
+      ]);
+      addSelect.innerHTML =
+        '<option value="">Add enabled Vault context…</option>' +
+        getItems()
+          .filter((item) => item.enabled && !selected.has(item.id))
+          .map((item) => `<option value="${item.id}">${item.type}: ${item.title}</option>`)
+          .join('');
+    }
+    if (addButton)
+      addButton.onclick = async () => {
+        const id = addSelect?.value;
+        if (!id || !textArea) return;
+        manualContextIds = [...new Set([...manualContextIds, id])];
+        removedContextIds = removedContextIds.filter((value) => value !== id);
+        await adjustUsageWeight(id, 0.04);
+        clearRetrievalCache();
+        const next = await retrievalProvider.retrieve(textArea.value, {
+          manualItemIds: manualContextIds,
+          removedItemIds: removedContextIds,
+        });
+        context.retrievalResult = next;
+        context.vaultKnowledge = next.knowledge.map((entry) => entry.item);
+        context.vaultSkill = next.skill?.item || null;
+        context.vaultInstructions = next.instructions.map((entry) => entry.item);
+        renderTransparencyOverlay(context);
+      };
   };
 
   if (btnRewrite && transparencyOverlay) {
     btnRewrite.addEventListener('click', () => {
       if (!currentContext || !textArea) return;
+      manualContextIds = [];
+      removedContextIds = [];
       renderTransparencyOverlay(currentContext);
       transparencyOverlay.classList.remove('pn-hidden');
     });
@@ -497,7 +661,17 @@ export const bindEvents = (): void => {
   if (transparencyConfirm && transparencyOverlay) {
     transparencyConfirm.addEventListener('click', () => {
       if (!currentContext || !textArea) return;
-      
+      if (currentContext.retrievalResult) {
+        recordRetrievalSnapshot(textArea.value, currentContext.retrievalResult);
+        for (const entry of [
+          currentContext.retrievalResult.skill,
+          ...currentContext.retrievalResult.knowledge,
+          ...currentContext.retrievalResult.instructions,
+        ]) {
+          if (entry) void adjustUsageWeight(entry.item.id, 0.02);
+        }
+      }
+
       transparencyOverlay.classList.add('pn-hidden');
 
       const loading = byId('pn-improve-loading');
@@ -505,8 +679,16 @@ export const bindEvents = (): void => {
       const errorDiv = byId('pn-improve-error');
       if (errorDiv) errorDiv.classList.add('pn-hidden');
 
-      const buttons = [btnFix, btnUpgrade, btnRewrite, byId('pn-improve-accept'), closeBtn] as HTMLButtonElement[];
-      buttons.forEach(b => { if (b) b.disabled = true; });
+      const buttons = [
+        btnFix,
+        btnUpgrade,
+        btnRewrite,
+        byId('pn-improve-accept'),
+        closeBtn,
+      ] as HTMLButtonElement[];
+      buttons.forEach((b) => {
+        if (b) b.disabled = true;
+      });
 
       chrome.runtime.sendMessage(
         {
@@ -514,11 +696,13 @@ export const bindEvents = (): void => {
           text: textArea.value,
           tags: currentTags,
           style: 'general',
-          context: currentContext
+          context: currentContext,
         },
         async (response) => {
           if (loading) loading.classList.add('pn-hidden');
-          buttons.forEach(b => { if (b) b.disabled = false; });
+          buttons.forEach((b) => {
+            if (b) b.disabled = false;
+          });
 
           if (response && response.ok && response.text) {
             const originalVal = textArea.value;

@@ -21,12 +21,13 @@ export async function initLearningCache(): Promise<void> {
 
 export async function addPreference(pref: LearningPreference): Promise<void> {
   await initLearningCache();
-  
+
   // Prevent exact duplicates or redundant rules
-  const exists = preferences.some(p => 
-    p.titlePattern === pref.titlePattern && 
-    p.sourcePattern === pref.sourcePattern && 
-    p.preferredType === pref.preferredType
+  const exists = preferences.some(
+    (p) =>
+      p.titlePattern === pref.titlePattern &&
+      p.sourcePattern === pref.sourcePattern &&
+      p.preferredType === pref.preferredType
   );
   if (exists) return;
 

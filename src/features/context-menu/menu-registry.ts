@@ -4,12 +4,16 @@
  */
 
 import {
+  SAVE_CLIPPING,
   OPEN_PROMPTIUM,
-  SAVE_SELECTION,
+  FIX_PROMPT,
+  UPGRADE_PROMPT,
+  REWRITE_PROMPT,
+  SAVE_TO_VAULT,
   COPY_AS_PROMPT,
-  REFINE_SELECTION,
   CONTINUE_CHAT,
 } from './actions';
+import { TERMINOLOGY } from '../../utils/terminology';
 
 const PARENT_ID = 'pn-promptium-parent';
 
@@ -37,27 +41,38 @@ export const contextMenuRegistry = {
         contexts: ['page', 'selection'],
       });
 
-      // Save Selection as Prompt
       chrome.contextMenus.create({
         parentId: PARENT_ID,
-        id: SAVE_SELECTION,
-        title: 'Save Selection as Prompt',
+        id: SAVE_CLIPPING,
+        title: TERMINOLOGY.SAVE_CLIPPING,
         contexts: ['selection'],
       });
 
-      // Copy As Prompt
       chrome.contextMenus.create({
         parentId: PARENT_ID,
-        id: COPY_AS_PROMPT,
-        title: 'Copy As Prompt',
+        id: FIX_PROMPT,
+        title: `${TERMINOLOGY.FIX} ${TERMINOLOGY.PROMPT}`,
         contexts: ['selection'],
       });
 
-      // Refine Selection
       chrome.contextMenus.create({
         parentId: PARENT_ID,
-        id: REFINE_SELECTION,
-        title: 'Refine Selection',
+        id: UPGRADE_PROMPT,
+        title: `${TERMINOLOGY.UPGRADE} ${TERMINOLOGY.PROMPT}`,
+        contexts: ['selection'],
+      });
+
+      chrome.contextMenus.create({
+        parentId: PARENT_ID,
+        id: REWRITE_PROMPT,
+        title: `${TERMINOLOGY.REWRITE} ${TERMINOLOGY.PROMPT}`,
+        contexts: ['selection'],
+      });
+
+      chrome.contextMenus.create({
+        parentId: PARENT_ID,
+        id: SAVE_TO_VAULT,
+        title: TERMINOLOGY.SAVE_TO_VAULT,
         contexts: ['selection'],
       });
 
@@ -65,16 +80,16 @@ export const contextMenuRegistry = {
       chrome.contextMenus.create({
         parentId: PARENT_ID,
         id: CONTINUE_CHAT,
-        title: 'Continue in Current Chat',
+        title: TERMINOLOGY.CONTINUE,
         contexts: ['selection'],
         documentUrlPatterns: SUPPORTED_DOC_PATTERNS,
       });
 
-      // Open Promptium (always available)
+      // Open Workspace (always available)
       chrome.contextMenus.create({
         parentId: PARENT_ID,
         id: OPEN_PROMPTIUM,
-        title: 'Open Promptium',
+        title: 'Open Workspace',
         contexts: ['page', 'selection'],
       });
     } catch (error) {
@@ -102,7 +117,9 @@ export const contextMenuRegistry = {
         }
 
         try {
-          const response = await chrome.tabs.sendMessage(tabId, { action: 'CHECK_ADAPTER_HEALTH' }).catch(() => null);
+          const response = await chrome.tabs
+            .sendMessage(tabId, { action: 'CHECK_ADAPTER_HEALTH' })
+            .catch(() => null);
           const isHealthy = Boolean(response?.ok && response?.healthy);
 
           healthCache.set(tabId, { healthy: isHealthy, timestamp: Date.now() });

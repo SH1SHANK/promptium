@@ -8,7 +8,7 @@ export function registerPlugin(plugin: ImporterPlugin): void {
 
 export function getPluginFor(fileName: string, content: string): ImporterPlugin {
   const normName = fileName.toLowerCase();
-  
+
   // High-priority match for explicit filenames
   for (const plugin of registry.values()) {
     if (plugin.id !== 'generic' && plugin.id !== 'markdown' && plugin.match(fileName, content)) {

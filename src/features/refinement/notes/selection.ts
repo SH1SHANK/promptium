@@ -30,6 +30,6 @@ export const getSelectionContext = (): SelectionContext | null => {
   return {
     selectedText,
     startOffset: start,
-    endOffset: end
+    endOffset: end,
   };
 };

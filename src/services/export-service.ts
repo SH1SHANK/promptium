@@ -179,7 +179,8 @@
       .filter(Boolean);
 
   /** Returns one merged text block for combined export mode. */
-  const getCombinedText = (chat: any, prefs: any) => getMessageTextRows(chat, prefs).join('\n\n').trim();
+  const getCombinedText = (chat: any, prefs: any) =>
+    getMessageTextRows(chat, prefs).join('\n\n').trim();
 
   /** Maps user-facing font selection to an available jsPDF font family. */
   const resolvePdfFont = (fontStyle: any) => {
@@ -258,11 +259,7 @@
       const r = hex[0] || '0';
       const g = hex[1] || '0';
       const b = hex[2] || '0';
-      return [
-        parseInt(r + r, 16),
-        parseInt(g + g, 16),
-        parseInt(b + b, 16),
-      ];
+      return [parseInt(r + r, 16), parseInt(g + g, 16), parseInt(b + b, 16)];
     }
 
     return [
@@ -527,7 +524,14 @@
   };
 
   /** Ensures there is enough vertical space on the current PDF page before writing text. */
-  const ensurePdfSpace = async (doc: any, y: any, lineHeight: any, margin: any, pageHeight: any, backgroundRgb: any) => {
+  const ensurePdfSpace = async (
+    doc: any,
+    y: any,
+    lineHeight: any,
+    margin: any,
+    pageHeight: any,
+    backgroundRgb: any
+  ) => {
     if (y <= pageHeight - margin) {
       return y;
     }
@@ -636,7 +640,16 @@
     return lines;
   };
 
-  const drawRoundedRect = (ctx: any, x: any, y: any, width: any, height: any, radius: any, fillStyle: any, strokeStyle: any) => {
+  const drawRoundedRect = (
+    ctx: any,
+    x: any,
+    y: any,
+    width: any,
+    height: any,
+    radius: any,
+    fillStyle: any,
+    strokeStyle: any
+  ) => {
     const r = Math.max(0, Math.min(radius, Math.min(width, height) / 2));
     ctx.beginPath();
     ctx.moveTo(x + r, y);
@@ -878,14 +891,19 @@
     const normalizedChat = normalizeChat(chat, options);
 
     if (!(window as any).jspdf || !(window as any).jspdf.jsPDF) {
-      await import('../lib/jspdf.min.js' as any);
+      const url = chrome.runtime.getURL('lib/jspdf.min.js');
+      await import(url as any);
     }
 
     if (!(window as any).jspdf || !(window as any).jspdf.jsPDF) {
       throw new Error('jsPDF is not loaded in the current context.');
     }
 
-    const doc = new (window as any).jspdf.jsPDF({ unit: 'pt', format: 'a4', putOnlyUsedFonts: true });
+    const doc = new (window as any).jspdf.jsPDF({
+      unit: 'pt',
+      format: 'a4',
+      putOnlyUsedFonts: true,
+    });
     const margin = 40;
     const pageHeight = doc.internal.pageSize.getHeight();
     const pageWidth = doc.internal.pageSize.getWidth();

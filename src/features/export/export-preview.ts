@@ -162,7 +162,10 @@
   }
 
   // Prevent accidental html2canvas/doc.html() path usage in MV3 extension pages.
-  if ((window as any)?.jspdf?.jsPDF?.API && typeof (window as any).jspdf.jsPDF.API.html === 'function') {
+  if (
+    (window as any)?.jspdf?.jsPDF?.API &&
+    typeof (window as any).jspdf.jsPDF.API.html === 'function'
+  ) {
     (window as any).jspdf.jsPDF.API.html = function blockedHtmlPlugin() {
       throw new Error('CSP-safe mode: jsPDF html() is disabled. Use Exporter.toPDF().');
     };
@@ -403,34 +406,21 @@
     const messages = Array.isArray(value.messages) ? value.messages : [];
     const url = String(value.url || '').trim();
     const urlKey = sanitizeConversationUrl(url);
-    let bookmarkEntries = [];
-
-    if (urlKey) {
-      const bookmarkState = (await chrome.storage.local.get([BOOKMARKS_KEY]).catch(() => ({}))) as any;
-      const allBookmarks = (
-        bookmarkState?.[BOOKMARKS_KEY] && typeof bookmarkState[BOOKMARKS_KEY] === 'object'
-          ? bookmarkState[BOOKMARKS_KEY]
-          : {}
-      ) as any;
-      bookmarkEntries = Array.isArray(allBookmarks?.[urlKey]) ? allBookmarks[urlKey] : [];
-    }
+    let clippings: any[] = [];
+    try {
+      const snap = (await chrome.storage.local.get(['clippings']).catch(() => ({}))) as any;
+      clippings = Array.isArray(snap.clippings) ? snap.clippings : [];
+    } catch (_) {}
 
     const normalizedMessages = messages
       .map((message: any, fallbackIndex: number) => {
         const indexCandidate = Number(message?.index);
         const sourceIndex = Number.isFinite(indexCandidate) ? indexCandidate : fallbackIndex;
         const text = String(message?.text || '').trim();
-        const preview = text.slice(0, BOOKMARK_PREVIEW_LEN);
-        const messageHash = computeMessageHash(preview);
 
-        const bookmarkMatch = bookmarkEntries.find((entry: any) => {
-          const sameIndex = Number(entry?.messageIndex) === sourceIndex;
-          if (!sameIndex) return false;
-          const entryHash = String(entry?.messageHash || '').trim();
-          if (entryHash) return entryHash === messageHash;
-          return (
-            normalizeMessageText(entry?.messagePreview || '') === normalizeMessageText(preview)
-          );
+        const isClipped = clippings.some((c: any) => {
+          if (!c.selectedText) return false;
+          return text.includes(c.selectedText) || c.selectedText.includes(text);
         });
 
         return {
@@ -440,8 +430,8 @@
           html: String(message?.html || '').trim(),
           index: sourceIndex,
           bookmarkMeta: {
-            isBookmarked: Boolean(bookmarkMatch),
-            messageHash,
+            isBookmarked: isClipped,
+            messageHash: '',
           },
         };
       })
@@ -488,21 +478,11 @@
   const ingestIncomingPayload = async (rawPayload: any) => {
     const normalized = await normalizePayload(rawPayload);
     state.exportPayload = normalized;
-
-    if (state.activeTab === 'export' && hasPayloadMessages(state.exportSnapshotPayload)) {
-      state.pendingExportPayload = window.SessionStorage.cloneExportPayload(normalized);
-      state.hasPendingExportUpdate = hasPayloadMessages(state.pendingExportPayload);
-      await renderMeta();
-      if (state.hasPendingExportUpdate) {
-        await setStatus('New selection ready. Click "Reload latest selection".');
-      }
-      return;
-    }
-
     state.exportSnapshotPayload = window.SessionStorage.cloneExportPayload(normalized);
     state.pendingExportPayload = null;
     state.hasPendingExportUpdate = false;
     await renderPreview();
+    await setStatus('Selection loaded.');
   };
 
   const getTurndownService = async () => {
@@ -684,7 +664,9 @@
       for (let index = 0; index < payload.messages.length; index += 1) {
         const message = payload.messages[index];
         const messageNumber = state.exportPrefs.includeMessageNumbers ? `${index + 1}. ` : '';
-        const roleLabel = window.DomHelpers.escapeHtml(message.role === 'user' ? 'You' : 'Assistant');
+        const roleLabel = window.DomHelpers.escapeHtml(
+          message.role === 'user' ? 'You' : 'Assistant'
+        );
         const bookmarkTag = message?.bookmarkMeta?.isBookmarked ? ' ⭐' : '';
         const mdText = await toMessageContentMarkdown(message);
         const contentHtml = parser
@@ -1200,10 +1182,6 @@
       if (fontSizeSlider) fontSizeSlider.value = String(next);
       void debouncedRerender();
     });
-
-    byId('export-reload-selection')?.addEventListener('click', () => {
-      void applyLatestSnapshot();
-    });
   };
 
   const setCallbacks = (nextCallbacks: any = {}) => {
@@ -1234,4 +1212,3 @@
 })();
 
 export {};
-

@@ -1,5 +1,5 @@
 /* Master Modular Stylesheet entry point */
-@import './foundations/tokens.css';
+@import './tokens/index.css';
 @import './themes/dark.css';
 @import './base/reset.css';
 @import './base/globals.css';

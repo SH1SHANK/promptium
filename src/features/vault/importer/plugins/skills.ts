@@ -19,12 +19,18 @@ export const skillsPlugin: ImporterPlugin = {
 
     for (const line of lines) {
       const trimmed = line.trim();
-      
+
       // Parse sections/headers
-      if (trimmed.toLowerCase().startsWith('instructions:') || trimmed.toLowerCase().startsWith('guidance:')) {
+      if (
+        trimmed.toLowerCase().startsWith('instructions:') ||
+        trimmed.toLowerCase().startsWith('guidance:')
+      ) {
         currentSection = 'instructions';
         continue;
-      } else if (trimmed.toLowerCase().startsWith('examples:') || trimmed.toLowerCase().startsWith('templates:')) {
+      } else if (
+        trimmed.toLowerCase().startsWith('examples:') ||
+        trimmed.toLowerCase().startsWith('templates:')
+      ) {
         currentSection = 'examples';
         continue;
       }
@@ -56,15 +62,15 @@ export const skillsPlugin: ImporterPlugin = {
     // Format clean markdown output for the skill
     const skillContentLines: string[] = [];
     skillContentLines.push(`Role: ${role || description || title}`);
-    
+
     if (instructions.length > 0) {
       skillContentLines.push('Guidance:');
-      instructions.forEach(ins => skillContentLines.push(`- ${ins}`));
+      instructions.forEach((ins) => skillContentLines.push(`- ${ins}`));
     }
 
     if (examples.length > 0) {
       skillContentLines.push('Examples:');
-      examples.forEach(ex => skillContentLines.push(`- ${ex}`));
+      examples.forEach((ex) => skillContentLines.push(`- ${ex}`));
     }
 
     return [
@@ -75,8 +81,8 @@ export const skillsPlugin: ImporterPlugin = {
         content: skillContentLines.join('\n'),
         type: 'skill',
         confidence: 0.95,
-        tags: ['skills.sh', 'imported']
-      }
+        tags: ['skills.sh', 'imported'],
+      },
     ];
-  }
+  },
 };

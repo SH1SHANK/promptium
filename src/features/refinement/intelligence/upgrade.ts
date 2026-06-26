@@ -17,7 +17,7 @@ export const upgradePrompt = async (text: string): Promise<string> => {
   const matchedSkill = await findRelevantSkill(trimmed);
   let skillRole = '';
   let skillGuidance = '';
-  
+
   if (matchedSkill) {
     skillRole = matchedSkill.title;
     skillGuidance = matchedSkill.content;
@@ -42,8 +42,10 @@ export const upgradePrompt = async (text: string): Promise<string> => {
   const instructions = getEnabledInstructions();
   let instructionsSection = '';
   if (instructions.length > 0) {
-    instructionsSection = `### Preferences & Style Constraints\n` + 
-      instructions.map(ins => `- ${ins.content}`).join('\n') + `\n\n`;
+    instructionsSection =
+      `### Preferences & Style Constraints\n` +
+      instructions.map((ins) => `- ${ins.content}`).join('\n') +
+      `\n\n`;
   }
 
   let upgraded = `### Role\nAdopt the persona of: ${skillRole}\n\n`;

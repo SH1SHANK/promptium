@@ -7,7 +7,7 @@ import '../../utils/pn-dialog';
 import '../../utils/tags';
 import '../../stores/prompt-store';
 import '../../stores/settings-store';
-import '../../stores/bookmark-store';
+import '../../features/clippings/store';
 import '../../utils/prompt-duplicate';
 import '../../lib/variables';
 import '../../utils/smart-name';

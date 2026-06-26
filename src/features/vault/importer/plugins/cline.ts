@@ -4,8 +4,7 @@ export const clinePlugin: ImporterPlugin = {
   id: 'cline',
   name: 'Cline Rules Parser',
   match: (fileName, content) =>
-    fileName.toLowerCase() === '.clinerules' ||
-    fileName.toLowerCase().endsWith('.clinerules'),
+    fileName.toLowerCase() === '.clinerules' || fileName.toLowerCase().endsWith('.clinerules'),
   parse: async (fileName, content) => {
     return [
       {
@@ -15,8 +14,8 @@ export const clinePlugin: ImporterPlugin = {
         content: content.trim(),
         type: 'instruction',
         confidence: 0.95,
-        tags: ['cline', 'imported']
-      }
+        tags: ['cline', 'imported'],
+      },
     ];
-  }
+  },
 };

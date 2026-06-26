@@ -1,8 +1,10 @@
 import { defineConfig } from 'wxt';
+import { visualizer } from 'rollup-plugin-visualizer';
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
   srcDir: 'src',
+  publicDir: 'src/public',
   webExt: {
     disabled: true,
   },
@@ -53,4 +55,14 @@ export default defineConfig({
     },
     web_accessible_resources: [],
   },
+  vite: () => ({
+    plugins: [
+      visualizer({
+        filename: '.output/bundle-analysis.html',
+        open: false,
+        gzipSize: true,
+        brotliSize: true,
+      }),
+    ],
+  }),
 });

@@ -11,7 +11,7 @@ export const hermesPlugin: ImporterPlugin = {
   parse: async (fileName, content) => {
     const lines = content.split('\n');
     const drafts: ParsedImportDraft[] = [];
-    
+
     let currentTitle = 'HERMES Context';
     let currentContent: string[] = [];
 
@@ -27,7 +27,7 @@ export const hermesPlugin: ImporterPlugin = {
         content: text,
         type: classification.type,
         confidence: classification.confidence,
-        tags: ['hermes', 'imported']
+        tags: ['hermes', 'imported'],
       });
       currentContent = [];
     };
@@ -43,5 +43,5 @@ export const hermesPlugin: ImporterPlugin = {
     flush();
 
     return drafts;
-  }
+  },
 };

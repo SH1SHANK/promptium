@@ -1,0 +1,38 @@
+# File: .github/workflows/maintenance.yml
+name: Scheduled Repository Maintenance
+
+on:
+  schedule:
+    # Run every Sunday at midnight UTC
+    - cron: '0 0 * * 0'
+  workflow_dispatch: # Enable manual run for maintainers
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  audit:
+    name: Dependency Audit & Health Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Project
+        uses: ./.github/actions/setup-project
+
+      - name: Run Vulnerability Audit
+        run: pnpm audit --audit-level=high || true
+
+      - name: Validate Lockfile Status
+        run: pnpm install --frozen-lockfile
+
+      - name: Check for Duplicate Packages in Lockfile
+        run: pnpm dedupe --check || true
+
+      - name: Check for Outdated Dependencies
+        run: pnpm outdated || true
+
+      - name: Run Knip Unused Code Check
+        run: pnpm knip --exclude exports,types,nsExports,nsTypes,classMembers,enumMembers,duplicates,unlisted,binaries

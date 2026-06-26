@@ -7,6 +7,7 @@ let currentVaultSubtab: VaultItemType = 'knowledge';
 let editingItemId: string | null = null;
 let isInitialized = false;
 let currentImportDrafts: ParsedImportDraft[] = [];
+let previousActiveElement: HTMLElement | null = null;
 
 export async function initVaultUI(): Promise<void> {
   if (isInitialized) {
@@ -15,14 +16,99 @@ export async function initVaultUI(): Promise<void> {
   }
   isInitialized = true;
 
+  // Keyboard navigation & focus traps for Vault modals
+  const modal = document.getElementById('pn-vault-item-modal');
+  modal?.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeVaultModal();
+      return;
+    }
+    if (e.key === 'Enter') {
+      const active = document.activeElement;
+      if (active && active.tagName === 'BUTTON') return;
+      if (active && active.tagName === 'TEXTAREA') return;
+      e.preventDefault();
+      void handleSaveVaultItem();
+      return;
+    }
+    if (e.key === 'Tab') {
+      const focusables = Array.from(
+        modal.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => !el.hasAttribute('disabled') && !el.closest('.pn-hidden'));
+
+      if (focusables.length > 0) {
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (!first || !last) return;
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            last.focus();
+            e.preventDefault();
+          }
+        } else {
+          if (document.activeElement === last) {
+            first.focus();
+            e.preventDefault();
+          }
+        }
+      }
+    }
+  });
+
+  const previewModal = document.getElementById('pn-vault-import-preview-modal');
+  previewModal?.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeImportPreviewModal();
+      return;
+    }
+    if (e.key === 'Enter') {
+      const active = document.activeElement;
+      if (active && active.tagName === 'BUTTON') return;
+      if (active && (active.tagName === 'INPUT' || active.tagName === 'SELECT')) {
+        return;
+      }
+      e.preventDefault();
+      void handleConfirmImport();
+      return;
+    }
+    if (e.key === 'Tab') {
+      const focusables = Array.from(
+        previewModal.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => !el.hasAttribute('disabled') && !el.closest('.pn-hidden'));
+
+      if (focusables.length > 0) {
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (!first || !last) return;
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            last.focus();
+            e.preventDefault();
+          }
+        } else {
+          if (document.activeElement === last) {
+            first.focus();
+            e.preventDefault();
+          }
+        }
+      }
+    }
+  });
+
   // Bind sub-tabs triggers
   const subtabs = Array.from(document.querySelectorAll('.pn-vault-subtab'));
   subtabs.forEach((btn: any) => {
     btn.addEventListener('click', () => {
-      subtabs.forEach(b => b.classList.remove('active'));
+      subtabs.forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
       currentVaultSubtab = btn.dataset.subtab as VaultItemType;
-      
+
       // Update UI constraints matching Vault Type
       toggleFieldsForVaultType();
       renderVaultItems();
@@ -48,16 +134,24 @@ export async function initVaultUI(): Promise<void> {
   document.getElementById('pn-vault-file-importer')?.addEventListener('change', handleFileImport);
 
   // Import Preview Modal controls
-  document.getElementById('pn-vault-import-preview-cancel')?.addEventListener('click', closeImportPreviewModal);
-  document.getElementById('pn-vault-import-preview-close-backdrop')?.addEventListener('click', closeImportPreviewModal);
-  document.getElementById('pn-vault-import-preview-confirm')?.addEventListener('click', handleConfirmImport);
+  document
+    .getElementById('pn-vault-import-preview-cancel')
+    ?.addEventListener('click', closeImportPreviewModal);
+  document
+    .getElementById('pn-vault-import-preview-close-backdrop')
+    ?.addEventListener('click', closeImportPreviewModal);
+  document
+    .getElementById('pn-vault-import-preview-confirm')
+    ?.addEventListener('click', handleConfirmImport);
 
   // Save Item
   document.getElementById('pn-vault-modal-save')?.addEventListener('click', handleSaveVaultItem);
 
   // Close modals listeners
   document.getElementById('pn-vault-modal-cancel')?.addEventListener('click', closeVaultModal);
-  document.getElementById('pn-vault-modal-close-backdrop')?.addEventListener('click', closeVaultModal);
+  document
+    .getElementById('pn-vault-modal-close-backdrop')
+    ?.addEventListener('click', closeVaultModal);
 
   // Type change listener inside modal to update helper headers
   document.getElementById('pn-vault-input-type')?.addEventListener('change', (e) => {
@@ -75,26 +169,35 @@ function adjustModalLayout(type: VaultItemType): void {
   const urlImportWrap = document.getElementById('pn-vault-url-import-wrap');
   const titleFieldWrap = document.getElementById('pn-vault-title-field-wrap');
   const tagsFieldWrap = document.getElementById('pn-vault-tags-field-wrap');
+  const priorityFieldWrap = document.getElementById('pn-vault-priority-field-wrap');
   const contentLabel = document.getElementById('pn-vault-content-label');
-  const contentInput = document.getElementById('pn-vault-input-content') as HTMLTextAreaElement | null;
+  const contentInput = document.getElementById(
+    'pn-vault-input-content'
+  ) as HTMLTextAreaElement | null;
 
   // Set defaults
   urlImportWrap?.classList.add('pn-hidden');
   titleFieldWrap?.classList.remove('pn-hidden');
   tagsFieldWrap?.classList.remove('pn-hidden');
+  priorityFieldWrap?.classList.add('pn-hidden');
   if (contentLabel) contentLabel.textContent = 'Content';
 
   if (type === 'knowledge') {
     urlImportWrap?.classList.remove('pn-hidden');
-    if (contentInput) contentInput.placeholder = 'Paste guidelines, instructions, or markdown notes...';
+    if (contentInput)
+      contentInput.placeholder = 'Paste guidelines, instructions, or markdown notes...';
   } else if (type === 'skill') {
     if (contentLabel) contentLabel.textContent = 'Role Description & Guidelines';
-    if (contentInput) contentInput.placeholder = 'e.g. Role: Senior System Architect\nGuidelines:\n- Focus on scaling rules\n- Prefer clean microservices design patterns';
+    if (contentInput)
+      contentInput.placeholder =
+        'e.g. Role: Senior System Architect\nGuidelines:\n- Focus on scaling rules\n- Prefer clean microservices design patterns';
   } else if (type === 'instruction') {
     titleFieldWrap?.classList.add('pn-hidden');
     tagsFieldWrap?.classList.add('pn-hidden');
     if (contentLabel) contentLabel.textContent = 'Preference Instruction';
-    if (contentInput) contentInput.placeholder = 'e.g. Always write clean TypeScript, Keep answers concise...';
+    priorityFieldWrap?.classList.remove('pn-hidden');
+    if (contentInput)
+      contentInput.placeholder = 'e.g. Always write clean TypeScript, Keep answers concise...';
   }
 }
 
@@ -109,10 +212,17 @@ function toggleFieldsForVaultType(): void {
 }
 
 function openVaultModal(item: VaultItem | null): void {
+  previousActiveElement = document.activeElement as HTMLElement | null;
   const modal = document.getElementById('pn-vault-item-modal');
   const titleInput = document.getElementById('pn-vault-input-title') as HTMLInputElement | null;
-  const contentInput = document.getElementById('pn-vault-input-content') as HTMLTextAreaElement | null;
+  const contentInput = document.getElementById(
+    'pn-vault-input-content'
+  ) as HTMLTextAreaElement | null;
   const tagsInput = document.getElementById('pn-vault-input-tags') as HTMLInputElement | null;
+  const priorityInput = document.getElementById(
+    'pn-vault-input-priority'
+  ) as HTMLSelectElement | null;
+  const pinnedInput = document.getElementById('pn-vault-input-pinned') as HTMLInputElement | null;
   const typeSelect = document.getElementById('pn-vault-input-type') as HTMLSelectElement | null;
   const modalTitle = document.getElementById('pn-vault-modal-title');
   const importStatus = document.getElementById('pn-vault-import-status');
@@ -131,6 +241,8 @@ function openVaultModal(item: VaultItem | null): void {
     if (titleInput) titleInput.value = item.title;
     if (contentInput) contentInput.value = item.content;
     if (tagsInput) tagsInput.value = item.tags.join(', ');
+    if (priorityInput) priorityInput.value = item.priority || 'medium';
+    if (pinnedInput) pinnedInput.checked = Boolean(item.pinned);
     adjustModalLayout(item.type);
   } else {
     editingItemId = null;
@@ -142,6 +254,8 @@ function openVaultModal(item: VaultItem | null): void {
     if (titleInput) titleInput.value = '';
     if (contentInput) contentInput.value = '';
     if (tagsInput) tagsInput.value = '';
+    if (priorityInput) priorityInput.value = 'medium';
+    if (pinnedInput) pinnedInput.checked = false;
     adjustModalLayout(currentVaultSubtab);
   }
 
@@ -151,20 +265,39 @@ function openVaultModal(item: VaultItem | null): void {
 function closeVaultModal(): void {
   document.getElementById('pn-vault-item-modal')?.classList.add('pn-hidden');
   editingItemId = null;
+  if (previousActiveElement) {
+    previousActiveElement.focus();
+    previousActiveElement = null;
+  }
 }
 
 async function handleSaveVaultItem(): Promise<void> {
   const typeSelect = document.getElementById('pn-vault-input-type') as HTMLSelectElement | null;
   const titleInput = document.getElementById('pn-vault-input-title') as HTMLInputElement | null;
-  const contentInput = document.getElementById('pn-vault-input-content') as HTMLTextAreaElement | null;
+  const contentInput = document.getElementById(
+    'pn-vault-input-content'
+  ) as HTMLTextAreaElement | null;
   const tagsInput = document.getElementById('pn-vault-input-tags') as HTMLInputElement | null;
+  const priorityInput = document.getElementById(
+    'pn-vault-input-priority'
+  ) as HTMLSelectElement | null;
+  const pinnedInput = document.getElementById('pn-vault-input-pinned') as HTMLInputElement | null;
 
   if (!typeSelect || !contentInput) return;
 
   const type = typeSelect.value as VaultItemType;
   const content = contentInput.value.trim();
   let title = titleInput?.value.trim() || '';
-  const tags = tagsInput?.value.split(',').map(t => t.trim()).filter(Boolean) || [];
+  const tags =
+    tagsInput?.value
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean) || [];
+  const priority =
+    type === 'instruction'
+      ? (priorityInput?.value as 'low' | 'medium' | 'high') || 'medium'
+      : undefined;
+  const pinned = Boolean(pinnedInput?.checked);
 
   if (type === 'instruction') {
     // Instructions use a truncated version of content as the title fallback
@@ -181,14 +314,22 @@ async function handleSaveVaultItem(): Promise<void> {
   }
 
   if (editingItemId) {
-    await updateItem(editingItemId, { title, content, tags });
+    await updateItem(editingItemId, {
+      title,
+      content,
+      tags,
+      pinned,
+      ...(priority ? { priority } : {}),
+    });
   } else {
     await createItem({
       type,
       title,
       content,
       tags,
-      enabled: true
+      enabled: true,
+      pinned,
+      ...(priority ? { priority } : {}),
     });
   }
 
@@ -200,7 +341,9 @@ async function handleURLImport(): Promise<void> {
   const importUrlInput = document.getElementById('pn-vault-import-url') as HTMLInputElement | null;
   const importStatus = document.getElementById('pn-vault-import-status');
   const titleInput = document.getElementById('pn-vault-input-title') as HTMLInputElement | null;
-  const contentInput = document.getElementById('pn-vault-input-content') as HTMLTextAreaElement | null;
+  const contentInput = document.getElementById(
+    'pn-vault-input-content'
+  ) as HTMLTextAreaElement | null;
 
   if (!importUrlInput || !importUrlInput.value) return;
 
@@ -218,7 +361,7 @@ async function handleURLImport(): Promise<void> {
       throw new Error(`Failed to fetch clean markdown from: ${url}`);
     }
     const content = await response.text();
-    
+
     // Attempt to derive title from URL path or first line
     let derivedTitle = url.split('/').pop() || 'Imported Knowledge';
     if (content.startsWith('# ')) {
@@ -247,28 +390,49 @@ function renderVaultItems(searchQuery = ''): void {
   if (!listContainer) return;
 
   listContainer.innerHTML = '';
-  
+
   let items = getItems(currentVaultSubtab);
 
   if (searchQuery) {
     const query = searchQuery.toLowerCase();
-    items = items.filter(item => 
-      item.title.toLowerCase().includes(query) || 
-      item.content.toLowerCase().includes(query) ||
-      item.tags.some(tag => tag.toLowerCase().includes(query))
+    items = items.filter(
+      (item) =>
+        item.title.toLowerCase().includes(query) ||
+        item.content.toLowerCase().includes(query) ||
+        item.tags.some((tag) => tag.toLowerCase().includes(query))
     );
   }
 
   if (items.length === 0) {
-    listContainer.innerHTML = `
-      <div style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 24px 0;">
-        No ${currentVaultSubtab} items found.
-      </div>
-    `;
+    let emptyTitle = '';
+    let emptyMsg = '';
+    let actionLabel = '';
+
+    if (currentVaultSubtab === 'knowledge') {
+      emptyTitle = 'No Vault Knowledge Base Entries';
+      emptyMsg = 'Knowledge items provide background context, documentation, and domain notes that the context engine uses to enrich your prompts.';
+      actionLabel = '+ Add Knowledge';
+    } else if (currentVaultSubtab === 'skill') {
+      emptyTitle = 'No Vault Skills Found';
+      emptyMsg = 'Skills define specialized agent personas and system instructions to align your prompts to.';
+      actionLabel = '+ Add Skill';
+    } else {
+      emptyTitle = 'No Vault Instructions Found';
+      emptyMsg = 'Preference instructions define format rules and style preferences prioritized during prompt generation.';
+      actionLabel = '+ Add Instruction';
+    }
+
+    const emptyNode = (window as any).DomHelpers.createEmptyState({
+      title: emptyTitle,
+      message: emptyMsg,
+      actionLabel,
+      onAction: () => openVaultModal(null)
+    });
+    listContainer.appendChild(emptyNode);
     return;
   }
 
-  items.forEach(item => {
+  items.forEach((item) => {
     const card = document.createElement('div');
     card.style.background = 'rgba(255, 255, 255, 0.02)';
     card.style.border = '1px solid rgba(255, 255, 255, 0.05)';
@@ -279,19 +443,24 @@ function renderVaultItems(searchQuery = ''): void {
     card.style.gap = '8px';
     card.style.position = 'relative';
 
-    const tagsHtml = item.tags.map(t => 
-      `<span style="font-size: 9px; padding: 1px 6px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); color: var(--text-muted); font-family: var(--font-mono);">${t}</span>`
-    ).join(' ');
+    const tagsHtml = item.tags
+      .map(
+        (t) =>
+          `<span style="font-size: 9px; padding: 1px 6px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); color: var(--text-muted); font-family: var(--font-mono);">${t}</span>`
+      )
+      .join(' ');
 
-    const truncatedContent = item.content.length > 150 ? item.content.slice(0, 150) + '...' : item.content;
+    const truncatedContent =
+      item.content.length > 150 ? item.content.slice(0, 150) + '...' : item.content;
 
     card.innerHTML = `
       <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
         <div style="display: flex; align-items: center; gap: 8px;">
           <input type="checkbox" class="pn-vault-item-toggle" data-id="${item.id}" ${item.enabled ? 'checked' : ''} style="cursor: pointer;" />
-          <strong style="font-size: 13px; color: ${item.enabled ? 'var(--text-primary)' : 'var(--text-muted)'};">${item.title}</strong>
+          <strong style="font-size: 13px; color: ${item.enabled ? 'var(--text-primary)' : 'var(--text-muted)'};">${item.title}${item.pinned ? ' 📌' : ''}</strong>
         </div>
         <div style="display: flex; gap: 8px;">
+          <button class="pn-vault-item-pin pn-btn pn-btn--ghost" data-id="${item.id}" type="button" style="font-size: 10px; padding: 2px 6px; height: 20px;">${item.pinned ? 'Unpin' : 'Pin'}</button>
           <button class="pn-vault-item-edit pn-btn pn-btn--ghost" data-id="${item.id}" type="button" style="font-size: 10px; padding: 2px 6px; height: 20px;">Edit</button>
           <button class="pn-vault-item-delete pn-btn pn-btn--ghost" data-id="${item.id}" type="button" style="font-size: 10px; padding: 2px 6px; height: 20px; color: #f87171; border-color: rgba(248,113,113,0.2);">Delete</button>
         </div>
@@ -303,6 +472,12 @@ function renderVaultItems(searchQuery = ''): void {
     // Toggle enabled checkbox
     card.querySelector('.pn-vault-item-toggle')?.addEventListener('change', async () => {
       await toggleItem(item.id);
+      renderVaultItems(searchQuery);
+    });
+
+    // Pin/Unpin item
+    card.querySelector('.pn-vault-item-pin')?.addEventListener('click', async () => {
+      await updateItem(item.id, { pinned: !item.pinned });
       renderVaultItems(searchQuery);
     });
 
@@ -357,6 +532,7 @@ async function handleFileImport(e: Event): Promise<void> {
 }
 
 function showImportPreviewModal(format: string, drafts: ParsedImportDraft[]): void {
+  previousActiveElement = document.activeElement as HTMLElement | null;
   const modal = document.getElementById('pn-vault-import-preview-modal');
   const formatEl = document.getElementById('pn-vault-import-detected-format');
   const listEl = document.getElementById('pn-vault-import-drafts-list');
@@ -374,8 +550,10 @@ function showImportPreviewModal(format: string, drafts: ParsedImportDraft[]): vo
       row.style.flexDirection = 'column';
       row.style.gap = '8px';
 
-      const confidenceLabel = draft.confidence >= 0.85 ? 'High' : draft.confidence >= 0.6 ? 'Medium' : 'Low';
-      const confidenceColor = draft.confidence >= 0.85 ? '#4ade80' : draft.confidence >= 0.6 ? '#fbbf24' : '#f87171';
+      const confidenceLabel =
+        draft.confidence >= 0.85 ? 'High' : draft.confidence >= 0.6 ? 'Medium' : 'Low';
+      const confidenceColor =
+        draft.confidence >= 0.85 ? '#4ade80' : draft.confidence >= 0.6 ? '#fbbf24' : '#f87171';
 
       row.innerHTML = `
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
@@ -412,6 +590,10 @@ function showImportPreviewModal(format: string, drafts: ParsedImportDraft[]): vo
 function closeImportPreviewModal(): void {
   document.getElementById('pn-vault-import-preview-modal')?.classList.add('pn-hidden');
   currentImportDrafts = [];
+  if (previousActiveElement) {
+    previousActiveElement.focus();
+    previousActiveElement = null;
+  }
 }
 
 async function handleConfirmImport(): Promise<void> {
@@ -441,7 +623,7 @@ async function handleConfirmImport(): Promise<void> {
       title: finalTitle,
       content: draft.content,
       tags: draft.tags,
-      enabled: true
+      enabled: true,
     });
 
     // Save preference learning layer override if changed by user
@@ -449,7 +631,7 @@ async function handleConfirmImport(): Promise<void> {
       await addPreference({
         titlePattern: finalTitle,
         sourcePattern: draft.originalSource,
-        preferredType: finalType
+        preferredType: finalType,
       });
     }
 

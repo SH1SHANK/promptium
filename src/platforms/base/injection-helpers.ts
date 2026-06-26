@@ -3,7 +3,10 @@ export async function dispatchInput(element: HTMLElement) {
   element.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
-export async function injectIntoReactTextarea(textarea: HTMLTextAreaElement, text: string): Promise<boolean> {
+export async function injectIntoReactTextarea(
+  textarea: HTMLTextAreaElement,
+  text: string
+): Promise<boolean> {
   const proto = HTMLTextAreaElement.prototype;
   const descriptor = Object.getOwnPropertyDescriptor(proto, 'value');
 
@@ -26,7 +29,8 @@ export async function injectIntoEditable(editable: HTMLElement, text: string): P
 
   let execSuccess = false;
   try {
-    execSuccess = document.execCommand('selectAll') && document.execCommand('insertText', false, text);
+    execSuccess =
+      document.execCommand('selectAll') && document.execCommand('insertText', false, text);
   } catch {
     execSuccess = false;
   }
@@ -41,7 +45,10 @@ export async function injectIntoEditable(editable: HTMLElement, text: string): P
   return true;
 }
 
-export async function injectIntoPlainTextarea(textarea: HTMLTextAreaElement, text: string): Promise<boolean> {
+export async function injectIntoPlainTextarea(
+  textarea: HTMLTextAreaElement,
+  text: string
+): Promise<boolean> {
   textarea.focus();
   textarea.value = text;
   await dispatchInput(textarea);

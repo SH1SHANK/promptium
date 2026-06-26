@@ -25,6 +25,6 @@ export async function budgetItems<T>(
   return {
     budgeted,
     totalTokens: total,
-    isTruncated
+    isTruncated,
   };
 }

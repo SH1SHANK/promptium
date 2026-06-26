@@ -13,7 +13,8 @@
 
   const first80 = (value: string) => String(value || '').slice(0, 80);
 
-  const buildCandidate = (title: string, text: string) => `${normalize(title)}\n${normalize(first80(text))}`.trim();
+  const buildCandidate = (title: string, text: string) =>
+    `${normalize(title)}\n${normalize(first80(text))}`.trim();
 
   const levenshteinDistance = (left: string, right: string) => {
     const a = String(left || '');

@@ -1,24 +1,37 @@
-export * from './continuation-view';
-export * from './continuation-generator';
-export * from './continuation-targets';
-export * from './continuation-dialogs';
+export * from './handoff-builder';
+export * from './platform-injector';
 
-import * as view from './continuation-view';
-import * as generator from './continuation-generator';
-import * as targets from './continuation-targets';
-import * as dialogs from './continuation-dialogs';
+import { injectContinuationContext } from './platform-injector';
 
-const ContinuationUI = {
-  openFromPayload: () => {},
-  openFromActiveTab: () => {},
-  openFromExportSelection: () => {},
-  refreshTargets: view.renderTargetGrid,
+export const ContinuationUI = {
+  openFromActiveTab: async (): Promise<boolean> => {
+    try {
+      const activeTabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      const activeTab = activeTabs[0];
+      if (!activeTab || !activeTab.url) return false;
+
+      // Extract current platform
+      const url = activeTab.url.toLowerCase();
+      let sourcePlatform = 'unknown';
+      if (url.includes('chatgpt.com')) sourcePlatform = 'chatgpt';
+      else if (url.includes('claude.ai')) sourcePlatform = 'claude';
+      else if (url.includes('gemini.google.com')) sourcePlatform = 'gemini';
+      else if (url.includes('perplexity.ai')) sourcePlatform = 'perplexity';
+      else if (url.includes('copilot.microsoft.com')) sourcePlatform = 'copilot';
+
+      if (sourcePlatform === 'unknown') return false;
+
+      // Determine default target platform (e.g. ChatGPT -> Claude or Claude -> ChatGPT)
+      const targetPlatform = sourcePlatform === 'chatgpt' ? 'claude' : 'chatgpt';
+
+      return await injectContinuationContext(sourcePlatform, targetPlatform);
+    } catch (_) {
+      return false;
+    }
+  },
   bindEvents: () => {},
-  runContinuation: generator.quickContinue,
 };
 
 if (typeof window !== 'undefined') {
   (window as any).ContinuationUI = ContinuationUI;
 }
-
-export { ContinuationUI };

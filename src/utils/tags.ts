@@ -36,7 +36,9 @@
     if (!wrap) return;
 
     // Prevent duplicate badges
-    const existing = Array.from(wrap.querySelectorAll('.pn-tag-badge')).map((b) => (b as HTMLElement).dataset.tag);
+    const existing = Array.from(wrap.querySelectorAll('.pn-tag-badge')).map(
+      (b) => (b as HTMLElement).dataset.tag
+    );
     if (existing.includes(normalized)) return;
 
     const badge = document.createElement('span');

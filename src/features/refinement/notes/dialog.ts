@@ -4,6 +4,7 @@ import { RefinementNote } from './types';
 
 /**
  * Renders a lightweight note creation/editing popup dialog above or below the selected text area.
+ * Supports keyboard navigation: Enter, Escape, Tab trapping, and focus restoration.
  */
 export const showNoteDialog = (
   textarea: HTMLTextAreaElement,
@@ -12,6 +13,8 @@ export const showNoteDialog = (
   selectedText: string,
   onSave: () => void
 ): void => {
+  const previousActive = document.activeElement as HTMLElement | null;
+
   // Remove existing note dialog if any
   const existing = document.getElementById('pn-note-dialog');
   if (existing) {
@@ -33,7 +36,7 @@ export const showNoteDialog = (
 
   // Floating position calculations relative to the selection cursor coordinates (fallback to textarea relative)
   const rect = textarea.getBoundingClientRect();
-  
+
   // Place dialog below or above the textarea dynamically
   dialog.style.left = `${rect.left + window.scrollX + (rect.width - 260) / 2}px`;
   dialog.style.top = `${rect.top + window.scrollY + 40}px`;
@@ -53,15 +56,22 @@ export const showNoteDialog = (
   document.body.appendChild(dialog);
 
   const input = document.getElementById('pn-note-dialog-input') as HTMLTextAreaElement | null;
+  const cancelBtn = document.getElementById('pn-note-dialog-cancel') as HTMLButtonElement | null;
+  const saveBtn = document.getElementById('pn-note-dialog-save') as HTMLButtonElement | null;
+
   input?.focus();
 
   const cleanup = () => {
     dialog.remove();
+    document.removeEventListener('mousedown', onOutsideClick);
+    if (previousActive) {
+      previousActive.focus();
+    } else {
+      textarea.focus();
+    }
   };
 
-  document.getElementById('pn-note-dialog-cancel')?.addEventListener('click', cleanup);
-
-  document.getElementById('pn-note-dialog-save')?.addEventListener('click', () => {
+  const handleSave = () => {
     const instruction = input?.value.trim() || '';
     if (!instruction) return;
 
@@ -71,19 +81,60 @@ export const showNoteDialog = (
       instruction,
       startOffset: start,
       endOffset: end,
-      createdAt: Date.now()
+      createdAt: Date.now(),
     };
 
     addNote(note);
     onSave();
     cleanup();
+  };
+
+  cancelBtn?.addEventListener('click', cleanup);
+  saveBtn?.addEventListener('click', handleSave);
+
+  // Focus Trapping and Keyboard handling
+  const focusables = [input, cancelBtn, saveBtn].filter(Boolean) as HTMLElement[];
+
+  dialog.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      cleanup();
+      return;
+    }
+
+    if (e.key === 'Enter' && !e.shiftKey) {
+      if (document.activeElement === cancelBtn) {
+        cleanup();
+      } else {
+        handleSave();
+      }
+      e.preventDefault();
+      return;
+    }
+
+    if (e.key === 'Tab') {
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (!first || !last) return;
+
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          last.focus();
+          e.preventDefault();
+        }
+      } else {
+        if (document.activeElement === last) {
+          first.focus();
+          e.preventDefault();
+        }
+      }
+    }
   });
 
   // Handle clicking outside to dismiss
   const onOutsideClick = (e: MouseEvent) => {
     if (!dialog.contains(e.target as Node) && e.target !== textarea) {
       cleanup();
-      document.removeEventListener('mousedown', onOutsideClick);
     }
   };
   document.addEventListener('mousedown', onOutsideClick);

@@ -1,11 +1,11 @@
 import { RefinementNote } from '../notes/types';
 import { VaultItem } from '../../vault/types';
-import { ContextRetrievalResult } from './cre/types';
+import { ContextRetrievalResult } from '../../retrieval/types';
 
 export interface PromptIssue {
   id: string;
-  category: "grammar" | "clarity" | "style" | "redundancy" | "rule";
-  severity: "low" | "medium" | "high";
+  category: 'grammar' | 'clarity' | 'style' | 'redundancy' | 'rule';
+  severity: 'low' | 'medium' | 'high';
   original: string;
   replacement?: string;
   explanation: string;
@@ -21,7 +21,13 @@ export interface PromptEffectivenessScore {
   overall: number;
 }
 
-export type PromptCategory = "coding" | "writing" | "marketing" | "research" | "business" | "general";
+export type PromptCategory =
+  | 'coding'
+  | 'writing'
+  | 'marketing'
+  | 'research'
+  | 'business'
+  | 'general';
 
 export interface ModelGuidance {
   name: string;
@@ -48,11 +54,18 @@ export interface PromptPattern {
 
 export interface PromptRecommendation {
   id: string;
-  category: "Clarity" | "Structure" | "Constraints" | "Context" | "Output Format" | "Agent Workflow" | "Model Optimization";
+  category:
+    | 'Clarity'
+    | 'Structure'
+    | 'Constraints'
+    | 'Context'
+    | 'Output Format'
+    | 'Agent Workflow'
+    | 'Model Optimization';
   title: string;
   description: string;
   why: string;
-  priority: "critical" | "important" | "optional";
+  priority: 'critical' | 'important' | 'optional';
   confidence: number;
   impact: number;
   beforePreview?: string | undefined;
@@ -106,7 +119,7 @@ export interface PromptRefinementContext {
   tokenMetrics?: TokenMetrics;
   recommendedPatterns?: RankedPattern[];
   recommendedSkills?: RankedSkill[];
-  
+
   // Vault additions for guided rewriting
   vaultKnowledge?: VaultItem[];
   vaultSkill?: VaultItem | null;

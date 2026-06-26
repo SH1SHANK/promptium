@@ -10,13 +10,18 @@
   z-index: 2147483647 !important;
   background: var(--pn-bg-surface, #12141b) !important;
   border: 2px solid var(--pn-border-accent, var(--accent, #36d6c3)) !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), 0 0 12px var(--pn-accent-glow, var(--accent-glow, rgba(54, 214, 195, 0.16))) !important;
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.4),
+    0 0 12px var(--pn-accent-glow, var(--accent-glow, rgba(54, 214, 195, 0.16))) !important;
   cursor: pointer !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   color: var(--pn-accent, var(--accent, #36d6c3)) !important;
-  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s ease, opacity 0.2s ease !important;
+  transition:
+    transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.2s ease,
+    opacity 0.2s ease !important;
   padding: 0 !important;
   margin: 0 !important;
   outline: none !important;
@@ -26,12 +31,22 @@
 
 #pn-fab-launcher:hover {
   transform: scale(1.08) !important;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 16px var(--pn-accent-glow, var(--accent-glow, rgba(54, 214, 195, 0.24))) !important;
+  box-shadow:
+    0 6px 20px rgba(0, 0, 0, 0.5),
+    0 0 16px var(--pn-accent-glow, var(--accent-glow, rgba(54, 214, 195, 0.24))) !important;
   background: var(--pn-bg-hover, #181b24) !important;
 }
 
 #pn-fab-launcher:active {
   transform: scale(0.96) !important;
+}
+
+#pn-fab-launcher.pn-fab-launcher--selection {
+  width: 64px !important;
+  height: 64px !important;
+  box-shadow:
+    0 8px 28px rgba(0, 0, 0, 0.5),
+    0 0 0 6px rgba(54, 214, 195, 0.14) !important;
 }
 
 #pn-fab-launcher:focus-visible {
@@ -60,4 +75,64 @@
   clip: rect(0, 0, 0, 0) !important;
   white-space: nowrap !important;
   border: 0 !important;
+}
+
+.pn-fab-workflow-menu {
+  position: fixed !important;
+  right: 24px !important;
+  bottom: 92px !important;
+  z-index: 2147483647 !important;
+  display: none !important;
+  grid-template-columns: repeat(2, minmax(92px, 1fr)) !important;
+  gap: 8px !important;
+  padding: 10px !important;
+  border-radius: 18px !important;
+  border: 1px solid rgba(54, 214, 195, 0.22) !important;
+  background: rgba(15, 23, 42, 0.96) !important;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.42) !important;
+  backdrop-filter: blur(16px) !important;
+}
+
+.pn-fab-workflow-menu--open {
+  display: grid !important;
+}
+
+.pn-fab-workflow-action {
+  all: unset !important;
+  box-sizing: border-box !important;
+  cursor: pointer !important;
+  min-width: 92px !important;
+  padding: 9px 10px !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.055) !important;
+  color: #f8fafc !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'SF Pro Text',
+    sans-serif !important;
+}
+
+.pn-fab-workflow-action:hover,
+.pn-fab-workflow-action:focus-visible {
+  border-color: rgba(54, 214, 195, 0.55) !important;
+  background: rgba(54, 214, 195, 0.12) !important;
+  outline: none !important;
+}
+
+.pn-fab-workflow-action span {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+
+.pn-fab-workflow-action small {
+  font-size: 10px !important;
+  color: rgba(226, 232, 240, 0.72) !important;
 }

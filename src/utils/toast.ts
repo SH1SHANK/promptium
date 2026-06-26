@@ -11,7 +11,9 @@ export interface Toast {
 }
 
 const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
-  const normalizedMsg = String(message || '').replace(/!/g, '').trim();
+  const normalizedMsg = String(message || '')
+    .replace(/!/g, '')
+    .trim();
 
   // If the window has a custom showToast function (e.g. from an app page UI), delegate to it
   const customShowToast = (window as any).showToast;

@@ -155,7 +155,12 @@
     return raw.replace(/^\./, '');
   };
 
-  const getFilename = (messages: any, platform: string, formatOrExtension = 'md', fallbackMessages: any = []) => {
+  const getFilename = (
+    messages: any,
+    platform: string,
+    formatOrExtension = 'md',
+    fallbackMessages: any = []
+  ) => {
     const base = generateName(messages, platform, fallbackMessages);
     const extension = normalizeExtension(formatOrExtension);
     return `${base}.${extension}`;

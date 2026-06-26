@@ -4,19 +4,14 @@
     "src/entrypoints/background.ts",
     "src/entrypoints/app/index.ts",
     "src/entrypoints/content/index.ts",
-    "wxt.config.ts",
-    "tailwind.config.js",
-    "postcss.config.js"
+    "wxt.config.ts"
   ],
   "project": ["src/**/*.ts", "src/**/*.js"],
   "ignore": [
-    ".wxt/**",
-    ".output/**",
-    "node_modules/**",
+    "src/features/conversation/**",
     "src/lib/jspdf.min.js",
     "src/lib/markdown-it.min.js",
     "src/lib/turndown.js",
-    "src/types/bookmark.ts",
     "src/types/continuation.ts",
     "src/types/errors.ts",
     "src/types/gemini.ts"

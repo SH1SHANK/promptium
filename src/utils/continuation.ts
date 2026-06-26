@@ -108,9 +108,11 @@
     let activeProvider = 'gemini';
     try {
       const snapshot = await chrome.storage.local.get(['promptiumSettings']);
-      const settings = (snapshot?.promptiumSettings && typeof snapshot.promptiumSettings === 'object'
-        ? snapshot.promptiumSettings
-        : {}) as any;
+      const settings = (
+        snapshot?.promptiumSettings && typeof snapshot.promptiumSettings === 'object'
+          ? snapshot.promptiumSettings
+          : {}
+      ) as any;
       activeProvider =
         String(settings?.activeProvider || 'gemini')
           .trim()
@@ -140,7 +142,12 @@
     return '';
   };
 
-  const buildHandoff = async (messages: any, mode = 'FULL_SUMMARY', userNote = '', cloudKey = '') => {
+  const buildHandoff = async (
+    messages: any,
+    mode = 'FULL_SUMMARY',
+    userNote = '',
+    cloudKey = ''
+  ) => {
     const normalized = normalizeMessages(messages).slice(-MAX_SOURCE_MESSAGES);
     if (!normalized.length) {
       return { ok: false, error: 'no_messages' };
@@ -207,7 +214,9 @@
   };
 
   const checkPending = async (currentPlatform: any) => {
-    const snapshot = (await chrome.storage.local.get([CONTINUATION_KEY]).catch(() => ({}))) as Record<string, any>;
+    const snapshot = (await chrome.storage.local
+      .get([CONTINUATION_KEY])
+      .catch(() => ({}))) as Record<string, any>;
     const pending = snapshot?.[CONTINUATION_KEY];
     if (!pending) return null;
 

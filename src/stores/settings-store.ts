@@ -8,7 +8,10 @@ import { UserSettings } from '../types/domain/settings';
 export const SettingsStore = {
   async getSettings(defaults: Partial<UserSettings> = {}): Promise<UserSettings> {
     const key = (window as any).SidepanelState?.KEYS?.SETTINGS_KEY || 'promptiumSettings';
-    const snapshot = (await chrome.storage.local.get([key]).catch(() => ({}))) as Record<string, any>;
+    const snapshot = (await chrome.storage.local.get([key]).catch(() => ({}))) as Record<
+      string,
+      any
+    >;
     return { ...defaults, ...(snapshot?.[key] || {}) } as UserSettings;
   },
   async setSettings(settings: Partial<UserSettings> = {}): Promise<UserSettings> {
@@ -28,7 +31,10 @@ export const ContinuationStore = {
     return value;
   },
   async get(key: string): Promise<any> {
-    const snapshot = (await chrome.storage.local.get([key]).catch(() => ({}))) as Record<string, any>;
+    const snapshot = (await chrome.storage.local.get([key]).catch(() => ({}))) as Record<
+      string,
+      any
+    >;
     return snapshot?.[key] || null;
   },
   async remove(key: string): Promise<void> {
@@ -39,7 +45,10 @@ export const ContinuationStore = {
     return value;
   },
   async getSession(key: string): Promise<any> {
-    const snapshot = (await chrome.storage.session.get([key]).catch(() => ({}))) as Record<string, any>;
+    const snapshot = (await chrome.storage.session.get([key]).catch(() => ({}))) as Record<
+      string,
+      any
+    >;
     return snapshot?.[key] || null;
   },
   async removeSession(key: string): Promise<void> {

@@ -95,7 +95,10 @@
   };
 
   const migrateLegacyPendingContext = async (currentPlatform: any = '') => {
-    const snapshot = (await chrome.storage.local.get([BRIDGE_KEY, LEGACY_CONTEXT_KEY])) as Record<string, any>;
+    const snapshot = (await chrome.storage.local.get([BRIDGE_KEY, LEGACY_CONTEXT_KEY])) as Record<
+      string,
+      any
+    >;
     const current = snapshot?.[BRIDGE_KEY];
     const legacy = snapshot?.[LEGACY_CONTEXT_KEY];
 
@@ -174,7 +177,10 @@
   const checkPendingBridge = async (currentPlatform: any) => {
     await migrateLegacyPendingContext(currentPlatform).catch(() => {});
 
-    const snapshot = (await chrome.storage.local.get([BRIDGE_KEY]).catch(() => ({}))) as Record<string, any>;
+    const snapshot = (await chrome.storage.local.get([BRIDGE_KEY]).catch(() => ({}))) as Record<
+      string,
+      any
+    >;
     const pending = snapshot?.[BRIDGE_KEY];
 
     if (!pending) {

@@ -13,7 +13,7 @@ export const prdPlugin: ImporterPlugin = {
   parse: async (fileName, content) => {
     const lines = content.split('\n');
     const drafts: ParsedImportDraft[] = [];
-    
+
     let currentTitle = 'Requirements Context';
     let currentContent: string[] = [];
 
@@ -29,7 +29,7 @@ export const prdPlugin: ImporterPlugin = {
         content: text,
         type: classification.type,
         confidence: classification.confidence,
-        tags: ['prd', 'requirements', 'imported']
+        tags: ['prd', 'requirements', 'imported'],
       });
       currentContent = [];
     };
@@ -45,5 +45,5 @@ export const prdPlugin: ImporterPlugin = {
     flush();
 
     return drafts;
-  }
+  },
 };

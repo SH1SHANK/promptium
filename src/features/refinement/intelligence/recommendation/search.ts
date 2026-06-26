@@ -2,6 +2,9 @@ import { RankedPattern, RankedSkill } from '../types';
 import { getFuse } from '../loaders/intelligence-loader';
 import { getItems } from '../../../vault/store';
 import { VaultItem } from '../../../vault/types';
+import { createLogger } from '../../../../core/logger';
+
+const logger = createLogger('RecommendationSearch');
 
 /**
  * Generic fuzz matching database retriever wrapper utilizing Fuse.js.
@@ -21,7 +24,7 @@ export async function searchKnowledge<T>(
     const options = {
       keys,
       includeScore: true,
-      threshold: 0.5 // Maximum distance threshold for fuzzy matching
+      threshold: 0.5, // Maximum distance threshold for fuzzy matching
     };
 
     const fuseInstance = new Fuse(list, options);
@@ -29,10 +32,10 @@ export async function searchKnowledge<T>(
 
     return searchResults.map((res: any) => ({
       item: res.item,
-      score: 1.0 - (res.score || 0)
+      score: 1.0 - (res.score || 0),
     }));
   } catch (err) {
-    console.error("Fuse.js search execution error:", err);
+    logger.warn('Fuse.js search failed; returning no matches.', err);
     return [];
   }
 }
@@ -46,12 +49,12 @@ export async function findRelevantPatterns(
 ): Promise<RankedPattern[]> {
   const matches = await searchKnowledge(text, patterns, ['name', 'structure', 'example']);
   return matches
-    .map(m => ({
+    .map((m) => ({
       id: String(m.item.name).toLowerCase(),
       name: m.item.name,
-      score: m.score
+      score: m.score,
     }))
-    .filter(m => m.score >= 0.7); // Apply confidence threshold filter
+    .filter((m) => m.score >= 0.7); // Apply confidence threshold filter
 }
 
 /**
@@ -63,42 +66,42 @@ export async function findRelevantSkills(
 ): Promise<RankedSkill[]> {
   const matches = await searchKnowledge(text, skills, ['title', 'content', 'tags']);
   return matches
-    .map(m => ({
+    .map((m) => ({
       id: m.item.id,
       name: m.item.title,
-      score: m.score
+      score: m.score,
     }))
-    .filter(m => m.score >= 0.7); // Apply confidence threshold filter
+    .filter((m) => m.score >= 0.7); // Apply confidence threshold filter
 }
 
 /**
  * Fuzzy search across all Vault items.
  */
 export async function searchVault(query: string): Promise<VaultItem[]> {
-  const allItems = getItems().filter(i => i.enabled);
+  const allItems = getItems().filter((i) => i.enabled);
   const matches = await searchKnowledge(query, allItems, ['title', 'content', 'tags']);
-  return matches.map(m => m.item);
+  return matches.map((m) => m.item);
 }
 
 /**
  * Retrieves the top 3-5 relevant knowledge guides.
  */
 export async function findRelevantKnowledge(text: string): Promise<VaultItem[]> {
-  const knowledgeItems = getItems('knowledge').filter(i => i.enabled);
+  const knowledgeItems = getItems('knowledge').filter((i) => i.enabled);
   const matches = await searchKnowledge(text, knowledgeItems, ['title', 'content', 'tags']);
   return matches
-    .filter(m => m.score >= 0.7)
+    .filter((m) => m.score >= 0.7)
     .slice(0, 5)
-    .map(m => m.item);
+    .map((m) => m.item);
 }
 
 /**
  * Retrieves the most relevant Skill.
  */
 export async function findRelevantSkill(text: string): Promise<VaultItem | null> {
-  const skillItems = getItems('skill').filter(i => i.enabled);
+  const skillItems = getItems('skill').filter((i) => i.enabled);
   const matches = await searchKnowledge(text, skillItems, ['title', 'content', 'tags']);
-  const passed = matches.filter(m => m.score >= 0.7);
+  const passed = matches.filter((m) => m.score >= 0.7);
   return passed.length > 0 ? passed[0]!.item : null;
 }
 
@@ -106,5 +109,5 @@ export async function findRelevantSkill(text: string): Promise<VaultItem | null>
  * Retrieves all enabled Instructions (no filtering needed as they are persistent defaults).
  */
 export function getEnabledInstructions(): VaultItem[] {
-  return getItems('instruction').filter(i => i.enabled);
+  return getItems('instruction').filter((i) => i.enabled);
 }

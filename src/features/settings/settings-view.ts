@@ -11,14 +11,14 @@ export const renderAll = async (): Promise<void> => {
     `;
 
     const navButtons = document.querySelectorAll('.pn-settings-nav-btn');
-    navButtons.forEach(btn => {
+    navButtons.forEach((btn) => {
       btn.addEventListener('click', () => {
-        navButtons.forEach(b => b.classList.remove('is-active'));
+        navButtons.forEach((b) => b.classList.remove('is-active'));
         btn.classList.add('is-active');
         const targetSection = btn.getAttribute('data-section');
-        
+
         const panels = document.querySelectorAll('.pn-settings-panel');
-        panels.forEach(panel => {
+        panels.forEach((panel) => {
           if (panel.getAttribute('data-settings-section') === targetSection) {
             panel.classList.add('is-active');
           } else {
@@ -60,7 +60,7 @@ export const renderAll = async (): Promise<void> => {
       if (input) {
         const val = input.value.trim();
         await chrome.storage.local.set({ promptiumGeminiKey: val });
-        
+
         const status = document.getElementById('pn-settings-ui-status');
         if (status) {
           status.textContent = 'API Key saved successfully!';
@@ -96,7 +96,9 @@ export const renderAll = async (): Promise<void> => {
       </div>
     `;
 
-    const selectAction = document.getElementById('pn-settings-default-action') as HTMLSelectElement | null;
+    const selectAction = document.getElementById(
+      'pn-settings-default-action'
+    ) as HTMLSelectElement | null;
     selectAction?.addEventListener('change', async () => {
       const val = selectAction.value as 'fix' | 'upgrade' | 'rewrite';
       const settings = await SettingsStore.getSettings();

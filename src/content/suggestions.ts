@@ -363,7 +363,9 @@ import { getCurrentAdapter } from '../platforms';
   const handleInput = (event: any) => {
     if (!isEnabled || dismissed) return;
     const target = event.target;
-    const val = (target.value === undefined ? target.textContent || target.innerText || '' : target.value).trim();
+    const val = (
+      target.value === undefined ? target.textContent || target.innerText || '' : target.value
+    ).trim();
     if (!val || val.length < 8) {
       hideDropdown();
       return;

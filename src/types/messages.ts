@@ -194,6 +194,10 @@ export interface MessageMap {
     request: { status: string };
     response: void;
   };
+  SAVE_CLIPPING: {
+    request: { text: string };
+    response: { ok: boolean; error?: string };
+  };
   SAVE_SELECTION: {
     request: void;
     response: { ok: boolean };

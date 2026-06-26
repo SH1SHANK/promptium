@@ -8,11 +8,13 @@ import { runIntelligencePipeline } from './analyzer';
 import { calculateEffectivenessScore } from './scoring';
 import { upgradePrompt } from './upgrade';
 import { getNotes } from '../notes/store';
-import { retrieveContext } from './cre/engine';
+import { KeywordRetrievalProvider } from '../../retrieval';
+
+const retrievalProvider = new KeywordRetrievalProvider();
 
 export const generateRewriteContext = async (text: string): Promise<PromptRefinementContext> => {
   const trimmed = String(text || '').trim();
-  
+
   // 1. Run integrated pipeline (returns issues, intent extraction, token metrics)
   const analysis = await runIntelligencePipeline(trimmed);
 
@@ -50,14 +52,17 @@ export const generateRewriteContext = async (text: string): Promise<PromptRefine
     targetModel = 'kimi';
   } else if (normalized.includes('codex')) {
     targetModel = 'codex';
-  } else if (normalized.includes('agent') && (normalized.includes('openai') || normalized.includes('gpt'))) {
+  } else if (
+    normalized.includes('agent') &&
+    (normalized.includes('openai') || normalized.includes('gpt'))
+  ) {
     targetModel = 'openaiagents';
   }
 
   const modelGuidance = getModelGuidance(targetModel);
   const modelRecommendations = [
     ...modelGuidance.formattingRecommendations,
-    ...modelGuidance.reasoningRecommendations
+    ...modelGuidance.reasoningRecommendations,
   ];
 
   // 5. Developer Agent Specific Workflow recommendations
@@ -72,8 +77,8 @@ export const generateRewriteContext = async (text: string): Promise<PromptRefine
   const recommendations: PromptRecommendation[] = [];
 
   // A. Add Rule check cards
-  const ruleIssues = analysis.issues.filter(i => i.id.startsWith('rule_'));
-  ruleIssues.forEach(issue => {
+  const ruleIssues = analysis.issues.filter((i) => i.id.startsWith('rule_'));
+  ruleIssues.forEach((issue) => {
     let title = 'Optimize Prompt Segment';
     let categoryName: PromptRecommendation['category'] = 'Clarity';
     let priority: PromptRecommendation['priority'] = 'important';
@@ -123,7 +128,7 @@ export const generateRewriteContext = async (text: string): Promise<PromptRefine
       impact,
       beforePreview: issue.id === 'rule_contains_placeholder' ? issue.original : undefined,
       afterPreview: issue.id === 'rule_contains_placeholder' ? '[value]' : afterPreview,
-      applyId: issue.id
+      applyId: issue.id,
     });
   });
 
@@ -133,42 +138,45 @@ export const generateRewriteContext = async (text: string): Promise<PromptRefine
       id: 'model_claude_xml',
       category: 'Model Optimization',
       title: 'Wrap with XML Tags',
-      description: 'Claude performs better with explicit XML-style structure and clearly separated sections.',
+      description:
+        'Claude performs better with explicit XML-style structure and clearly separated sections.',
       why: 'Claude models are natively trained on XML tags to parse parameter arguments and instruction borders.',
       priority: 'important',
       confidence: 0.9,
       impact: 0.8,
       beforePreview: trimmed.slice(0, 40) + '...',
       afterPreview: `<context>\n${trimmed.slice(0, 40)}...\n</context>`,
-      applyId: 'model_claude_xml'
+      applyId: 'model_claude_xml',
     });
   } else if (targetModel === 'chatgpt') {
     recommendations.push({
       id: 'model_chatgpt_criteria',
       category: 'Model Optimization',
       title: 'Add Consistency Constraints',
-      description: 'Adding output constraints and evaluation criteria may improve consistency in ChatGPT responses.',
+      description:
+        'Adding output constraints and evaluation criteria may improve consistency in ChatGPT responses.',
       why: 'Explicit success criteria primes instruction weights to prevent chat loop drift.',
       priority: 'important',
       confidence: 0.85,
       impact: 0.75,
       beforePreview: trimmed.slice(0, 40) + '...',
       afterPreview: `${trimmed.slice(0, 40)}...\n\nCriteria:\n- Output must follow instructions strictly.`,
-      applyId: 'model_chatgpt_criteria'
+      applyId: 'model_chatgpt_criteria',
     });
   } else if (targetModel === 'codex') {
     recommendations.push({
       id: 'model_codex_api',
       category: 'Model Optimization',
       title: 'Define API Signatures',
-      description: 'Include repository constraints, API signatures, and testing requirements in Codex prompts.',
+      description:
+        'Include repository constraints, API signatures, and testing requirements in Codex prompts.',
       why: 'Codex models require structured inline signatures to correctly predict function boundaries.',
       priority: 'important',
       confidence: 0.9,
       impact: 0.8,
       beforePreview: trimmed.slice(0, 40) + '...',
       afterPreview: `${trimmed.slice(0, 40)}...\n\n// API Signature:\n// function init()`,
-      applyId: 'model_codex_api'
+      applyId: 'model_codex_api',
     });
   }
 
@@ -178,11 +186,14 @@ export const generateRewriteContext = async (text: string): Promise<PromptRefine
       const parts = rec.split(':');
       const title = parts[0]?.trim() || 'Agent Specification';
       const desc = parts[1]?.trim() || rec;
-      
+
       let why = 'Agents require strict parameters to limit workspace command execution risks.';
-      if (title.includes('Structure')) why = 'Providing directory references decreases background tool loop lookup overhead.';
-      else if (title.includes('Standards')) why = 'Specifying TS/ESLint rules avoids syntax regression during background compilation.';
-      else if (title.includes('Testing')) why = 'Asserting test verify suites stops agents from completing code that does not build.';
+      if (title.includes('Structure'))
+        why = 'Providing directory references decreases background tool loop lookup overhead.';
+      else if (title.includes('Standards'))
+        why = 'Specifying TS/ESLint rules avoids syntax regression during background compilation.';
+      else if (title.includes('Testing'))
+        why = 'Asserting test verify suites stops agents from completing code that does not build.';
 
       recommendations.push({
         id: `agent_rec_${idx}`,
@@ -195,7 +206,7 @@ export const generateRewriteContext = async (text: string): Promise<PromptRefine
         impact: 0.8,
         beforePreview: trimmed.slice(0, 40) + '...',
         afterPreview: `${trimmed.slice(0, 40)}...\n\n// ${title}: ${desc.slice(0, 40)}...`,
-        applyId: `agent_rec_${idx}`
+        applyId: `agent_rec_${idx}`,
       });
     });
   }
@@ -213,7 +224,7 @@ export const generateRewriteContext = async (text: string): Promise<PromptRefine
       impact: 0.8,
       beforePreview: trimmed.slice(0, 40) + '...',
       afterPreview: `### Role\n${skillPack.role}\n\n### Task\n${trimmed.slice(0, 40)}...`,
-      applyId: 'apply_pattern'
+      applyId: 'apply_pattern',
     });
   }
 
@@ -230,7 +241,7 @@ export const generateRewriteContext = async (text: string): Promise<PromptRefine
       impact: 0.7,
       beforePreview: trimmed.slice(0, 40) + '...',
       afterPreview: `### Role\n${skillPack.role}\n\n${trimmed.slice(0, 40)}...`,
-      applyId: 'apply_role'
+      applyId: 'apply_role',
     });
   }
 
@@ -250,10 +261,10 @@ export const generateRewriteContext = async (text: string): Promise<PromptRefine
     .slice(0, 4); // Display maximum of 3-5 recommendations (we target 4)
 
   // 8. Fetch dynamic Vault entries using CRE
-  const retrievalResult = await retrieveContext(trimmed);
-  const vaultKnowledge = retrievalResult.knowledge.map(r => r.item);
+  const retrievalResult = await retrievalProvider.retrieve(trimmed);
+  const vaultKnowledge = retrievalResult.knowledge.map((r) => r.item);
   const vaultSkill = retrievalResult.skill ? retrievalResult.skill.item : null;
-  const vaultInstructions = retrievalResult.instructions.map(r => r.item);
+  const vaultInstructions = retrievalResult.instructions.map((r) => r.item);
 
   // Local upgraded prompt with async execution support
   const asyncUpgradedPrompt = await upgradePrompt(trimmed);
@@ -277,7 +288,7 @@ export const generateRewriteContext = async (text: string): Promise<PromptRefine
     vaultKnowledge,
     vaultSkill,
     vaultInstructions,
-    retrievalResult
+    retrievalResult,
   };
 };
 
@@ -292,7 +303,7 @@ const getWhyExplanation = (ruleId: string): string => {
     case 'rule_missing_format':
       return 'Requesting tables or JSON lists ensures outputs are immediately parsable.';
     case 'rule_contains_placeholder':
-      return 'Replacing bracket symbols ensures queries don\'t ask questions back to you.';
+      return "Replacing bracket symbols ensures queries don't ask questions back to you.";
     default:
       return 'Following prompt engineering best practices ensures optimal model context prime.';
   }
