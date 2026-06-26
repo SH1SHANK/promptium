@@ -1,0 +1,8 @@
+# Prettier Ignore File
+.output/
+.wxt/
+node_modules/
+dist/
+build/
+pnpm-lock.yaml
+package-lock.json
