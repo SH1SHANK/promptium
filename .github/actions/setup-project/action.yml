@@ -1,30 +1,17 @@
 name: 'Setup Project'
-description: 'Standard setup for Node, PNPM, caching, and dependency installation'
+description: 'Standard setup for Node, PNPM, and native caching'
 
 runs:
   using: 'composite'
   steps:
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+
     - name: Setup Node.js 22
-      uses: actions/setup-node@1d0ff469b62b6d0ad9b0af0fb3b1e40be53ce9b9 # v4.2.0
+      uses: actions/setup-node@v4
       with:
         node-version: 22
-
-    - name: Setup pnpm
-      uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
-
-    - name: Get pnpm store directory
-      id: pnpm-cache
-      shell: bash
-      run: |
-        echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
-
-    - name: Setup pnpm Cache
-      uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
-      with:
-        path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-        restore-keys: |
-          ${{ runner.os }}-pnpm-store-
+        cache: 'pnpm'
 
     - name: Install Dependencies
       shell: bash

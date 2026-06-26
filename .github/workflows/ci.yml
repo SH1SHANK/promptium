@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@v4
 
       - name: Setup Project
         uses: ./.github/actions/setup-project
@@ -37,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@v4
 
       - name: Setup Project
         uses: ./.github/actions/setup-project
@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@v4
 
       - name: Setup Project
         uses: ./.github/actions/setup-project
@@ -82,7 +82,7 @@ jobs:
     needs: [lint-format, typecheck]
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@v4
 
       - name: Setup Project
         uses: ./.github/actions/setup-project
@@ -93,14 +93,14 @@ jobs:
 
       # Upload Build Artifacts for release verification (7 days retention)
       - name: Upload Production Extension Bundle
-        uses: actions/upload-artifact@4bec3efae2027e8a97d2d85d7b913e00e2a720e5 # v4.6.0
+        uses: actions/upload-artifact@v4
         with:
           name: promptium-chrome-extension
           path: .output/chrome-mv3
           retention-days: 7
 
       - name: Upload Packaged Zip Archive
-        uses: actions/upload-artifact@4bec3efae2027e8a97d2d85d7b913e00e2a720e5 # v4.6.0
+        uses: actions/upload-artifact@v4
         with:
           name: promptium-packaged-zip
           path: .output/*.zip
@@ -108,7 +108,7 @@ jobs:
 
       # Upload Bundle Analysis Report (30 days retention)
       - name: Upload Bundle Analysis Report
-        uses: actions/upload-artifact@4bec3efae2027e8a97d2d85d7b913e00e2a720e5 # v4.6.0
+        uses: actions/upload-artifact@v4
         with:
           name: bundle-analysis-report
           path: .output/bundle-analysis.html
@@ -117,7 +117,7 @@ jobs:
       # Capture and upload failure diagnostics if the build/tests fail
       - name: Upload Failure Diagnostics
         if: failure()
-        uses: actions/upload-artifact@4bec3efae2027e8a97d2d85d7b913e00e2a720e5 # v4.6.0
+        uses: actions/upload-artifact@v4
         with:
           name: failure-diagnostics
           path: |

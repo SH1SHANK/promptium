@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@v4
 
       - name: Setup Project
         uses: ./.github/actions/setup-project
@@ -37,7 +37,7 @@ jobs:
 
       # Publish release assets (permanent on GitHub releases)
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@c95fe14b83961b2c61c16a094e9f3b97b0a70191 # v2.2.0
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             .output/promptium.zip
