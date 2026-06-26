@@ -2,6 +2,7 @@
 
 | Package | Version | License | Status |
 |:---|:---|:---|:---|
+| `@eslint/js` | 9.39.4 | MIT | ✅ Approved |
 | `@types/chrome` | 0.1.43 | MIT | ✅ Approved |
 | `autoprefixer` | 10.5.2 | MIT | ✅ Approved |
 | `compromise` | 14.15.1 | MIT | ✅ Approved |
