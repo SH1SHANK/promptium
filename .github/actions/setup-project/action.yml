@@ -5,12 +5,12 @@ runs:
   using: 'composite'
   steps:
     - name: Setup Node.js 22
-      uses: actions/setup-node@392252c8007ce3a90117b118b740346A31b3e763 # v4.2.0
+      uses: actions/setup-node@1d0ff469b62b6d0ad9b0af0fb3b1e40be53ce9b9 # v4.2.0
       with:
         node-version: 22
 
     - name: Setup pnpm
-      uses: pnpm/action-setup@a32e240623a1165539c2da1c05a1e2607f0f6385 # v4.1.0
+      uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
 
     - name: Get pnpm store directory
       id: pnpm-cache
