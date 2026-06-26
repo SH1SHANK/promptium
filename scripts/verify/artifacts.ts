@@ -49,7 +49,7 @@ export function runArtifactsCheck(): boolean {
   console.log('Creating ZIP archive...');
   runCommand('pnpm zip');
 
-  const zipFiles = fs.readdirSync(OUTPUT_DIR).filter(file => file.endsWith('.zip'));
+  const zipFiles = fs.readdirSync(OUTPUT_DIR).filter((file) => file.endsWith('.zip'));
   if (zipFiles.length === 0) {
     console.error('❌ ZIP package was not found in .output/');
     return false;
@@ -70,7 +70,8 @@ export function runArtifactsCheck(): boolean {
 
 import { fileURLToPath } from 'node:url';
 
-const isMain = process.argv[1] && fileURLToPath(import.meta.url) === fs.realpathSync(process.argv[1]);
+const isMain =
+  process.argv[1] && fileURLToPath(import.meta.url) === fs.realpathSync(process.argv[1]);
 
 if (isMain) {
   const success = runArtifactsCheck();

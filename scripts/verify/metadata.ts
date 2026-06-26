@@ -26,7 +26,9 @@ export function getBuildMetadata(): BuildMetadata {
   } catch {}
 
   try {
-    tag = execSync('git describe --tags --exact-match 2>/dev/null || echo "none"', { encoding: 'utf8' }).trim();
+    tag = execSync('git describe --tags --exact-match 2>/dev/null || echo "none"', {
+      encoding: 'utf8',
+    }).trim();
   } catch {}
 
   let nodeVersion = process.version;

@@ -8,7 +8,9 @@ function getLicenseForPackage(pkgName: string): { version: string; license: stri
       const info = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
       return {
         version: info.version || 'unknown',
-        license: info.license || (info.licenses ? info.licenses.map((l: any) => l.type).join(', ') : 'Unknown'),
+        license:
+          info.license ||
+          (info.licenses ? info.licenses.map((l: any) => l.type).join(', ') : 'Unknown'),
       };
     }
   } catch {}
@@ -37,7 +39,7 @@ export function runLicenseAudit(): boolean {
   const pkgNames = Object.keys(dependencies).sort();
   for (const name of pkgNames) {
     const { version, license } = getLicenseForPackage(name);
-    
+
     let isForbidden = false;
     for (const forbidden of forbiddenLicenses) {
       if (typeof license === 'string' && license.toUpperCase().includes(forbidden)) {
@@ -56,14 +58,17 @@ export function runLicenseAudit(): boolean {
   fs.writeFileSync(outputReportPath, reportLines.join('\n'), 'utf8');
 
   console.log(`✅ Dependency license report generated at .output/license-report.md`);
-  console.log(`Audited ${pkgNames.length} packages. Copyleft warnings: ${hasWarnings ? 'Yes' : 'No'}`);
-  
+  console.log(
+    `Audited ${pkgNames.length} packages. Copyleft warnings: ${hasWarnings ? 'Yes' : 'No'}`
+  );
+
   return true; // We don't block build on license warnings unless required, but we log them.
 }
 
 import { fileURLToPath } from 'node:url';
 
-const isMain = process.argv[1] && fileURLToPath(import.meta.url) === fs.realpathSync(process.argv[1]);
+const isMain =
+  process.argv[1] && fileURLToPath(import.meta.url) === fs.realpathSync(process.argv[1]);
 
 if (isMain) {
   const success = runLicenseAudit();

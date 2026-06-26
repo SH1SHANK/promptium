@@ -26,11 +26,13 @@ export function runSizesCheck(): boolean {
       const sizeBytes = stats.size;
       const sizeKb = (sizeBytes / 1024).toFixed(2);
       const status = sizeBytes > file.limit ? '⚠️ OVER LIMIT' : '✅ OK';
-      
+
       reportLines.push(`| \`${file.name}\` | ${sizeBytes} | ${sizeKb} KB | ${status} |`);
-      
+
       if (sizeBytes > file.limit) {
-        console.error(`❌ Size regression detected on ${file.name}! Size ${sizeKb} KB exceeds limit of ${file.limit / 1024} KB`);
+        console.error(
+          `❌ Size regression detected on ${file.name}! Size ${sizeKb} KB exceeds limit of ${file.limit / 1024} KB`
+        );
         hasSizeRegression = true;
       }
     } else {
@@ -41,7 +43,7 @@ export function runSizesCheck(): boolean {
   // Scan chunks directory
   const chunksDir = path.join(OUTPUT_DIR, 'chunks');
   if (fs.existsSync(chunksDir)) {
-    const chunks = fs.readdirSync(chunksDir).filter(f => f.endsWith('.js'));
+    const chunks = fs.readdirSync(chunksDir).filter((f) => f.endsWith('.js'));
     for (const chunk of chunks) {
       const chunkPath = path.join(chunksDir, chunk);
       const stats = fs.statSync(chunkPath);
@@ -64,7 +66,8 @@ export function runSizesCheck(): boolean {
 
 import { fileURLToPath } from 'node:url';
 
-const isMain = process.argv[1] && fileURLToPath(import.meta.url) === fs.realpathSync(process.argv[1]);
+const isMain =
+  process.argv[1] && fileURLToPath(import.meta.url) === fs.realpathSync(process.argv[1]);
 
 if (isMain) {
   const success = runSizesCheck();

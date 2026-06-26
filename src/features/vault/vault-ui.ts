@@ -410,15 +410,18 @@ function renderVaultItems(searchQuery = ''): void {
 
     if (currentVaultSubtab === 'knowledge') {
       emptyTitle = 'No Vault Knowledge Base Entries';
-      emptyMsg = 'Knowledge items provide background context, documentation, and domain notes that the context engine uses to enrich your prompts.';
+      emptyMsg =
+        'Knowledge items provide background context, documentation, and domain notes that the context engine uses to enrich your prompts.';
       actionLabel = '+ Add Knowledge';
     } else if (currentVaultSubtab === 'skill') {
       emptyTitle = 'No Vault Skills Found';
-      emptyMsg = 'Skills define specialized agent personas and system instructions to align your prompts to.';
+      emptyMsg =
+        'Skills define specialized agent personas and system instructions to align your prompts to.';
       actionLabel = '+ Add Skill';
     } else {
       emptyTitle = 'No Vault Instructions Found';
-      emptyMsg = 'Preference instructions define format rules and style preferences prioritized during prompt generation.';
+      emptyMsg =
+        'Preference instructions define format rules and style preferences prioritized during prompt generation.';
       actionLabel = '+ Add Instruction';
     }
 
@@ -426,7 +429,7 @@ function renderVaultItems(searchQuery = ''): void {
       title: emptyTitle,
       message: emptyMsg,
       actionLabel,
-      onAction: () => openVaultModal(null)
+      onAction: () => openVaultModal(null),
     });
     listContainer.appendChild(emptyNode);
     return;

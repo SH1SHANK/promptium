@@ -27,7 +27,7 @@ jobs:
         uses: ./.github/actions/setup-project
 
       - name: Run Prettier Check
-        run: pnpm prettier:check
+        run: pnpm format:check
 
       - name: Run ESLint Check
         run: pnpm lint

@@ -40,7 +40,8 @@ export function runBundleCheck(): boolean {
 
 import { fileURLToPath } from 'node:url';
 
-const isMain = process.argv[1] && fileURLToPath(import.meta.url) === fs.realpathSync(process.argv[1]);
+const isMain =
+  process.argv[1] && fileURLToPath(import.meta.url) === fs.realpathSync(process.argv[1]);
 
 if (isMain) {
   const success = runBundleCheck();

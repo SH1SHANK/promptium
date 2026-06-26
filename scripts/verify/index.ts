@@ -6,7 +6,7 @@ import { runArtifactsCheck } from './artifacts';
 
 function main() {
   console.log('🏁 Starting Promptium Unified Verification Pipeline...');
-  
+
   try {
     // 1. Check build reproducibility & compile
     const repOk = runReproducibilityCheck();

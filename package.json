@@ -17,6 +17,7 @@
     "test:clippings": "npx tsx src/features/clippings/clippings.test.ts",
     "lint": "eslint 'src/**/*.ts'",
     "prettier:check": "prettier --check 'src/**/*.{ts,css,html}'",
+    "format:check": "prettier --check .",
     "format": "prettier --write .",
     "knip": "knip",
     "verify:reproducibility": "tsx scripts/verify/reproducibility.ts",
@@ -25,7 +26,7 @@
     "verify:sizes": "tsx scripts/verify/sizes.ts",
     "verify:licenses": "tsx scripts/verify/license.ts",
     "verify:build": "tsx scripts/verify/index.ts",
-    "verify": "pnpm typecheck && pnpm lint && pnpm knip --exclude exports,types,nsExports,nsTypes,classMembers,enumMembers,duplicates,unlisted,binaries && pnpm test:adapters && pnpm test:context-menu && pnpm test:importer && pnpm test:cre && pnpm test:retrieval && pnpm test:clippings && pnpm verify:build",
+    "verify": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm knip --exclude exports,types,nsExports,nsTypes,classMembers,enumMembers,duplicates,unlisted,binaries && pnpm test:adapters && pnpm test:context-menu && pnpm test:importer && pnpm test:cre && pnpm test:retrieval && pnpm test:clippings && pnpm verify:build",
     "postinstall": "wxt prepare"
   },
   "private": true,

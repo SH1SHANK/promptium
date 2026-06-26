@@ -69,8 +69,8 @@ export function runReproducibilityCheck(): boolean {
 
   if (JSON.stringify(files1) !== JSON.stringify(files2)) {
     console.error('❌ Build output file lists do not match between compilations!');
-    const removed = files1.filter(x => !files2.includes(x));
-    const added = files2.filter(x => !files1.includes(x));
+    const removed = files1.filter((x) => !files2.includes(x));
+    const added = files2.filter((x) => !files1.includes(x));
     if (removed.length) console.error(`Removed files: ${removed.join(', ')}`);
     if (added.length) console.error(`Added files: ${added.join(', ')}`);
     hasMismatch = true;
@@ -97,7 +97,8 @@ export function runReproducibilityCheck(): boolean {
 
 import { fileURLToPath } from 'node:url';
 
-const isMain = process.argv[1] && fileURLToPath(import.meta.url) === fs.realpathSync(process.argv[1]);
+const isMain =
+  process.argv[1] && fileURLToPath(import.meta.url) === fs.realpathSync(process.argv[1]);
 
 if (isMain) {
   const success = runReproducibilityCheck();

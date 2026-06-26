@@ -29,7 +29,12 @@ const createOverlay = () => {
   return overlay;
 };
 
-const setupKeyboardTrap = (overlay: HTMLElement, dialog: HTMLElement, onCancel: () => void, onConfirm?: () => void) => {
+const setupKeyboardTrap = (
+  overlay: HTMLElement,
+  dialog: HTMLElement,
+  onCancel: () => void,
+  onConfirm?: () => void
+) => {
   const getFocusable = () => {
     return Array.from(
       dialog.querySelectorAll<HTMLElement>(
