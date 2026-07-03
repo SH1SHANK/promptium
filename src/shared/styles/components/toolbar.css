@@ -1,0 +1,25 @@
+/* Reusable Toolbar component styles */
+.pn-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid var(--color-border-subtle);
+  min-height: 48px;
+  box-sizing: border-box;
+}
+
+.pn-toolbar-title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.pn-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}

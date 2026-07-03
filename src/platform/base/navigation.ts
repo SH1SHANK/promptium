@@ -1,5 +1,5 @@
 /**
- * File: src/platforms/base/navigation.ts
+ * File: src/platform/base/navigation.ts
  * Purpose: Reusable SPA navigation observer. Patches history.pushState and
  *          history.replaceState exactly once, then fans out to all registered
  *          subscribers. Any content feature (FAB, context menu, selection
@@ -7,7 +7,7 @@
  *          the monkey-patch logic.
  *
  * Usage:
- *   import { navigationObserver } from '../../platforms';
+ *   import { navigationObserver } from '../../platform';
  *
  *   // Call once on script load (idempotent — safe to call multiple times)
  *   navigationObserver.install();

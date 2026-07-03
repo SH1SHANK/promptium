@@ -1,0 +1,115 @@
+/* Cards component styles (prompt, history, export) */
+
+.pn-prompt-card,
+.pn-history-card {
+  position: relative;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-card);
+  padding: 10px 14px;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition:
+    transform var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    background var(--motion-fast) var(--motion-ease);
+}
+
+.pn-prompt-card:hover,
+.pn-history-card:hover {
+  border-color: var(--color-border-accent);
+  background: var(--color-bg-hover);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.pn-prompt-card:active,
+.pn-history-card:active {
+  transform: translateY(0) scale(0.99);
+}
+
+/* Selected / Active State */
+.pn-prompt-card.active,
+.pn-history-card.active,
+.pn-prompt-card.pn-card--selected {
+  border-color: var(--color-accent);
+  background: var(--color-bg-hover);
+  box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+.pn-prompt-card.pn-card--pinned {
+  border-left: 3px solid var(--color-secondary-accent);
+}
+
+/* Compact layout variant spacing */
+.pn-density-compact .pn-prompt-card,
+.pn-density-compact .pn-history-card {
+  padding: var(--space-3);
+  gap: var(--space-1);
+}
+
+/* Typography styles inside card */
+.pn-card-title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-tight);
+  letter-spacing: -0.01em;
+}
+
+.pn-card-text {
+  margin: 0;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-base);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.pn-card-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* Export specific cards */
+.pn-export-card {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-default);
+  padding: var(--space-4);
+  background: var(--color-bg-surface);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.pn-export-card-content {
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-relaxed);
+  color: var(--color-text-primary);
+}
+
+.pn-export-sheet.pn-export-sheet--theme-dark .pn-export-card {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border-default);
+}
+
+.pn-export-sheet.pn-export-sheet--theme-light .pn-export-card {
+  background: #f7f7f7;
+  border-color: rgba(17, 17, 17, 0.12);
+  color: #111111 !important;
+}
+
+.pn-export-sheet.pn-export-sheet--theme-sepia .pn-export-card {
+  background: #fbf3df;
+  border-color: rgba(47, 36, 23, 0.16);
+  color: #2f2417 !important;
+}

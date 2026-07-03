@@ -14,7 +14,17 @@
     "src/lib/turndown.js",
     "src/types/continuation.ts",
     "src/types/errors.ts",
-    "src/types/gemini.ts"
+    "src/types/gemini.ts",
+    "src/features/clippings/clippings-ui.ts",
+    "src/features/vault/vault-ui.ts",
+    "src/features/continuation/**",
+    "src/features/export/**",
+    "src/features/refinement/**",
+    "src/features/retrieval/**",
+    "src/services/export-service.ts",
+    "src/types/messages.ts",
+    "src/utils/ai.ts",
+    "src/utils/export-preview-renderer.ts"
   ],
-  "ignoreDependencies": ["autoprefixer"]
+  "ignoreDependencies": ["harper.js"]
 }

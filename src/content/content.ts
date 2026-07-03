@@ -1,5 +1,5 @@
-import { getCurrentAdapter } from '../platforms';
-import { toast } from '../utils/toast';
+import { getCurrentAdapter } from '../platform';
+import { toast } from '../shared/utils/toast';
 
 (() => {
   /**
@@ -21,22 +21,20 @@ import { toast } from '../utils/toast';
     :host {
       position: absolute;
       top: 12px;
-      left: -20px;
+      left: -24px;
       z-index: 2147483642;
-      width: 20px;
-      height: 20px;
       opacity: 0;
       transform: scale(0.9) translateX(-4px);
       transition: opacity 0.2s ease, transform 0.2s ease;
       pointer-events: none;
     }
     :host-context(.pn-selectable-message--relative:hover) {
-      opacity: 0.55;
+      opacity: 0.85;
       transform: scale(1) translateX(0);
       pointer-events: auto;
     }
     :host([data-visible="true"]) {
-      opacity: 0.8;
+      opacity: 0.9;
       transform: scale(1) translateX(0);
       pointer-events: auto;
     }
@@ -45,11 +43,17 @@ import { toast } from '../utils/toast';
       transform: scale(1) translateX(0);
       pointer-events: auto;
     }
+    .pn-inline-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
     .pn-inline-select {
-      width: 100%;
-      height: 100%;
+      width: 22px;
+      height: 22px;
       border-radius: 6px;
-      background: rgba(24, 24, 27, 0.72);
+      background: rgba(24, 24, 27, 0.85);
       border: 1.5px solid rgba(255, 255, 255, 0.25);
       backdrop-filter: blur(4px);
       -webkit-backdrop-filter: blur(4px);
@@ -61,24 +65,13 @@ import { toast } from '../utils/toast';
       user-select: none;
       transition: background 0.15s, border-color 0.15s;
     }
-
-    /* Transparent bridge to connect hover area seamlessly to the message body */
-    .pn-inline-select::after {
-      content: '';
-      position: absolute;
-      top: -10px;
-      right: -20px;
-      bottom: -10px;
-      left: -10px;
-      z-index: -1;
-    }
     .pn-inline-select:hover {
-      border-color: rgba(54, 214, 195, 0.8);
-      background: rgba(54, 214, 195, 0.1);
+      border-color: rgba(20, 184, 166, 0.8);
+      background: rgba(20, 184, 166, 0.1);
     }
     .pn-inline-select.pn-checked {
-      background: rgba(54, 214, 195, 0.18);
-      border-color: rgba(54, 214, 195, 0.9);
+      background: rgba(20, 184, 166, 0.18);
+      border-color: rgba(20, 184, 166, 0.9);
     }
     .pn-inline-check {
       position: absolute;
@@ -91,90 +84,383 @@ import { toast } from '../utils/toast';
       border-radius: 3px;
       border: 1.5px solid rgba(255, 255, 255, 0.6);
       box-sizing: border-box;
-      transition: background 150ms cubic-bezier(0.2, 0, 0.2, 1), border-color 150ms cubic-bezier(0.2, 0, 0.2, 1), box-shadow 150ms cubic-bezier(0.2, 0, 0.2, 1);
+      transition: background 150ms cubic-bezier(0.2, 0, 0.2, 1), border-color 150ms cubic-bezier(0.2, 0, 0.2, 1);
     }
     .pn-inline-check:checked + .pn-inline-mark {
-      background: #36d6c3;
-      border-color: #36d6c3;
-      box-shadow: 0 0 6px rgba(54, 214, 195, 0.4);
+      background: #14b8a6;
+      border-color: #14b8a6;
+      box-shadow: 0 0 6px rgba(20, 184, 166, 0.4);
     }
-  `;
-
-  const SELECTION_FAB_SHADOW_CSS = `
-    #pn-selection-fab {
-      position: fixed;
-      left: 50%;
-      bottom: 20px;
-      transform: translateX(-50%);
-      z-index: 2147483643;
-      pointer-events: auto;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      background: rgba(24, 24, 27, 0.95);
-      color: #e4e4e7;
-      border-radius: 12px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      padding: 6px 8px 6px 14px;
-      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      font-family: Outfit, Avenir Next, Segoe UI, sans-serif;
-    }
-    #pn-selection-fab.pn-hidden {
-      display: none;
-    }
-    .pn-selection-fab__count {
-      margin: 0;
-      font-size: 12px;
-      font-weight: 500;
-      color: #a1a1aa;
-      white-space: nowrap;
-    }
-    .pn-selection-fab__divider {
-      width: 1px;
-      height: 20px;
-      background: rgba(255, 255, 255, 0.08);
-      flex-shrink: 0;
-    }
-    .pn-selection-fab__btn {
+    .pn-inline-split-toggle {
       border: none;
-      border-radius: 8px;
-      padding: 6px 12px;
-      font-family: inherit;
-      font-size: 11px;
-      font-weight: 600;
+      background: rgba(24, 24, 27, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 4px;
+      color: #a1a1aa;
       cursor: pointer;
+      font-size: 8px;
+      padding: 1px 3px;
       white-space: nowrap;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, color 0.15s;
     }
-    .pn-selection-fab__btn--primary {
+    :host-context(.pn-selectable-message--relative:hover) .pn-inline-split-toggle,
+    :host([data-checked="true"]) .pn-inline-split-toggle {
+      display: flex;
+    }
+    .pn-inline-split-toggle:hover {
       background: #14b8a6;
       color: #fff;
     }
-    .pn-selection-fab__btn--ghost {
-      background: rgba(255, 255, 255, 0.06);
-      color: #a1a1aa;
-      border: 1px solid rgba(255, 255, 255, 0.08);
+  `;
+
+  const CONTEXT_FAB_SHADOW_CSS = `
+    :host {
+      --pn-color-bg: rgba(18, 20, 27, 0.85);
+      --pn-color-border: rgba(255, 255, 255, 0.06);
+      --pn-color-primary: #14b8a6;
+      --pn-color-primary-hover: #36d6c3;
+      --pn-color-text-primary: #ffffff;
+      --pn-color-text-secondary: #a1a1aa;
+      --pn-color-dark: #0b0f19;
+      --pn-shadow-default: 0 12px 40px rgba(0, 0, 0, 0.45);
+      --pn-blur-default: blur(16px);
+      --pn-ease-default: cubic-bezier(0.2, 0, 0.2, 1);
+      --pn-dur-morph: 180ms;
+      --pn-dur-expand: 200ms;
+      --pn-dur-feedback: 160ms;
     }
-    .pn-selection-fab__btn--ghost:hover,
-    .pn-selection-fab__btn--primary:hover {
-      filter: brightness(1.08);
+
+    @media (prefers-reduced-motion: reduce) {
+      :host {
+        --pn-dur-morph: 0ms !important;
+        --pn-dur-expand: 0ms !important;
+        --pn-dur-feedback: 0ms !important;
+      }
     }
-    .pn-selection-fab__close {
-      width: 26px;
-      height: 26px;
-      border-radius: 6px;
+
+    #pn-context-fab {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      z-index: 2147483644;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--pn-color-bg);
+      border: 1px solid var(--pn-color-border);
+      border-radius: 99px;
+      padding: 4px;
+      box-shadow: var(--pn-shadow-default);
+      backdrop-filter: var(--pn-blur-default);
+      -webkit-backdrop-filter: var(--pn-blur-default);
+      font-family: Outfit, Avenir Next, Segoe UI, sans-serif;
+      transition: max-width var(--pn-dur-morph) var(--pn-ease-default), max-height var(--pn-dur-morph) var(--pn-ease-default), border-radius var(--pn-dur-morph) var(--pn-ease-default), opacity 120ms ease;
+      overflow: hidden;
+      max-width: 44px;
+      max-height: 44px;
+      height: 44px;
+      pointer-events: auto;
+      box-sizing: border-box;
+    }
+
+    #pn-context-fab.pn-expanded {
+      max-width: 520px;
+      border-radius: 24px;
+    }
+
+    #pn-context-fab.pn-menu-expanded {
+      border-radius: 16px;
+      max-height: 320px;
+      max-width: 240px;
+      height: auto;
+      flex-direction: column;
+      align-items: stretch;
+      padding: 8px;
+    }
+
+    #pn-context-fab.pn-hidden {
+      display: none !important;
+    }
+
+    .pn-fab-trigger {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
       border: none;
-      background: rgba(255, 255, 255, 0.04);
-      color: #71717a;
+      background: var(--pn-color-primary);
+      color: var(--pn-color-dark);
+      display: flex;
+      align-items: center;
+      justify-content: center;
       cursor: pointer;
+      flex-shrink: 0;
+      transition: transform 100ms var(--pn-ease-default), background 100ms ease;
+      padding: 0;
+    }
+
+    .pn-fab-trigger:hover, .pn-fab-trigger:focus-visible {
+      transform: scale(1.05);
+      outline: 2px solid var(--pn-color-primary);
+      outline-offset: 2px;
+    }
+
+    .pn-fab-actions-stack {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding-right: 8px;
+      opacity: 0;
+      transition: opacity 120ms ease;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    #pn-context-fab.pn-expanded .pn-fab-actions-stack,
+    #pn-context-fab.pn-menu-expanded .pn-fab-actions-stack {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    #pn-context-fab.pn-menu-expanded .pn-fab-actions-stack {
+      flex-direction: column;
+      align-items: stretch;
+      width: 100%;
+      padding-right: 0;
+      gap: 8px;
+    }
+
+    .pn-fab-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--pn-color-border);
+      color: var(--pn-color-text-secondary);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 20px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 100ms ease, max-width var(--pn-dur-morph) ease, padding var(--pn-dur-morph) ease;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+      font-family: inherit;
+    }
+
+    .pn-fab-btn:hover, .pn-fab-btn:focus-visible {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--pn-color-text-primary);
+      border-color: rgba(255, 255, 255, 0.15);
+      outline: 2px solid var(--pn-color-primary);
+      outline-offset: 2px;
+    }
+
+    .pn-fab-btn--primary {
+      background: var(--pn-color-primary);
+      border-color: var(--pn-color-primary);
+      color: var(--pn-color-dark);
+    }
+
+    .pn-fab-btn--primary:hover, .pn-fab-btn--primary:focus-visible {
+      background: var(--pn-color-primary-hover);
+      border-color: var(--pn-color-primary-hover);
+      color: var(--pn-color-dark);
+    }
+
+    .pn-fab-menu-toggle {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 1px solid var(--pn-color-border);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--pn-color-text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all 100ms ease;
+      padding: 0;
+    }
+    .pn-fab-menu-toggle:hover, .pn-fab-menu-toggle:focus-visible {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--pn-color-text-primary);
+      outline: 2px solid var(--pn-color-primary);
+      outline-offset: 2px;
+    }
+
+    .pn-fab-vertical-list {
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      width: 100%;
+    }
+
+    #pn-context-fab.pn-menu-expanded .pn-fab-vertical-list {
+      display: flex;
+    }
+
+    .pn-fab-vertical-divider {
+      height: 1px;
+      background: rgba(255, 255, 255, 0.1);
+      margin: 4px 0;
+      width: 100%;
+    }
+
+    .pn-fab-divider {
+      width: 1px;
+      height: 20px;
+      background: rgba(255, 255, 255, 0.1);
+      flex-shrink: 0;
+      margin: 0 4px;
+    }
+
+    .pn-fab-count {
+      margin: 0 4px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--pn-color-text-secondary);
+      white-space: nowrap;
+    }
+
+    /* Quiet Hours Styling */
+    #pn-context-fab.pn-quiet-mode {
+      opacity: 0.3 !important;
+      transform: scale(0.9);
+    }
+    #pn-context-fab.pn-quiet-mode:hover {
+      opacity: 0.95 !important;
+      transform: scale(1);
+    }
+
+    /* Self-contained toast checkmark styling */
+    #pn-context-fab.pn-expanded-success {
+      background: var(--pn-color-primary);
+      border-color: var(--pn-color-primary);
+      max-width: 320px;
+      border-radius: 99px;
+    }
+    .pn-fab-success-check {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--pn-color-text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .pn-fab-success-text {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--pn-color-dark);
+      white-space: nowrap;
+    }
+    .pn-fab-success-undo {
+      background: transparent;
+      border: none;
+      color: var(--pn-color-dark);
+      font-size: 11px;
+      font-weight: 800;
+      text-decoration: underline;
+      cursor: pointer;
+      padding: 0;
+      margin-left: auto;
+      padding-right: 8px;
+    }
+
+    /* Processing spinner style */
+    .pn-fab-loader {
       display: flex;
       align-items: center;
       justify-content: center;
     }
-    .pn-selection-fab__close:hover {
-      background: rgba(255, 255, 255, 0.1);
-      color: #e4e4e7;
+    .pn-spinner {
+      animation: rotate 2s linear infinite;
+      width: 16px;
+      height: 16px;
+    }
+    .pn-spinner .path {
+      stroke: var(--pn-color-primary);
+      stroke-linecap: round;
+      animation: dash 1.5s ease-in-out infinite;
+    }
+    @keyframes rotate {
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+    @keyframes dash {
+      0% {
+        stroke-dasharray: 1, 150;
+        stroke-dashoffset: 0;
+      }
+      50% {
+        stroke-dasharray: 90, 150;
+        stroke-dashoffset: -35;
+      }
+      100% {
+        stroke-dasharray: 90, 150;
+        stroke-dashoffset: -124;
+      }
+    }
+    .pn-fab-status-text {
+      font-size: 11px;
+      color: var(--pn-color-text-secondary);
+      margin-left: 6px;
+    }
+
+    /* Error state styling */
+    #pn-context-fab.pn-state-error {
+      border-color: #ef4444;
+      max-width: 240px;
+    }
+    .pn-fab-error-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .pn-fab-error-text {
+      font-size: 11px;
+      color: #ef4444;
+    }
+    .pn-fab-error-retry {
+      background: transparent;
+      border: none;
+      color: var(--pn-color-primary);
+      font-size: 11px;
+      font-weight: 800;
+      text-decoration: underline;
+      cursor: pointer;
+      padding: 0;
+      margin-left: auto;
+      padding-right: 8px;
+    }
+
+    /* Small Viewport Override: Icon only, morphing wide on hover */
+    #pn-context-fab.pn-small-viewport .pn-fab-btn {
+      max-width: 28px;
+      overflow: hidden;
+      padding: 6px 8px;
+    }
+
+    #pn-context-fab.pn-small-viewport .pn-fab-btn:hover {
+      max-width: 150px;
+      padding: 6px 12px;
+    }
+
+    @media (forced-colors: active) {
+      #pn-context-fab {
+        border: 2px solid CanvasText;
+        background: Canvas;
+      }
+      .pn-fab-btn {
+        border: 1px solid ButtonBorder;
+      }
     }
   `;
 
@@ -192,6 +478,707 @@ import { toast } from '../utils/toast';
     messagesById: new Map(),
     sequence: 0,
     chatHighlightStyle: 'solid',
+    lastClickedId: null,
+    isDragging: false,
+    dragChecked: false,
+    groups: [],
+    splitGroupIds: new Set(),
+  };
+
+  let syncFABState: () => Promise<void>;
+  let updateSelectionFab: () => Promise<void>;
+  let ensureSelectionFab: () => Promise<void>;
+  let FABRenderer: any;
+  let ContextEngine: any;
+  let ActionResolver: any;
+  let ActionRouter: any;
+
+  let activeContext = 'idle';
+  let currentSelectionText = '';
+  let currentSelectionRole: 'user' | 'assistant' | 'mixed' = 'mixed';
+  let typingTimeout: any = null;
+  let deselectTimeout: any = null;
+  let lastSavedPromptText = '';
+  let lastSavedPromptTime = 0;
+
+  // Refined FAB Quality parameters
+  let ignoreCount = 0;
+  let inQuietMode = false;
+  let confidenceLevel = 0;
+  let confidenceInterval: any = null;
+  const localTelemetry: Array<any> = [];
+
+  const logTelemetry = (event: string, meta: Record<string, any> = {}) => {
+    const entry = {
+      event,
+      timestamp: new Date().toISOString(),
+      platform: getCurrentAdapter()?.id || 'unknown',
+      ...meta,
+    };
+    localTelemetry.push(entry);
+    console.debug('[Promptium][Telemetry]', entry);
+  };
+
+  // State Machine Audit (Component 1)
+  type FabState =
+    | 'hidden'
+    | 'idle'
+    | 'typing'
+    | 'selection_user'
+    | 'selection_assistant'
+    | 'conversation'
+    | 'expanded'
+    | 'processing'
+    | 'success'
+    | 'error'
+    | 'sleeping';
+
+  let currentFABState: FabState = 'hidden';
+
+  const ALLOWED_TRANSITIONS: Record<FabState, FabState[]> = {
+    hidden: ['idle', 'typing', 'selection_user', 'selection_assistant', 'conversation', 'sleeping'],
+    idle: [
+      'hidden',
+      'typing',
+      'selection_user',
+      'selection_assistant',
+      'conversation',
+      'expanded',
+      'sleeping',
+    ],
+    typing: ['hidden', 'idle', 'processing', 'sleeping'],
+    selection_user: ['hidden', 'idle', 'processing', 'sleeping'],
+    selection_assistant: ['hidden', 'idle', 'processing', 'sleeping'],
+    conversation: ['hidden', 'idle', 'processing', 'sleeping'],
+    expanded: ['hidden', 'idle', 'processing', 'sleeping'],
+    processing: ['success', 'error'],
+    success: [
+      'idle',
+      'typing',
+      'selection_user',
+      'selection_assistant',
+      'conversation',
+      'sleeping',
+      'hidden',
+    ],
+    error: [
+      'idle',
+      'typing',
+      'selection_user',
+      'selection_assistant',
+      'conversation',
+      'sleeping',
+      'hidden',
+    ],
+    sleeping: ['idle', 'typing', 'selection_user', 'selection_assistant', 'conversation', 'hidden'],
+  };
+
+  const transitionTo = (nextState: FabState): boolean => {
+    if (currentFABState === nextState) return true;
+    const allowed = ALLOWED_TRANSITIONS[currentFABState] || [];
+    if (!allowed.includes(nextState)) {
+      console.warn(
+        `[Promptium][FSM] Illegal state transition from ${currentFABState} to ${nextState}`
+      );
+      return false;
+    }
+    const prevState = currentFABState;
+    currentFABState = nextState;
+    logTelemetry('FAB_STATE_TRANSITION', { from: prevState, to: nextState });
+    return true;
+  };
+
+  // Long Session Stability listener trackers (Component 7)
+  const activeListeners: Array<{ target: EventTarget; type: string; listener: EventListener }> = [];
+  const activeObservers: Array<MutationObserver> = [];
+
+  const addTrackedListener = (target: EventTarget, type: string, listener: EventListener) => {
+    target.addEventListener(type, listener);
+    activeListeners.push({ target, type, listener });
+  };
+
+  const clearTrackedListeners = () => {
+    for (const item of activeListeners) {
+      item.target.removeEventListener(item.type, item.listener);
+    }
+    activeListeners.length = 0;
+  };
+
+  const addTrackedObserver = (obs: MutationObserver) => {
+    activeObservers.push(obs);
+  };
+
+  const clearTrackedObservers = () => {
+    for (const obs of activeObservers) {
+      obs.disconnect();
+    }
+    activeObservers.length = 0;
+  };
+
+  // Interaction Stability transition queue (Component 2 & Component 8)
+  let activeAnimationPromise: Promise<void> = Promise.resolve();
+
+  const queueAnimation = (renderFn: () => Promise<void>) => {
+    activeAnimationPromise = activeAnimationPromise.then(() => {
+      return new Promise<void>((resolve) => {
+        requestAnimationFrame(async () => {
+          try {
+            await renderFn();
+          } catch (err) {
+            console.error('[Promptium][Queue] Animation execution error:', err);
+          }
+          resolve();
+        });
+      });
+    });
+  };
+
+  interface FabContext {
+    platform: string;
+    state: 'selection-mode' | 'overlay' | 'selection' | 'typing' | 'conversation' | 'idle';
+    composer: {
+      focused: boolean;
+      text: string;
+      hasText: boolean;
+      rect: DOMRect | null;
+    };
+    selection: {
+      text: string;
+      role: 'user' | 'assistant' | 'mixed';
+      rect: DOMRect | null;
+    };
+    conversation: {
+      hasMessages: boolean;
+      count: number;
+    };
+    overlay: {
+      active: boolean;
+    };
+    viewport: {
+      isSmall: boolean;
+      width: number;
+      height: number;
+    };
+  }
+
+  interface ActionOption {
+    id: string;
+    label: string;
+    score: number;
+    primary: boolean;
+  }
+
+  const derivePromptTitle = (text: string): string => {
+    const compact = String(text || '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!compact) return 'Untitled Prompt';
+    const first = compact.split(/[.!?]/)[0]?.trim() || compact;
+    return first.slice(0, 80) || 'Untitled Prompt';
+  };
+
+  ContextEngine = {
+    async getContext(): Promise<FabContext> {
+      const adapter = getCurrentAdapter();
+      const platform = adapter?.id || 'unknown';
+
+      const selectionModeActive = exportSelectionState.selectionModeActive;
+
+      const overlayActive =
+        document.getElementById('pn-clipping-note-overlay') !== null ||
+        document.getElementById('pn-toast-already-saved') !== null ||
+        document.querySelector('.pn-toast') !== null ||
+        document.body.classList.contains('pn-modal-open') ||
+        document.querySelector('.pn-modal:not(.pn-hidden)') !== null;
+
+      const selText = adapter
+        ? adapter.getSelection().trim()
+        : window.getSelection()?.toString().trim() || '';
+      let selectionRole: 'user' | 'assistant' | 'mixed' = 'mixed';
+      let selectionRect: DOMRect | null = null;
+
+      if (selText) {
+        const selection = window.getSelection();
+        if (selection && selection.rangeCount > 0) {
+          try {
+            selectionRect = selection.getRangeAt(0).getBoundingClientRect();
+          } catch (_) {}
+
+          if (selection.anchorNode && adapter) {
+            let curr: HTMLElement | null =
+              selection.anchorNode instanceof HTMLElement
+                ? selection.anchorNode
+                : selection.anchorNode.parentElement;
+            while (curr) {
+              if (adapter.isUserMessage(curr)) {
+                selectionRole = 'user';
+                break;
+              }
+              if (adapter.isAssistantMessage(curr)) {
+                selectionRole = 'assistant';
+                break;
+              }
+              curr = curr.parentElement;
+            }
+          }
+        }
+      }
+
+      let composerFocused = false;
+      let composerText = '';
+      let composerRect: DOMRect | null = null;
+
+      if (adapter) {
+        composerFocused = adapter.isComposerFocused();
+        composerText = adapter.getComposerText();
+        const composerEl = adapter.getComposerElement();
+        if (composerEl) {
+          composerRect = composerEl.getBoundingClientRect();
+        }
+      }
+
+      let hasMessages = false;
+      let msgCount = 0;
+      if (adapter) {
+        const elements = await adapter.getMessageElements();
+        msgCount = elements.length;
+        hasMessages = msgCount > 0;
+      }
+
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      const isSmall = width < 800;
+
+      let state: FabContext['state'] = 'idle';
+      if (selectionModeActive) {
+        state = 'selection-mode';
+      } else if (overlayActive) {
+        state = 'overlay';
+      } else if (selText) {
+        state = 'selection';
+      } else if (composerFocused && composerText.trim().length > 10) {
+        state = 'typing';
+      } else if (hasMessages) {
+        state = 'conversation';
+      }
+
+      return {
+        platform,
+        state,
+        composer: {
+          focused: composerFocused,
+          text: composerText,
+          hasText: composerText.trim().length > 0,
+          rect: composerRect,
+        },
+        selection: {
+          text: selText,
+          role: selectionRole,
+          rect: selectionRect,
+        },
+        conversation: {
+          hasMessages,
+          count: msgCount,
+        },
+        overlay: {
+          active: overlayActive,
+        },
+        viewport: {
+          isSmall,
+          width,
+          height,
+        },
+      };
+    },
+  };
+
+  ActionResolver = {
+    async resolve(context: FabContext): Promise<ActionOption[]> {
+      const actions: ActionOption[] = [];
+
+      if (context.state === 'overlay' || context.state === 'selection-mode') {
+        return [];
+      }
+
+      // Memory preferences
+      let memory: any = {};
+      try {
+        const snap = await chrome.storage.local.get(['pn_fab_memory']);
+        memory = snap.pn_fab_memory || {};
+      } catch (_) {}
+      const platformMem = memory[context.platform] || {};
+
+      const candidates = [
+        {
+          id: 'save_prompt',
+          label: 'Save Prompt',
+          isVisible: (ctx: FabContext) => {
+            return (
+              (ctx.state === 'typing' && ctx.composer.text.trim().length > 10) ||
+              (ctx.state === 'selection' && ctx.selection.role === 'user')
+            );
+          },
+          getPriority: (ctx: FabContext) => {
+            let p = 90;
+            const text = ctx.state === 'selection' ? ctx.selection.text : context.composer.text;
+            const wordCount = text.split(/\s+/).filter(Boolean).length;
+            if (wordCount > 50) {
+              p += 10;
+            }
+            return p;
+          },
+        },
+        {
+          id: 'open_library',
+          label: 'Open Library',
+          isVisible: (ctx: FabContext) => ctx.state === 'idle',
+          getPriority: () => 50,
+        },
+      ];
+
+      for (const cand of candidates) {
+        if (cand.isVisible(context)) {
+          let score = cand.getPriority(context);
+
+          if (cand.id === 'save_prompt') {
+            const text =
+              context.state === 'selection' ? context.selection.text : context.composer.text;
+            const isDuplicate = await findExistingPrompt(text);
+            if (isDuplicate) {
+              score -= 30;
+            }
+          }
+
+          const chosenCount = platformMem[cand.id] || 0;
+          if (chosenCount > 0) {
+            score += Math.min(20, chosenCount * 2);
+          }
+
+          actions.push({
+            id: cand.id,
+            label: cand.label,
+            score,
+            primary: false,
+          });
+        }
+      }
+
+      actions.sort((a, b) => b.score - a.score);
+      if (actions[0]) {
+        actions[0].primary = true;
+      }
+
+      return actions;
+    },
+  };
+
+  ActionRouter = {
+    async dispatch(actionId: string, context: FabContext) {
+      logTelemetry('FAB_ACTION_CLICKED', { actionId });
+
+      // Record count in storage memory
+      try {
+        const snap = await chrome.storage.local.get(['pn_fab_memory']);
+        const memory: Record<string, any> = snap.pn_fab_memory || {};
+        if (!memory[context.platform]) {
+          memory[context.platform] = {};
+        }
+        memory[context.platform][actionId] = (memory[context.platform][actionId] || 0) + 1;
+        await chrome.storage.local.set({ pn_fab_memory: memory });
+      } catch (_) {}
+
+      switch (actionId) {
+        case 'save_prompt':
+          await handleSavePromptAction();
+          break;
+        case 'open_library':
+          chrome.runtime.sendMessage({ action: 'OPEN_PROMPTIUM_WINDOW', source: 'fab' });
+          break;
+        default:
+          console.warn('[Promptium][ActionRouter] Unknown action:', actionId);
+      }
+    },
+  };
+
+  const showUndoToast = (messageText: string, undoCallback: () => void) => {
+    FABRenderer.showSuccessToast(messageText, undoCallback);
+  };
+
+  const showAlreadySavedToast = (existingPrompt: any, currentText: string) => {
+    document.getElementById('pn-toast-already-saved')?.remove();
+
+    const toastEl = document.createElement('div');
+    toastEl.id = 'pn-toast-already-saved';
+    toastEl.className = 'pn-toast pn-toast--undo';
+    toastEl.setAttribute('role', 'status');
+    toastEl.setAttribute('aria-live', 'polite');
+
+    const message = document.createElement('span');
+    message.textContent = 'Already saved.';
+
+    const updateBtn = document.createElement('button');
+    updateBtn.className = 'pn-toast-undo-btn';
+    updateBtn.type = 'button';
+    updateBtn.textContent = 'Update';
+    updateBtn.style.color = '#14b8a6';
+    updateBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const snap = await chrome.storage.local.get(['prompts']);
+      const list = Array.isArray(snap.prompts) ? snap.prompts : [];
+      const idx = list.findIndex((p: any) => p.id === existingPrompt.id);
+      if (idx >= 0) {
+        list[idx].text = currentText;
+        list[idx].updatedAt = new Date().toISOString();
+        await chrome.storage.local.set({ prompts: list });
+        toastEl.remove();
+        toast.success('Prompt updated.');
+      }
+    });
+
+    const openBtn = document.createElement('button');
+    openBtn.className = 'pn-toast-undo-btn';
+    openBtn.type = 'button';
+    openBtn.textContent = 'Open';
+    openBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      chrome.runtime.sendMessage({ action: 'OPEN_PROMPTIUM_WINDOW', source: 'fab' });
+      toastEl.remove();
+    });
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'pn-toast-undo-btn';
+    cancelBtn.type = 'button';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.style.color = '#71717a';
+    cancelBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      toastEl.remove();
+    });
+
+    toastEl.appendChild(message);
+    toastEl.appendChild(document.createTextNode(' '));
+    toastEl.appendChild(updateBtn);
+    toastEl.appendChild(document.createTextNode(' '));
+    toastEl.appendChild(openBtn);
+    toastEl.appendChild(document.createTextNode(' '));
+    toastEl.appendChild(cancelBtn);
+
+    document.body.appendChild(toastEl);
+    setTimeout(() => {
+      toastEl.remove();
+    }, 6000);
+  };
+
+  const findExistingPrompt = async (text: string) => {
+    const snap = await chrome.storage.local.get(['prompts']);
+    const list = Array.isArray(snap.prompts) ? snap.prompts : [];
+    return list.find((p: any) => p.text.trim() === text.trim());
+  };
+
+  const handleSavePromptAction = async () => {
+    const adapter = getCurrentAdapter();
+    if (!adapter) return;
+
+    const text = activeContext === 'selection' ? currentSelectionText : adapter.getComposerText();
+    if (!text.trim()) return;
+
+    const existing = await findExistingPrompt(text);
+    if (existing) {
+      showAlreadySavedToast(existing, text);
+      return;
+    }
+
+    const description = `Saved from ${adapter.hosts[0]}`;
+
+    chrome.runtime.sendMessage(
+      {
+        action: 'OPEN_PROMPTIUM_WINDOW',
+        source: 'fab',
+        text: text,
+        description: description,
+      },
+      (response: any) => {
+        if (!response || !response.ok) {
+          toast.error('Failed to open Prompt Builder.');
+        }
+      }
+    );
+  };
+
+  const deriveFsmState = (context: FabContext, actions: ActionOption[]): FabState => {
+    if (inQuietMode) {
+      return 'sleeping';
+    }
+    if (context.state === 'overlay') {
+      return 'hidden';
+    }
+    if (actions.length === 0 && context.state === 'idle') {
+      return 'hidden';
+    }
+    switch (context.state) {
+      case 'typing':
+        return 'typing';
+      case 'selection':
+        return context.selection.role === 'user' ? 'selection_user' : 'selection_assistant';
+      case 'conversation':
+        return 'conversation';
+      case 'selection-mode':
+        return 'expanded';
+      case 'idle':
+      default:
+        return 'idle';
+    }
+  };
+
+  syncFABState = async () => {
+    const context = await ContextEngine.getContext();
+
+    // Reset quiet hours on explicit selection mode or new routes
+    if (context.state === 'selection-mode' && inQuietMode) {
+      ignoreCount = 0;
+      inQuietMode = false;
+      logTelemetry('FAB_QUIET_MODE_RESET', { reason: 'selection_mode_active' });
+    }
+
+    const actions = await ActionResolver.resolve(context);
+    const targetState = deriveFsmState(context, actions);
+
+    // Typing Confidence window
+    if (context.state === 'typing') {
+      if (currentFABState !== 'typing' && !inQuietMode) {
+        if (!confidenceInterval) {
+          confidenceLevel = 0;
+          confidenceInterval = setInterval(async () => {
+            confidenceLevel += 25;
+            if (confidenceLevel >= 100) {
+              clearInterval(confidenceInterval);
+              confidenceInterval = null;
+
+              if (transitionTo('typing')) {
+                const freshActions = await ActionResolver.resolve(context);
+                queueAnimation(() => FABRenderer.render(context, freshActions));
+              }
+            }
+          }, 120); // 120ms * 4 = 480ms window
+        }
+        return;
+      }
+    } else {
+      if (confidenceInterval) {
+        clearInterval(confidenceInterval);
+        confidenceInterval = null;
+        confidenceLevel = 0;
+      }
+    }
+
+    // Selection deselect transition delay (300ms)
+    const isSelectionState =
+      currentFABState === 'selection_user' || currentFABState === 'selection_assistant';
+    if (isSelectionState && context.state !== 'selection') {
+      if (!deselectTimeout) {
+        deselectTimeout = setTimeout(async () => {
+          ignoreCount++;
+          logTelemetry('FAB_IGNORED', { count: ignoreCount });
+          if (ignoreCount >= 3 && !inQuietMode) {
+            inQuietMode = true;
+            logTelemetry('FAB_QUIET_MODE_ENTERED');
+          }
+
+          const freshActions = await ActionResolver.resolve(context);
+          const nextTarget = deriveFsmState(context, freshActions);
+          if (transitionTo(nextTarget)) {
+            queueAnimation(() => FABRenderer.render(context, freshActions));
+          }
+          deselectTimeout = null;
+        }, 300);
+      }
+      return;
+    } else {
+      if (deselectTimeout) {
+        clearTimeout(deselectTimeout);
+        deselectTimeout = null;
+      }
+    }
+
+    // General state transition checks
+    if (currentFABState !== targetState) {
+      if (currentFABState === 'typing' && context.state !== 'typing') {
+        ignoreCount++;
+        logTelemetry('FAB_IGNORED', { count: ignoreCount });
+        if (ignoreCount >= 3 && !inQuietMode) {
+          inQuietMode = true;
+          logTelemetry('FAB_QUIET_MODE_ENTERED');
+        }
+      }
+
+      const freshTarget = inQuietMode ? 'sleeping' : targetState;
+      if (transitionTo(freshTarget)) {
+        queueAnimation(() => FABRenderer.render(context, actions));
+      }
+    } else {
+      queueAnimation(() => FABRenderer.render(context, actions));
+    }
+  };
+
+  const teardownContextFAB = () => {
+    clearTrackedListeners();
+    clearTrackedObservers();
+    if (confidenceInterval) {
+      clearInterval(confidenceInterval);
+      confidenceInterval = null;
+    }
+    if (typingTimeout) {
+      clearTimeout(typingTimeout);
+      typingTimeout = null;
+    }
+    if (deselectTimeout) {
+      clearTimeout(deselectTimeout);
+      deselectTimeout = null;
+    }
+    logTelemetry('FAB_TEARDOWN_COMPLETED');
+  };
+
+  const initContextFAB = () => {
+    teardownContextFAB();
+
+    addTrackedListener(document, 'selectionchange', () => {
+      void syncFABState();
+    });
+
+    addTrackedListener(document, 'focusin', (e) => {
+      const adapter = getCurrentAdapter();
+      const composer = adapter?.getComposerElement();
+      if (composer && (e.target === composer || composer.contains(e.target as Node))) {
+        void syncFABState();
+      }
+    });
+
+    addTrackedListener(document, 'focusout', (e) => {
+      const adapter = getCurrentAdapter();
+      const composer = adapter?.getComposerElement();
+      if (composer && (e.target === composer || composer.contains(e.target as Node))) {
+        void syncFABState();
+      }
+    });
+
+    addTrackedListener(document, 'input', (e) => {
+      const adapter = getCurrentAdapter();
+      const composer = adapter?.getComposerElement();
+      if (composer && (e.target === composer || composer.contains(e.target as Node))) {
+        void syncFABState();
+      }
+    });
+
+    const bodyObserver = new MutationObserver(() => {
+      void syncFABState();
+    });
+    bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['class', 'style'] });
+    addTrackedObserver(bodyObserver);
+
+    void syncFABState();
   };
   const injectionUndoState: any = {
     previousText: '',
@@ -524,6 +1511,27 @@ import { toast } from '../utils/toast';
       })
       .filter(Boolean);
 
+  const syncSelectionClassesAndControls = () => {
+    getSelectionControls().forEach((entry: any) => {
+      if (!entry?.messageId) return;
+      const isChecked = exportSelectionState.selectedIds.has(entry.messageId);
+      if (entry.input instanceof HTMLInputElement) {
+        entry.input.checked = isChecked;
+      }
+      entry.control?.classList.toggle('pn-checked', isChecked);
+      entry.host?.setAttribute('data-checked', isChecked ? 'true' : 'false');
+      entry.host?.setAttribute('data-visible', isChecked ? 'true' : 'false');
+
+      const messageNode = entry.host?.parentElement;
+      if (messageNode) {
+        messageNode.classList.toggle('pn-message-selected', isChecked);
+        const style = exportSelectionState.chatHighlightStyle;
+        messageNode.classList.toggle('pn-chat-highlight-solid', isChecked && style === 'solid');
+        messageNode.classList.toggle('pn-chat-highlight-dotted', isChecked && style === 'dotted');
+      }
+    });
+  };
+
   const setControlChecked = (entry: any, checked: any) => {
     if (!entry) return;
     const bool = Boolean(checked);
@@ -536,6 +1544,7 @@ import { toast } from '../utils/toast';
 
     const messageNode = entry.host?.parentElement;
     if (messageNode) {
+      messageNode.classList.toggle('pn-message-selected', bool);
       const style = exportSelectionState.chatHighlightStyle;
       messageNode.classList.toggle('pn-chat-highlight-solid', bool && style === 'solid');
       messageNode.classList.toggle('pn-chat-highlight-dotted', bool && style === 'dotted');
@@ -557,6 +1566,26 @@ import { toast } from '../utils/toast';
       existingHost.dataset.messageId = messageId;
       const existingInput = existingHost.shadowRoot?.querySelector('.pn-inline-check') || null;
       const existingControl = existingHost.shadowRoot?.querySelector('.pn-inline-select') || null;
+
+      // Update Split button in existing shadow root
+      const splitBtn = existingHost.shadowRoot?.querySelector('.pn-inline-split-toggle');
+      if (splitBtn) {
+        const group = exportSelectionState.groups?.find((g: any) =>
+          g.messageIds.includes(messageId)
+        );
+        if (group && group.messageIds.length > 1) {
+          splitBtn.textContent = group.split ? '🔗' : '✂️';
+          splitBtn.setAttribute(
+            'title',
+            group.split
+              ? 'Group messages in this turn'
+              : 'Select messages in this turn independently'
+          );
+        } else {
+          splitBtn.remove();
+        }
+      }
+
       setControlChecked(
         {
           host: existingHost,
@@ -582,14 +1611,51 @@ import { toast } from '../utils/toast';
     const shadowRoot = host.attachShadow({ mode: 'open' });
     shadowRoot.innerHTML = `
       <style>${INLINE_SELECT_SHADOW_CSS}</style>
-      <label class="pn-inline-select">
-        <input type="checkbox" class="pn-inline-check" aria-label="Select message for Promptium export" />
-        <span class="pn-inline-mark"></span>
-      </label>
+      <div class="pn-inline-wrapper">
+        <label class="pn-inline-select">
+          <input type="checkbox" class="pn-inline-check" aria-label="Select message for Promptium export" />
+          <span class="pn-inline-mark"></span>
+        </label>
+        <button type="button" class="pn-inline-split-toggle" title="Split conversation turn">✂️</button>
+      </div>
     `;
 
     const checkbox = shadowRoot.querySelector('.pn-inline-check');
     const control = shadowRoot.querySelector('.pn-inline-select');
+    const splitBtn = shadowRoot.querySelector('.pn-inline-split-toggle') as HTMLButtonElement;
+
+    // Toggle split button visibility depending on unit size
+    const group = exportSelectionState.groups?.find((g: any) => g.messageIds.includes(messageId));
+    if (group && group.messageIds.length > 1) {
+      if (splitBtn) {
+        splitBtn.textContent = group.split ? '🔗' : '✂️';
+        splitBtn.setAttribute(
+          'title',
+          group.split ? 'Group messages in this turn' : 'Select messages in this turn independently'
+        );
+        splitBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          group.split = !group.split;
+          if (group.split) {
+            exportSelectionState.splitGroupIds.add(group.messageIds[0]);
+          } else {
+            exportSelectionState.splitGroupIds.delete(group.messageIds[0]);
+            // Sync selection inside group to match the clicked element
+            const clickedChecked = exportSelectionState.selectedIds.has(messageId);
+            for (const id of group.messageIds) {
+              if (clickedChecked) {
+                exportSelectionState.selectedIds.add(id);
+              } else {
+                exportSelectionState.selectedIds.delete(id);
+              }
+            }
+          }
+          void scanSelectionTargets();
+        });
+      }
+    } else if (splitBtn) {
+      splitBtn.remove();
+    }
 
     if (checkbox instanceof HTMLInputElement) {
       setControlChecked(
@@ -597,21 +1663,76 @@ import { toast } from '../utils/toast';
         exportSelectionState.selectedIds.has(messageId)
       );
 
+      // Handle checkbox value change
+      const toggleMessage = (id: string, checked: boolean) => {
+        if (checked) {
+          exportSelectionState.selectedIds.add(id);
+        } else {
+          exportSelectionState.selectedIds.delete(id);
+        }
+      };
+
+      const handleValueChange = (checked: boolean, isShift: boolean) => {
+        if (isShift && exportSelectionState.lastClickedId) {
+          // Range selection
+          const lastIdx = exportSelectionState.messageOrder.indexOf(
+            exportSelectionState.lastClickedId
+          );
+          const currIdx = exportSelectionState.messageOrder.indexOf(messageId);
+          if (lastIdx !== -1 && currIdx !== -1) {
+            const start = Math.min(lastIdx, currIdx);
+            const end = Math.max(lastIdx, currIdx);
+            for (let i = start; i <= end; i++) {
+              toggleMessage(exportSelectionState.messageOrder[i], checked);
+            }
+          }
+        } else {
+          // Standard check or grouped check
+          const activeGroup = exportSelectionState.groups?.find((g: any) =>
+            g.messageIds.includes(messageId)
+          );
+          if (activeGroup && !activeGroup.split) {
+            for (const id of activeGroup.messageIds) {
+              toggleMessage(id, checked);
+            }
+          } else {
+            toggleMessage(messageId, checked);
+          }
+        }
+        exportSelectionState.lastClickedId = messageId;
+        syncSelectionClassesAndControls();
+        void updateSelectionFab();
+      };
+
       checkbox.addEventListener('change', (event) => {
         const target = event.currentTarget;
-        if (!(target instanceof HTMLInputElement)) {
-          return;
+        if (target instanceof HTMLInputElement) {
+          handleValueChange(target.checked, false);
         }
-
-        if (target.checked) {
-          exportSelectionState.selectedIds.add(messageId);
-        } else {
-          exportSelectionState.selectedIds.delete(messageId);
-        }
-
-        setControlChecked({ host, input: checkbox, control, messageId }, target.checked);
-        void updateSelectionFab();
       });
+
+      // Shift-click listener
+      checkbox.addEventListener('click', (event: MouseEvent) => {
+        if (event.shiftKey) {
+          handleValueChange(checkbox.checked, true);
+        }
+      });
+
+      // Click and Drag Selection MouseListeners
+      if (control) {
+        control.addEventListener('mousedown', ((e: MouseEvent) => {
+          e.stopPropagation();
+          exportSelectionState.isDragging = true;
+          exportSelectionState.dragChecked = !checkbox.checked;
+          handleValueChange(exportSelectionState.dragChecked, e.shiftKey);
+        }) as EventListener);
+
+        control.addEventListener('mouseenter', () => {
+          if (exportSelectionState.isDragging) {
+            handleValueChange(exportSelectionState.dragChecked, false);
+          }
+        });
+      }
     }
 
     control?.addEventListener('click', (event) => {
@@ -632,6 +1753,13 @@ import { toast } from '../utils/toast';
 
     node.appendChild(host);
   };
+
+  // Add global mouseup listener to end click-and-drag selection
+  if (typeof window !== 'undefined') {
+    window.addEventListener('mouseup', () => {
+      exportSelectionState.isDragging = false;
+    });
+  }
 
   /** Builds selected messages in original order for side panel export payloads. */
   const buildSelectedMessages = () =>
@@ -755,6 +1883,12 @@ import { toast } from '../utils/toast';
     }
   };
 
+  const handleSelectionKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      void deactivateSelectionMode();
+    }
+  };
+
   /** Enables selection mode only when explicitly requested by the user. */
   const ensureSelectionModeActive = async () => {
     if (exportSelectionState.selectionModeActive) {
@@ -762,124 +1896,492 @@ import { toast } from '../utils/toast';
     }
 
     exportSelectionState.selectionModeActive = true;
+    document.body.classList.add('pn-export-selection-active');
+
+    let styleEl = document.getElementById('pn-export-selection-style');
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = 'pn-export-selection-style';
+      styleEl.textContent = `
+        body.pn-export-selection-active [data-message-author-role],
+        body.pn-export-selection-active .human-turn,
+        body.pn-export-selection-active .assistant-turn,
+        body.pn-export-selection-active [data-testid="user-message"],
+        body.pn-export-selection-active [data-content="user-message"],
+        body.pn-export-selection-active .user-query-bubble-with-background,
+        body.pn-export-selection-active [data-turn-role] {
+          opacity: 0.45;
+          transition: opacity 0.25s ease, background-color 0.25s ease, border-color 0.25s ease !important;
+        }
+        body.pn-export-selection-active [data-message-author-role].pn-message-selected,
+        body.pn-export-selection-active .human-turn.pn-message-selected,
+        body.pn-export-selection-active .assistant-turn.pn-message-selected,
+        body.pn-export-selection-active [data-testid="user-message"].pn-message-selected,
+        body.pn-export-selection-active [data-content="user-message"].pn-message-selected,
+        body.pn-export-selection-active .user-query-bubble-with-background.pn-message-selected,
+        body.pn-export-selection-active [data-turn-role].pn-message-selected {
+          opacity: 1 !important;
+          background-color: rgba(20, 184, 166, 0.08) !important;
+          box-shadow: inset 4px 0 0 #14b8a6 !important;
+        }
+        body.pn-export-selection-active [data-message-author-role]:hover,
+        body.pn-export-selection-active .human-turn:hover,
+        body.pn-export-selection-active .assistant-turn:hover,
+        body.pn-export-selection-active [data-testid="user-message"]:hover,
+        body.pn-export-selection-active [data-content="user-message"]:hover,
+        body.pn-export-selection-active .user-query-bubble-with-background:hover,
+        body.pn-export-selection-active [data-turn-role]:hover {
+          opacity: 0.8 !important;
+        }
+      `;
+      document.head.appendChild(styleEl);
+    }
+
+    window.addEventListener('keydown', handleSelectionKeyDown);
+
     await ensureSelectionFab();
     await attachSelectionObserver();
     await scanSelectionTargets();
   };
 
-  /** Creates the floating selection bar once and wires all action handlers. */
-  const ensureSelectionFab = async () => {
+  const getContextFabNode = () =>
+    ensureSelectionShadowRoot()?.getElementById('pn-context-fab') || null;
+
+  ensureSelectionFab = async () => {
     const shadowRoot = ensureSelectionShadowRoot();
     if (!shadowRoot) return;
-    if (shadowRoot.getElementById('pn-selection-fab')) {
+    if (shadowRoot.getElementById('pn-context-fab')) {
       return;
     }
 
     const style = document.createElement('style');
-    style.textContent = SELECTION_FAB_SHADOW_CSS;
+    style.textContent = CONTEXT_FAB_SHADOW_CSS;
     shadowRoot.appendChild(style);
 
     const root = document.createElement('div');
-    root.id = 'pn-selection-fab';
-    root.className = 'pn-selection-fab pn-hidden';
+    root.id = 'pn-context-fab';
+    root.className = 'pn-context-fab pn-hidden';
 
-    const count = document.createElement('p');
-    count.id = 'pn-selection-fab-count';
-    count.className = 'pn-selection-fab__count';
-    count.textContent = '0 of 0';
-    root.appendChild(count);
+    const trigger = document.createElement('button');
+    trigger.id = 'pn-fab-trigger-btn';
+    trigger.className = 'pn-fab-trigger';
+    trigger.type = 'button';
+    trigger.setAttribute('aria-label', 'Promptium Action Surface');
+    trigger.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 8l4 4-4 4M8 12h8"/></svg>`;
+    root.appendChild(trigger);
 
-    const divider = document.createElement('span');
-    divider.className = 'pn-selection-fab__divider';
-    root.appendChild(divider);
+    const stack = document.createElement('div');
+    stack.className = 'pn-fab-actions-stack';
+    root.appendChild(stack);
 
-    const selectAllBtn = document.createElement('button');
-    selectAllBtn.id = 'pn-fab-select-all';
-    selectAllBtn.className = 'pn-selection-fab__btn pn-selection-fab__btn--ghost';
-    selectAllBtn.type = 'button';
-    selectAllBtn.textContent = 'Select All';
-    root.appendChild(selectAllBtn);
-
-    const deselectBtn = document.createElement('button');
-    deselectBtn.id = 'pn-fab-deselect';
-    deselectBtn.className = 'pn-selection-fab__btn pn-selection-fab__btn--ghost';
-    deselectBtn.type = 'button';
-    deselectBtn.textContent = 'Deselect';
-    root.appendChild(deselectBtn);
-
-    const exportBtn = document.createElement('button');
-    exportBtn.id = 'pn-selection-fab-trigger';
-    exportBtn.className = 'pn-selection-fab__btn pn-selection-fab__btn--primary';
-    exportBtn.type = 'button';
-    exportBtn.textContent = 'Export';
-    root.appendChild(exportBtn);
-
-    const dismissBtn = document.createElement('button');
-    dismissBtn.id = 'pn-fab-dismiss';
-    dismissBtn.className = 'pn-selection-fab__close';
-    dismissBtn.type = 'button';
-    dismissBtn.setAttribute('aria-label', 'Dismiss selection');
-    dismissBtn.innerHTML =
-      '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
-    root.appendChild(dismissBtn);
-
-    // Export Selected
-    root.querySelector('#pn-selection-fab-trigger')?.addEventListener('click', (event) => {
-      event.stopPropagation();
-      try {
-        chrome.runtime.sendMessage({ action: 'OPEN_SIDEPANEL' });
-        openSidePanelWithSelection();
-      } catch (error) {
-        console.error('[Promptium] Failed to trigger export selection.', error);
-      }
+    root.addEventListener('mouseenter', () => {
+      root.classList.add('pn-expanded');
     });
-
-    // Select All
-    root.querySelector('#pn-fab-select-all')?.addEventListener('click', (event) => {
-      event.stopPropagation();
-      exportSelectionState.selectedIds = new Set(exportSelectionState.messageOrder);
-      setAllSelectionControls(true);
-      void updateSelectionFab();
-    });
-
-    // Deselect All
-    root.querySelector('#pn-fab-deselect')?.addEventListener('click', (event) => {
-      event.stopPropagation();
-      exportSelectionState.selectedIds.clear();
-      setAllSelectionControls(false);
-      void updateSelectionFab();
-    });
-
-    // Dismiss / Close
-    root.querySelector('#pn-fab-dismiss')?.addEventListener('click', (event) => {
-      event.stopPropagation();
-      exportSelectionState.selectedIds.clear();
-      setAllSelectionControls(false);
-      root.classList.add('pn-hidden');
+    root.addEventListener('mouseleave', () => {
+      root.classList.remove('pn-expanded');
     });
 
     shadowRoot.appendChild(root);
-    const countNode = root.querySelector('#pn-selection-fab-count');
-    if (countNode) {
-      countNode.setAttribute('role', 'status');
-      countNode.setAttribute('aria-live', 'polite');
-    }
   };
 
-  /** Syncs floating selection bar visibility and count label with selection state. */
-  const updateSelectionFab = async () => {
-    await ensureSelectionFab();
-    const root = getSelectionFabNode();
-    const count = getSelectionCountNode();
+  const executeActionWithLifecycle = async (actionId: string, context: FabContext) => {
+    if (currentFABState === 'processing') return;
 
-    if (!root || !count) {
+    if (!transitionTo('processing')) {
       return;
     }
 
-    const selectedCount = exportSelectionState.selectedIds.size;
-    const totalCount = exportSelectionState.messageOrder.length;
-    count.textContent = `${selectedCount} of ${totalCount}`;
-    root.classList.toggle('pn-hidden', selectedCount === 0);
+    FABRenderer.renderProcessing(actionId);
+
+    try {
+      await ActionRouter.dispatch(actionId, context);
+
+      if (transitionTo('success')) {
+        const msg =
+          actionId === 'save_prompt' || actionId === 'save_clipping' || actionId === 'save_to_vault'
+            ? 'Saved successfully'
+            : 'Completed';
+        FABRenderer.showSuccessToast(msg);
+      }
+    } catch (err) {
+      console.error('[Promptium][Lifecycle] Action failed:', err);
+      if (transitionTo('error')) {
+        FABRenderer.showErrorState('Failed to process.', async () => {
+          await executeActionWithLifecycle(actionId, context);
+        });
+      }
+    }
+  };
+
+  updateSelectionFab = async () => {
+    await syncFABState();
+  };
+
+  FABRenderer = {
+    async render(context: FabContext, actions: ActionOption[]) {
+      await ensureSelectionFab();
+      const root = getContextFabNode();
+      if (!root) return;
+
+      if (
+        root.classList.contains('pn-state-success') ||
+        root.classList.contains('pn-state-processing') ||
+        root.classList.contains('pn-state-error')
+      ) {
+        return;
+      }
+
+      if (context.state === 'overlay') {
+        root.classList.add('pn-hidden');
+        return;
+      }
+
+      root.classList.remove('pn-hidden');
+      root.className = `pn-context-fab pn-state-${context.state}`;
+      root.setAttribute('aria-expanded', 'false');
+
+      if (inQuietMode) {
+        root.classList.add('pn-quiet-mode');
+      } else {
+        root.classList.remove('pn-quiet-mode');
+      }
+
+      const stack = root.querySelector('.pn-fab-actions-stack');
+      if (!stack) return;
+      stack.innerHTML = '';
+
+      if (context.viewport.isSmall) {
+        root.classList.add('pn-small-viewport');
+      } else {
+        root.classList.remove('pn-small-viewport');
+      }
+
+      this.checkPositionCollisions(root, context);
+
+      if (context.state === 'selection-mode') {
+        root.setAttribute('aria-expanded', 'true');
+        const selectedCount = exportSelectionState.selectedIds.size;
+        let words = 0;
+        exportSelectionState.selectedIds.forEach((id: string) => {
+          const msg = exportSelectionState.messagesById.get(id);
+          if (msg) {
+            const text = msg.text || '';
+            words += text.split(/\s+/).filter(Boolean).length;
+          }
+        });
+
+        const countSpan = document.createElement('span');
+        countSpan.className = 'pn-fab-count';
+        countSpan.innerHTML = `<b>${selectedCount}</b> selected &nbsp;&bull;&nbsp; <b>${words}</b> words`;
+        stack.appendChild(countSpan);
+
+        const divider = document.createElement('span');
+        divider.className = 'pn-fab-divider';
+        stack.appendChild(divider);
+
+        const exportBtn = document.createElement('button');
+        exportBtn.className = 'pn-fab-btn pn-fab-btn--primary';
+        exportBtn.textContent = 'Export Selected';
+        exportBtn.setAttribute('tabindex', '0');
+        exportBtn.setAttribute('aria-label', 'Export selected conversation turns');
+        exportBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          chrome.runtime.sendMessage({ action: 'OPEN_SIDEPANEL' });
+          openSidePanelWithSelection();
+          void deactivateSelectionMode();
+        });
+        stack.appendChild(exportBtn);
+
+        const allBtn = document.createElement('button');
+        allBtn.className = 'pn-fab-btn';
+        allBtn.textContent = 'Select All';
+        allBtn.setAttribute('tabindex', '0');
+        allBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          exportSelectionState.selectedIds = new Set(exportSelectionState.messageOrder);
+          syncSelectionClassesAndControls();
+          void syncFABState();
+        });
+        stack.appendChild(allBtn);
+
+        const deselectBtn = document.createElement('button');
+        deselectBtn.className = 'pn-fab-btn';
+        deselectBtn.textContent = 'Deselect';
+        deselectBtn.setAttribute('tabindex', '0');
+        deselectBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          exportSelectionState.selectedIds.clear();
+          syncSelectionClassesAndControls();
+          void syncFABState();
+        });
+        stack.appendChild(deselectBtn);
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'pn-fab-btn';
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.setAttribute('tabindex', '0');
+        cancelBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          void deactivateSelectionMode();
+        });
+        stack.appendChild(cancelBtn);
+      } else {
+        if (actions.length === 0) {
+          root.classList.add('pn-hidden');
+          return;
+        }
+
+        const primary = actions.find((a) => a.primary) || actions[0];
+        if (!primary) {
+          root.classList.add('pn-hidden');
+          return;
+        }
+        const secondaries = actions.filter((a) => a !== primary);
+
+        const primaryBtn = document.createElement('button');
+        primaryBtn.className = 'pn-fab-btn pn-fab-btn--primary';
+        primaryBtn.textContent = primary.label;
+        primaryBtn.setAttribute('tabindex', '0');
+        primaryBtn.setAttribute('aria-label', `${primary.label} (Primary action)`);
+        primaryBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          void executeActionWithLifecycle(primary.id, context);
+        });
+        stack.appendChild(primaryBtn);
+
+        if (secondaries.length > 0) {
+          const toggleBtn = document.createElement('button');
+          toggleBtn.className = 'pn-fab-menu-toggle';
+          toggleBtn.setAttribute('tabindex', '0');
+          toggleBtn.setAttribute('aria-label', 'Toggle alternative actions menu');
+          toggleBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>`;
+          toggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isMenuExpanded = root.classList.contains('pn-menu-expanded');
+            if (isMenuExpanded) {
+              root.classList.remove('pn-menu-expanded');
+              root.setAttribute('aria-expanded', 'false');
+            } else {
+              root.classList.add('pn-menu-expanded');
+              root.setAttribute('aria-expanded', 'true');
+            }
+          });
+          stack.appendChild(toggleBtn);
+
+          const verticalList = document.createElement('div');
+          verticalList.className = 'pn-fab-vertical-list';
+
+          const divider = document.createElement('div');
+          divider.className = 'pn-fab-vertical-divider';
+          verticalList.appendChild(divider);
+
+          for (const sec of secondaries) {
+            const secBtn = document.createElement('button');
+            secBtn.className = 'pn-fab-btn pn-fab-btn--secondary';
+            secBtn.textContent = sec.label;
+            secBtn.setAttribute('tabindex', '0');
+            secBtn.setAttribute('aria-label', sec.label);
+            secBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              root.classList.remove('pn-menu-expanded');
+              root.setAttribute('aria-expanded', 'false');
+              void executeActionWithLifecycle(sec.id, context);
+            });
+            verticalList.appendChild(secBtn);
+          }
+          stack.appendChild(verticalList);
+        }
+      }
+    },
+
+    checkPositionCollisions(fabEl: HTMLElement, context: FabContext) {
+      let defaultRight = 24;
+      let defaultBottom = 24;
+
+      if (context.platform === 'chatgpt') {
+        defaultRight = 32;
+        defaultBottom = 32;
+        fabEl.style.borderRadius = '99px';
+        fabEl.style.boxShadow = '0 12px 40px rgba(0, 0, 0, 0.45)';
+      } else if (context.platform === 'claude') {
+        defaultRight = 24;
+        defaultBottom = 24;
+        fabEl.style.borderRadius = '16px';
+        fabEl.style.boxShadow = '0 8px 30px rgba(0, 0, 0, 0.25)';
+      } else if (context.platform === 'gemini') {
+        defaultRight = 16;
+        defaultBottom = 16;
+        fabEl.style.borderRadius = '24px';
+        fabEl.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.15)';
+      }
+
+      fabEl.style.right = `${defaultRight}px`;
+      fabEl.style.bottom = `${defaultBottom}px`;
+
+      const colliders = [
+        '[data-testid="send-button"]',
+        '[aria-label="Attach files"]',
+        '[aria-label="Upload files"]',
+        '[aria-label="Voice input"]',
+        '[aria-label="Read aloud"]',
+        '[data-testid="chat-controls"]',
+        '.canvas-sidebar',
+        '.artifacts-pane',
+        '[aria-label="Send message"]',
+        '.voice-input-button',
+        '.scroll-to-bottom-btn',
+        '[aria-label="Scroll to bottom"]',
+        '[class*="scroll-to-bottom"]',
+        '[class*="arrow-down"]',
+        '[class*="submit-btn"]',
+        '[class*="VoiceButton"]',
+        '[class*="AttachmentButton"]',
+      ];
+
+      const fabWidth = fabEl.offsetWidth || 180;
+      const fabHeight = fabEl.offsetHeight || 48;
+
+      let overlapDetected = false;
+      let highestOverlapTop = window.innerHeight;
+
+      const composerRect = context.composer.rect;
+      if (composerRect) {
+        const fabLeft = window.innerWidth - defaultRight - fabWidth;
+        const fabTop = window.innerHeight - defaultBottom - fabHeight;
+        const overlapX =
+          composerRect.left < window.innerWidth - defaultRight && composerRect.right > fabLeft;
+        const overlapY =
+          composerRect.top < window.innerHeight - defaultBottom && composerRect.bottom > fabTop;
+        if (overlapX && overlapY) {
+          overlapDetected = true;
+          highestOverlapTop = Math.min(highestOverlapTop, composerRect.top);
+        }
+      }
+
+      for (const selector of colliders) {
+        const el = document.querySelector(selector);
+        if (el && el instanceof HTMLElement && el.isConnected) {
+          const rect = el.getBoundingClientRect();
+          const fabLeft = window.innerWidth - defaultRight - fabWidth;
+          const fabTop = window.innerHeight - defaultBottom - fabHeight;
+          const overlapX = rect.left < window.innerWidth - defaultRight && rect.right > fabLeft;
+          const overlapY = rect.top < window.innerHeight - defaultBottom && rect.bottom > fabTop;
+          if (overlapX && overlapY) {
+            overlapDetected = true;
+            highestOverlapTop = Math.min(highestOverlapTop, rect.top);
+          }
+        }
+      }
+
+      if (overlapDetected) {
+        const newBottom = window.innerHeight - highestOverlapTop + 16;
+        fabEl.style.bottom = `${Math.max(defaultBottom, newBottom)}px`;
+      }
+    },
+
+    renderProcessing(actionId: string) {
+      const root = getContextFabNode();
+      if (!root) return;
+      root.className = 'pn-context-fab pn-state-processing';
+      const stack = root.querySelector('.pn-fab-actions-stack');
+      if (stack) {
+        stack.innerHTML = '';
+        const loader = document.createElement('span');
+        loader.className = 'pn-fab-loader';
+        loader.innerHTML = `<svg class="pn-spinner" width="16" height="16" viewBox="0 0 50 50"><circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="5"></circle></svg>`;
+        stack.appendChild(loader);
+
+        const statusText = document.createElement('span');
+        statusText.className = 'pn-fab-status-text';
+        statusText.textContent = 'Processing...';
+        stack.appendChild(statusText);
+      }
+    },
+
+    showErrorState(message: string, retryCallback: () => void) {
+      const root = getContextFabNode();
+      if (!root) return;
+
+      const prevClass = root.className;
+      root.className = 'pn-context-fab pn-state-error';
+      const stack = root.querySelector('.pn-fab-actions-stack');
+      if (stack) {
+        stack.innerHTML = '';
+
+        const errorIcon = document.createElement('span');
+        errorIcon.className = 'pn-fab-error-icon';
+        errorIcon.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
+        stack.appendChild(errorIcon);
+
+        const errText = document.createElement('span');
+        errText.className = 'pn-fab-error-text';
+        errText.textContent = message;
+        stack.appendChild(errText);
+
+        const retryBtn = document.createElement('button');
+        retryBtn.className = 'pn-fab-error-retry';
+        retryBtn.textContent = 'Retry';
+        retryBtn.setAttribute('tabindex', '0');
+        retryBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          retryCallback();
+        });
+        stack.appendChild(retryBtn);
+      }
+
+      setTimeout(() => {
+        if (root.className.includes('pn-state-error')) {
+          root.className = prevClass;
+          void syncFABState();
+        }
+      }, 4000);
+    },
+
+    showSuccessToast(message: string, undoCallback?: () => void) {
+      const root = getContextFabNode();
+      if (!root) return;
+
+      logTelemetry('FAB_TOAST_SHOWN', { message });
+
+      const prevClass = root.className;
+      root.className = 'pn-context-fab pn-state-success pn-expanded-success';
+
+      const stack = root.querySelector('.pn-fab-actions-stack');
+      if (stack) {
+        stack.innerHTML = '';
+
+        const checkIcon = document.createElement('span');
+        checkIcon.className = 'pn-fab-success-check';
+        checkIcon.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0b0f19" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+        stack.appendChild(checkIcon);
+
+        const toastSpan = document.createElement('span');
+        toastSpan.className = 'pn-fab-success-text';
+        toastSpan.textContent = message;
+        stack.appendChild(toastSpan);
+
+        if (undoCallback) {
+          const undoBtn = document.createElement('button');
+          undoBtn.className = 'pn-fab-success-undo';
+          undoBtn.textContent = 'Undo';
+          undoBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            undoCallback();
+            logTelemetry('FAB_ACTION_UNDONE');
+            root.className = prevClass;
+            void syncFABState();
+          });
+          stack.appendChild(undoBtn);
+        }
+      }
+
+      setTimeout(() => {
+        if (root.className.includes('pn-state-success')) {
+          root.className = prevClass;
+          void syncFABState();
+        }
+      }, 3500);
+    },
   };
 
   /** Clears selections that no longer exist in the latest DOM scan snapshot. */
@@ -929,6 +2431,9 @@ import { toast } from '../utils/toast';
     const nextOrder = [];
     const nextMessagesById = new Map();
 
+    const groups: any[] = [];
+    let currentGroup: any = null;
+
     for (let index = 0; index < nodes.length; index += 1) {
       const node = nodes[index];
       const role = roleMap.get(node) || 'user';
@@ -940,18 +2445,35 @@ import { toast } from '../utils/toast';
 
       nextOrder.push(row.id);
       nextMessagesById.set(row.id, row);
-      await ensureMessageCheckbox(node, row.id);
+
+      // Determine if we start a new group or continue the current one
+      if (role === 'user' || !currentGroup) {
+        currentGroup = {
+          id: `group-${row.id}`,
+          messageIds: [row.id],
+          split: exportSelectionState.splitGroupIds?.has(row.id) || false,
+        };
+        groups.push(currentGroup);
+      } else {
+        currentGroup.messageIds.push(row.id);
+      }
     }
 
     exportSelectionState.messageOrder = nextOrder;
     exportSelectionState.messagesById = nextMessagesById;
+    exportSelectionState.groups = groups;
+
     await pruneMissingSelections(new Set(nextOrder));
 
-    getSelectionControls().forEach((entry: any) => {
-      if (!entry?.messageId) return;
-      setControlChecked(entry, exportSelectionState.selectedIds.has(entry.messageId));
-    });
+    for (let index = 0; index < nodes.length; index += 1) {
+      const node = nodes[index];
+      const rowId = nextOrder[index];
+      if (rowId) {
+        await ensureMessageCheckbox(node, rowId);
+      }
+    }
 
+    syncSelectionClassesAndControls();
     await updateSelectionFab();
   };
 
@@ -1122,7 +2644,6 @@ import { toast } from '../utils/toast';
       return;
     }
 
-    await ensureSelectionModeActive();
     await startSelectionUrlWatcher(platform);
   };
 
@@ -1264,6 +2785,12 @@ import { toast } from '../utils/toast';
 
         if (msg?.action === 'getPlatform') {
           await handleGetPlatform(platform, respond);
+          return;
+        }
+
+        if (msg?.action === 'enterSelectionMode') {
+          await ensureSelectionModeActive();
+          respond({ ok: true });
           return;
         }
 
@@ -1515,21 +3042,23 @@ import { toast } from '../utils/toast';
     }
   };
 
-  /** Disconnects observers and timers when the page unloads. */
-  const cleanup = async () => {
-    clearInjectionUndoState();
+  const deactivateSelectionMode = async () => {
+    document.body.classList.remove('pn-export-selection-active');
+    document.getElementById('pn-export-selection-style')?.remove();
+    window.removeEventListener('keydown', handleSelectionKeyDown);
 
     document.querySelectorAll('.pn-inline-select-host').forEach((host) => host.remove());
-    document.getElementById(SELECTION_SHADOW_HOST_ID)?.remove();
+
+    // Reset highlighted elements
+    document.querySelectorAll('.pn-message-selected').forEach((node) => {
+      node.classList.remove('pn-message-selected');
+      node.classList.remove('pn-chat-highlight-solid');
+      node.classList.remove('pn-chat-highlight-dotted');
+    });
 
     if (exportSelectionState.scanTimer) {
       clearTimeout(exportSelectionState.scanTimer);
       exportSelectionState.scanTimer = null;
-    }
-
-    if (exportSelectionState.urlWatchTimer) {
-      clearInterval(exportSelectionState.urlWatchTimer);
-      exportSelectionState.urlWatchTimer = null;
     }
 
     if (exportSelectionState.observer) {
@@ -1539,6 +3068,19 @@ import { toast } from '../utils/toast';
     }
 
     exportSelectionState.selectionModeActive = false;
+    void syncFABState();
+  };
+
+  /** Disconnects observers and timers when the page unloads. */
+  const cleanup = async () => {
+    clearInjectionUndoState();
+    await deactivateSelectionMode();
+    teardownContextFAB();
+
+    if (exportSelectionState.urlWatchTimer) {
+      clearInterval(exportSelectionState.urlWatchTimer);
+      exportSelectionState.urlWatchTimer = null;
+    }
   };
 
   /** Initializes content execution when the current page matches a supported platform. */
@@ -1556,6 +3098,7 @@ import { toast } from '../utils/toast';
       await window.Clippings.init(platform);
     }
     await initExportSelectionUi(platform);
+    initContextFAB();
 
     if (window.PromptSuggestions?.init) {
       try {

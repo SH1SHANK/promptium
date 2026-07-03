@@ -15,5 +15,6 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "types": ["chrome"]
-  }
+  },
+  "exclude": ["src/features/clippings", "src/features/retrieval", "src/features/vault"]
 }

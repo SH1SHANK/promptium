@@ -1,4 +1,4 @@
-import { getCurrentAdapter, getAdapters } from '../platforms';
+import { getCurrentAdapter, getAdapters } from '../platform';
 
 (() => {
   /**

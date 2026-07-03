@@ -40,29 +40,6 @@
         <span id="header-page-title" class="hidden"></span>
 
         <button
-          id="settings-btn"
-          class="pn-btn pn-btn--ghost pn-icon-btn"
-          type="button"
-          title="Settings"
-          aria-label="Settings"
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <circle cx="12" cy="12" r="3"></circle>
-            <path
-              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
-            ></path>
-          </svg>
-        </button>
-        <button
           id="refresh-btn"
           class="pn-btn pn-btn--ghost pn-icon-btn"
           type="button"
@@ -149,48 +126,13 @@
         <div class="pn-ai-bar__line"></div>
       </div>
     </div>
-
     <nav class="pn-tab-bar" aria-label="Promptium tabs">
-      <button class="tab pn-tab active" data-tab="prompts" type="button">Prompts</button>
-      <button class="tab pn-tab" data-tab="tags" type="button">Tags</button>
-      <button class="tab pn-tab" data-tab="vault" type="button">Vault</button>
-      <button class="tab pn-tab" data-tab="clippings" type="button">Clippings</button>
+      <button class="tab pn-tab active" data-tab="prompts" type="button">Prompt Library</button>
+      <button id="pn-nav-new-prompt" class="tab pn-tab" type="button">New Prompt</button>
     </nav>
 
     <main class="pn-main pn-sidepanel-main">
       <section class="tab-content pn-tab-content active" data-tab="prompts">
-        <div id="pn-smart-strip" class="pn-smart-strip pn-hidden">
-          <span class="pn-smart-strip__label">✦ Matches your current topic</span>
-          <div id="pn-smart-chips" class="pn-smart-chips"></div>
-          <button class="pn-smart-strip__close" id="pn-smart-close" type="button">×</button>
-        </div>
-        <div id="pn-bridge-strip" class="pn-bridge-strip pn-hidden">
-          <span class="pn-bridge-label">Continue on</span>
-          <div id="pn-bridge-targets" class="pn-bridge-targets"></div>
-        </div>
-        <button
-          id="pn-prompts-continue-chat"
-          type="button"
-          class="pn-btn pn-btn--ghost pn-btn--block pn-continue-shortcut"
-          title="Continue this conversation on another LLM"
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M21 12a9 9 0 1 1-3.4-7" />
-            <path d="M21 3v7h-7" />
-            <path d="M8 12h8" />
-            <path d="M12 8l4 4-4 4" />
-          </svg>
-          Continue Chat
-        </button>
         <div id="pn-search-assists" class="pn-search-assists pn-hidden">
           <div id="pn-recent-searches" class="pn-search-chip-row"></div>
           <div id="pn-category-filters" class="pn-search-chip-row"></div>
@@ -278,990 +220,11 @@
         <div id="prompt-list" class="pn-list"></div>
       </section>
 
-      <section class="tab-content pn-tab-content" data-tab="export">
-        <div class="pn-export-grid">
-          <aside class="pn-export-controls">
-            <div class="pn-export-meta-badges">
-              <span id="selection-meta" class="pn-card-meta">No messages selected</span>
-              <div id="export-counts" class="pn-export-counts pn-hidden">
-                <span id="export-msg-count" class="pn-export-count-badge">0 msgs</span>
-                <span id="export-word-count" class="pn-export-count-badge">0 words</span>
-              </div>
-            </div>
-            <div
-              id="pn-bridge-strip-export"
-              class="pn-bridge-strip pn-bridge-strip--export pn-hidden"
-            >
-              <span class="pn-bridge-label">Continue on</span>
-              <div id="pn-bridge-targets-export" class="pn-bridge-targets"></div>
-            </div>
-            <button
-              id="pn-open-continue-chat"
-              type="button"
-              class="pn-btn pn-btn--ghost pn-btn--block"
-            >
-              Continue Chat
-            </button>
-
-            <label class="pn-field">
-              <span>Export Format</span>
-              <select id="export-format">
-                <option value="markdown">Markdown (.md)</option>
-                <option value="json">JSON (.json)</option>
-                <option value="pdf">PDF (.pdf)</option>
-              </select>
-            </label>
-
-            <label class="pn-field">
-              <span>Export Style</span>
-              <select id="export-style">
-                <option value="standard">Standard</option>
-                <option value="research">Research Notes</option>
-                <option value="documentation">Documentation</option>
-              </select>
-            </label>
-
-            <label class="pn-field">
-              <span>Content Mode</span>
-              <select id="export-content-mode">
-                <option value="structured">Structured messages</option>
-                <option value="combined">Combined text</option>
-              </select>
-            </label>
-
-            <label class="pn-field">
-              <span>Font Family</span>
-              <select id="export-font-style">
-                <option value="System">System</option>
-                <option value="Outfit">Outfit</option>
-                <option value="Montserrat">Montserrat</option>
-                <option value="Inter">Inter</option>
-                <option value="Helvetica">Helvetica</option>
-                <option value="Poppins">Poppins</option>
-                <option value="Roboto">Roboto</option>
-                <option value="Open Sans">Open Sans</option>
-                <option value="Lato">Lato</option>
-                <option value="Nunito">Nunito</option>
-                <option value="Source Sans 3">Source Sans 3</option>
-                <option value="Merriweather">Merriweather</option>
-                <option value="JetBrains Mono">JetBrains Mono</option>
-                <option value="Georgia">Georgia</option>
-              </select>
-            </label>
-
-            <label class="pn-field">
-              <span>Font Size</span>
-              <div class="pn-export-font-row">
-                <input id="export-font-size" type="range" min="12" max="20" step="1" value="14" />
-                <input
-                  id="export-font-size-number"
-                  type="number"
-                  min="12"
-                  max="20"
-                  step="1"
-                  value="14"
-                />
-              </div>
-            </label>
-
-            <label class="pn-field">
-              <span>Background</span>
-              <select id="export-bg-style">
-                <option value="dark">Dark</option>
-                <option value="light">Light</option>
-                <option value="sepia">Sepia</option>
-                <option value="custom">Custom</option>
-              </select>
-            </label>
-
-            <label id="export-bg-custom-wrap" class="pn-field pn-hidden">
-              <span>Custom Background</span>
-              <input id="export-bg-custom" type="color" value="#18181c" />
-            </label>
-
-            <label class="pn-field">
-              <span>Filename <small class="pn-field-hint">(optional)</small></span>
-              <input
-                id="export-filename"
-                type="text"
-                placeholder="Auto-generated"
-                class="pn-export-filename-input"
-              />
-            </label>
-
-            <div class="pn-export-toggles">
-              <label class="pn-check-row">
-                <input id="include-date" type="checkbox" checked />
-                <span>Include export date</span>
-              </label>
-
-              <label class="pn-check-row">
-                <input id="include-platform" type="checkbox" checked />
-                <span>Include platform label</span>
-              </label>
-
-              <label class="pn-check-row">
-                <input id="include-msg-numbers" type="checkbox" />
-                <span>Include message numbers</span>
-              </label>
-
-              <label class="pn-check-row">
-                <input id="trim-follow-ups" type="checkbox" checked />
-                <span>Trim AI conversational filler</span>
-              </label>
-            </div>
-
-            <div class="pn-export-actions-row pn-export-actions-row--tools">
-              <button id="export-btn" type="button" class="pn-btn pn-btn--primary">Export</button>
-              <button
-                id="copy-export-btn"
-                type="button"
-                class="pn-btn pn-btn--ghost pn-btn--copy"
-                title="Copy to clipboard"
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                </svg>
-                Copy
-              </button>
-            </div>
-
-            <div id="export-status" class="pn-card-meta"></div>
-          </aside>
-
-          <section class="pn-export-preview-shell">
-            <div class="pn-export-preview-head">
-              <div>
-                <h3 class="pn-section-title">Preview</h3>
-                <p id="preview-label" class="pn-card-meta">Markdown preview</p>
-              </div>
-              <button
-                id="export-reload-selection"
-                type="button"
-                class="pn-btn pn-btn--ghost pn-hidden"
-              >
-                Reload latest selection
-              </button>
-            </div>
-            <div id="preview" class="pn-export-preview-body"></div>
-          </section>
-        </div>
-      </section>
-
-      <section class="tab-content pn-tab-content" data-tab="continue">
-        <div class="pn-continue-view">
-          <!-- Header -->
-          <div class="pn-continue-head">
-            <h3 class="pn-sv-hero__title">Continue Chat</h3>
-            <p id="pn-continue-summary" class="pn-continue-summary">Select a chat to continue.</p>
-            <p id="pn-continue-advisory" class="pn-sv-api-hint pn-hidden"></p>
-          </div>
-
-          <!-- Quick Launch Grid -->
-          <div class="pn-continue-quick">
-            <span class="pn-continue-quick-label">Continue on</span>
-            <div id="pn-continue-targets" class="pn-continue-grid"></div>
-          </div>
-
-          <!-- Advanced options (collapsed by default) -->
-          <details id="pn-continue-advanced" class="pn-continue-advanced">
-            <summary class="pn-continue-advanced-toggle">
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-              Advanced options
-            </summary>
-            <div class="pn-continue-advanced-body">
-              <label class="pn-field">
-                <span>Context mode</span>
-                <select id="pn-continue-mode">
-                  <option value="FULL_SUMMARY">Full Summary</option>
-                  <option value="KEY_POINTS">Key Points Only</option>
-                  <option value="RECENT_ONLY">Last N Messages</option>
-                </select>
-              </label>
-
-              <label class="pn-field">
-                <span>
-                  Extra instructions
-                  <small class="pn-field-hint">(optional)</small>
-                </span>
-                <textarea
-                  id="pn-continue-note"
-                  rows="2"
-                  placeholder="e.g. Focus on the code review part"
-                ></textarea>
-              </label>
-            </div>
-          </details>
-
-          <!-- Inline preview (hidden until handoff is ready) -->
-          <div id="pn-continue-preview-wrap" class="pn-hidden">
-            <label class="pn-field">
-              <span>Handoff Preview</span>
-              <textarea id="pn-continue-preview" rows="5" readonly></textarea>
-            </label>
-            <div class="pn-continue-actions">
-              <button id="pn-continue-copy" class="pn-btn pn-btn--ghost" type="button">
-                📋 Copy
-              </button>
-              <button id="pn-continue-open" class="pn-btn pn-btn--primary" type="button">
-                Open in target →
-              </button>
-            </div>
-          </div>
-
-          <!-- Cancel -->
-          <div class="pn-continue-actions pn-continue-footer">
-            <button id="pn-continue-cancel" class="pn-btn pn-btn--ghost pn-btn--sm" type="button">
-              ← Back to prompts
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section class="tab-content pn-tab-content" data-tab="tags">
-        <div class="pn-tags-view">
-          <div id="pn-quick-filters-head" class="pn-tags-view-header pn-tags-view-header--spaced">
-            <h3 class="pn-section-title">Quick Filters</h3>
-            <p class="pn-card-meta">Click a tag to view matching prompts</p>
-          </div>
-          <div id="pn-tag-filter-bar" class="pn-tag-filter-bar">
-            <!-- Chips injected here -->
-          </div>
-
-          <hr id="pn-tags-quick-divider" class="pn-sv-divider pn-sv-divider--spaced" />
-
-          <div class="pn-tags-view-header pn-tags-view-header--spaced">
-            <h3 class="pn-section-title">Manage Tags</h3>
-          </div>
-          <div id="tag-list" class="pn-tag-list">
-            <div id="pn-tags-empty" class="pn-empty-state">
-              <svg
-                viewBox="0 0 64 64"
-                fill="none"
-                class="pn-empty-state__illustration"
-                aria-hidden="true"
-              >
-                <circle cx="32" cy="32" r="30" fill="var(--surface-sunken, #F3F4F6)"></circle>
-                <path
-                  d="M20 22h24v24H20z"
-                  fill="var(--surface, #FFFFFF)"
-                  stroke="var(--border, #E5E7EB)"
-                  stroke-width="2"
-                  stroke-linejoin="round"
-                ></path>
-                <path
-                  d="M26 28h12M26 34h8"
-                  stroke="var(--text-muted, #9CA3AF)"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                ></path>
-                <path
-                  d="M46 16l2 4 4 2-4 2-2 4-2-4-4-2 4-2 2-4z"
-                  fill="var(--primary, #3B82F6)"
-                ></path>
-              </svg>
-              <p class="pn-empty-state__title">No tags yet</p>
-              <p class="pn-empty-state__message">
-                Add tags when saving prompts to organize your library.
-              </p>
-              <button
-                id="pn-tags-empty-add"
-                type="button"
-                class="pn-btn pn-btn--primary pn-empty-state__action"
-              >
-                Add your first prompt
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="tab-content pn-tab-content" data-tab="vault">
-        <div
-          class="pn-vault-view"
-          style="display: flex; flex-direction: column; gap: 16px; height: 100%"
-        >
-          <div
-            class="pn-vault-header"
-            style="display: flex; align-items: center; justify-content: space-between; gap: 12px"
-          >
-            <div>
-              <h3 class="pn-section-title" style="margin: 0">Promptium Vault</h3>
-              <p class="pn-card-meta" style="margin: 2px 0 0">
-                Manage context, personas, and system instructions.
-              </p>
-            </div>
-            <div style="display: flex; gap: 8px">
-              <button
-                id="pn-vault-import-btn"
-                class="pn-btn pn-btn--ghost"
-                type="button"
-                style="font-size: 12px; padding: 4px 10px; height: 28px"
-              >
-                Import File...
-              </button>
-              <input
-                type="file"
-                id="pn-vault-file-importer"
-                style="display: none"
-                accept=".md,.sh,.json,.cursorrules,.clinerules,.windsurfrules,*"
-              />
-              <button
-                id="pn-vault-add-btn"
-                class="pn-btn pn-btn--primary"
-                type="button"
-                style="font-size: 12px; padding: 4px 10px; height: 28px"
-              >
-                + Add Item
-              </button>
-            </div>
-          </div>
-
-          <!-- Vault sub-tabs navigation -->
-          <nav
-            class="pn-tab-bar"
-            style="
-              background: rgba(255, 255, 255, 0.02);
-              border-radius: var(--radius-sm);
-              padding: 2px;
-              display: flex;
-              gap: 4px;
-            "
-            aria-label="Vault sections"
-          >
-            <button
-              class="pn-vault-subtab active"
-              data-subtab="knowledge"
-              type="button"
-              style="
-                flex: 1;
-                border: none;
-                background: none;
-                padding: 6px;
-                font-size: 11px;
-                font-weight: 600;
-                text-transform: uppercase;
-                cursor: pointer;
-                color: var(--text-muted);
-                border-radius: var(--radius-xs);
-              "
-            >
-              Knowledge
-            </button>
-            <button
-              class="pn-vault-subtab"
-              data-subtab="skill"
-              type="button"
-              style="
-                flex: 1;
-                border: none;
-                background: none;
-                padding: 6px;
-                font-size: 11px;
-                font-weight: 600;
-                text-transform: uppercase;
-                cursor: pointer;
-                color: var(--text-muted);
-                border-radius: var(--radius-xs);
-              "
-            >
-              Skills
-            </button>
-            <button
-              class="pn-vault-subtab"
-              data-subtab="instruction"
-              type="button"
-              style="
-                flex: 1;
-                border: none;
-                background: none;
-                padding: 6px;
-                font-size: 11px;
-                font-weight: 600;
-                text-transform: uppercase;
-                cursor: pointer;
-                color: var(--text-muted);
-                border-radius: var(--radius-xs);
-              "
-            >
-              Instructions
-            </button>
-          </nav>
-
-          <!-- Search Vault -->
-          <div class="pn-search-input-wrap" style="position: relative">
-            <input
-              id="pn-vault-search"
-              class="pn-search"
-              type="text"
-              placeholder="Search vault items..."
-              style="width: 100%"
-            />
-          </div>
-
-          <!-- List of Vault Items -->
-          <div
-            id="pn-vault-items-list"
-            style="
-              display: flex;
-              flex-direction: column;
-              gap: 10px;
-              overflow-y: auto;
-              flex: 1;
-              max-height: 520px;
-              padding-right: 4px;
-            "
-          >
-            <!-- Items dynamically injected here -->
-          </div>
-        </div>
-      </section>
-
       <!-- Add/Edit Vault Item Modal Dialog -->
-      <div
-        id="pn-vault-item-modal"
-        class="pn-modal pn-hidden"
-        role="dialog"
-        aria-modal="true"
-        style="z-index: 1100"
-      >
-        <div class="pn-modal__backdrop" id="pn-vault-modal-close-backdrop"></div>
-        <div
-          class="pn-modal__panel"
-          style="
-            max-width: 480px;
-            width: calc(100vw - 32px);
-            padding: 20px;
-            background: var(--surface-overlay, #1e293b);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: var(--radius-md);
-          "
-        >
-          <h2
-            id="pn-vault-modal-title"
-            class="pn-modal__title"
-            style="margin-top: 0; font-size: 16px"
-          >
-            Add Vault Item
-          </h2>
-
-          <div
-            style="
-              display: flex;
-              flex-direction: column;
-              gap: 12px;
-              margin-top: 16px;
-              margin-bottom: 20px;
-            "
-          >
-            <label class="pn-field">
-              <span>Item Type</span>
-              <select id="pn-vault-input-type">
-                <option value="knowledge">Knowledge (Guides / Documentation)</option>
-                <option value="skill">Skill (Personas / Expertise Profile)</option>
-                <option value="instruction">Instruction (Persistent Preference)</option>
-              </select>
-            </label>
-
-            <label class="pn-field" id="pn-vault-title-field-wrap">
-              <span>Title</span>
-              <input
-                id="pn-vault-input-title"
-                type="text"
-                placeholder="e.g. Claude Prompting Guide, Senior Architect"
-              />
-            </label>
-
-            <!-- URL Import Option for Knowledge -->
-            <div
-              id="pn-vault-url-import-wrap"
-              class="pn-hidden"
-              style="
-                display: flex;
-                flex-direction: column;
-                gap: 6px;
-                padding: 10px;
-                background: rgba(255, 255, 255, 0.02);
-                border: 1px solid rgba(255, 255, 255, 0.04);
-                border-radius: var(--radius-xs);
-              "
-            >
-              <span style="font-size: 11px; font-weight: 600; color: var(--text-muted)"
-                >Quick Import from URL</span
-              >
-              <div style="display: flex; gap: 8px">
-                <input
-                  id="pn-vault-import-url"
-                  type="url"
-                  placeholder="https://docs.anthropic.com/en/..."
-                  style="
-                    flex: 1;
-                    font-size: 12px;
-                    padding: 4px 8px;
-                    height: 28px;
-                    background: rgba(0, 0, 0, 0.15);
-                    border: 1px solid rgba(255, 255, 255, 0.08);
-                    color: #fff;
-                    border-radius: var(--radius-xs);
-                  "
-                />
-                <button
-                  id="pn-vault-url-import-btn"
-                  class="pn-btn pn-btn--ghost"
-                  type="button"
-                  style="font-size: 11px; padding: 0 10px; height: 28px"
-                >
-                  Import
-                </button>
-              </div>
-              <span
-                id="pn-vault-import-status"
-                style="font-size: 11px; color: #4ade80"
-                class="pn-hidden"
-                >Imported successfully!</span
-              >
-            </div>
-
-            <label class="pn-field">
-              <span id="pn-vault-content-label">Content</span>
-              <textarea
-                id="pn-vault-input-content"
-                rows="8"
-                placeholder="Paste guidelines, instructions, or markdown notes..."
-                style="font-family: var(--font-mono); font-size: 12px; resize: none"
-              ></textarea>
-            </label>
-
-            <label class="pn-field" id="pn-vault-tags-field-wrap">
-              <span>Tags (comma separated)</span>
-              <input
-                id="pn-vault-input-tags"
-                type="text"
-                placeholder="e.g. coding, claude, database"
-              />
-            </label>
-
-            <label class="pn-field" id="pn-vault-priority-field-wrap">
-              <span>Instruction Priority</span>
-              <select id="pn-vault-input-priority">
-                <option value="low">Low</option>
-                <option value="medium" selected>Medium</option>
-                <option value="high">High</option>
-              </select>
-            </label>
-            <label class="pn-field" style="flex-direction: row; align-items: center; gap: 8px">
-              <input id="pn-vault-input-pinned" type="checkbox" />
-              <span>Always include this context</span>
-            </label>
-          </div>
-
-          <div style="display: flex; gap: 10px; justify-content: flex-end">
-            <button id="pn-vault-modal-cancel" class="pn-btn pn-btn--ghost" type="button">
-              Cancel
-            </button>
-            <button id="pn-vault-modal-save" class="pn-btn pn-btn--primary" type="button">
-              Save Item
-            </button>
-          </div>
-        </div>
-      </div>
 
       <!-- Universal AI Context Importer Preview Modal -->
-      <div
-        id="pn-vault-import-preview-modal"
-        class="pn-modal pn-hidden"
-        role="dialog"
-        aria-modal="true"
-        style="z-index: 1200"
-      >
-        <div class="pn-modal__backdrop" id="pn-vault-import-preview-close-backdrop"></div>
-        <div
-          class="pn-modal__panel"
-          style="
-            max-width: 580px;
-            width: calc(100vw - 32px);
-            padding: 20px;
-            background: var(--surface-overlay, #1e293b);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: var(--radius-md);
-            max-height: 90vh;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-          "
-        >
-          <h2 class="pn-modal__title" style="margin: 0; font-size: 16px">
-            Import AI Context Preview
-          </h2>
-          <div style="font-size: 12px; color: var(--text-muted)">
-            Detected format:
-            <strong id="pn-vault-import-detected-format" style="color: #38bdf8">Markdown</strong>
-          </div>
-
-          <div
-            id="pn-vault-import-drafts-list"
-            style="
-              display: flex;
-              flex-direction: column;
-              gap: 12px;
-              overflow-y: auto;
-              flex: 1;
-              margin: 8px 0;
-              max-height: 380px;
-              padding-right: 4px;
-            "
-          >
-            <!-- Draft items injected dynamically -->
-          </div>
-
-          <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: auto">
-            <button id="pn-vault-import-preview-cancel" class="pn-btn pn-btn--ghost" type="button">
-              Cancel
-            </button>
-            <button
-              id="pn-vault-import-preview-confirm"
-              class="pn-btn pn-btn--primary"
-              type="button"
-            >
-              Confirm Import
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <section class="tab-content pn-tab-content" data-tab="clippings">
-        <div
-          class="pn-clippings-view"
-          style="display: flex; flex-direction: column; gap: 16px; height: 100%"
-        >
-          <div
-            class="pn-clippings-header"
-            style="display: flex; align-items: center; justify-content: space-between; gap: 12px"
-          >
-            <div>
-              <h3 class="pn-section-title" style="margin: 0">Clippings</h3>
-              <p class="pn-card-meta" style="margin: 2px 0 0">
-                Review and organize highlighted conversation excerpts.
-              </p>
-            </div>
-            <div style="display: flex; gap: 8px">
-              <button
-                id="pn-clippings-review-btn"
-                class="pn-btn pn-btn--ghost"
-                type="button"
-                style="font-size: 12px; padding: 4px 10px; height: 28px"
-              >
-                🎴 Review Mode
-              </button>
-            </div>
-          </div>
-
-          <!-- Multi-select Bar -->
-          <div
-            id="pn-clippings-multi-bar"
-            class="pn-hidden"
-            style="
-              display: flex;
-              align-items: center;
-              justify-content: space-between;
-              padding: 8px 12px;
-              background: rgba(16, 185, 129, 0.1);
-              border: 1px solid rgba(16, 185, 129, 0.2);
-              border-radius: var(--radius-sm);
-              font-size: 12px;
-            "
-          >
-            <span id="pn-clippings-selected-count">0 items selected</span>
-            <div style="display: flex; gap: 6px">
-              <button
-                id="pn-clippings-multi-merge"
-                class="pn-btn pn-btn--ghost"
-                type="button"
-                style="padding: 2px 8px; font-size: 11px"
-              >
-                Merge
-              </button>
-              <button
-                id="pn-clippings-multi-export"
-                class="pn-btn pn-btn--ghost"
-                type="button"
-                style="padding: 2px 8px; font-size: 11px"
-              >
-                Export
-              </button>
-              <button
-                id="pn-clippings-multi-convert"
-                class="pn-btn pn-btn--ghost"
-                type="button"
-                style="padding: 2px 8px; font-size: 11px"
-              >
-                Convert to Vault
-              </button>
-              <button
-                id="pn-clippings-multi-delete"
-                class="pn-btn pn-btn--danger"
-                type="button"
-                style="padding: 2px 8px; font-size: 11px"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-
-          <!-- Search & Filter Row -->
-          <div style="display: flex; flex-direction: column; gap: 10px">
-            <div class="pn-search-input-wrap" style="position: relative; width: 100%">
-              <input
-                id="pn-clippings-search"
-                class="pn-search"
-                type="text"
-                placeholder="Search clippings..."
-                style="width: 100%; box-sizing: border-box"
-              />
-            </div>
-            <div
-              id="pn-clippings-tags-filter"
-              style="display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px"
-            >
-              <!-- Dynamic tags filter chips will be injected here -->
-            </div>
-          </div>
-
-          <!-- Clippings List -->
-          <div
-            id="pn-clippings-list"
-            style="
-              display: flex;
-              flex-direction: column;
-              gap: 12px;
-              overflow-y: auto;
-              flex: 1;
-              max-height: 520px;
-              padding-right: 4px;
-            "
-          >
-            <!-- Clipping cards injected here -->
-          </div>
-        </div>
-      </section>
 
       <!-- Review Mode Modal Overlay -->
-      <div
-        id="pn-clippings-review-modal"
-        class="pn-modal pn-hidden"
-        role="dialog"
-        aria-modal="true"
-        style="z-index: 1300"
-      >
-        <div class="pn-modal__backdrop" id="pn-clippings-review-close-backdrop"></div>
-        <div
-          class="pn-modal__panel"
-          style="
-            max-width: 520px;
-            width: calc(100vw - 32px);
-            padding: 24px;
-            background: var(--surface-overlay, #0f172a);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: var(--radius-md);
-            max-height: 90vh;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            gap: 16px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-          "
-        >
-          <div style="display: flex; justify-content: space-between; align-items: center">
-            <span
-              id="pn-clippings-review-index"
-              style="font-size: 12px; font-weight: 600; color: var(--text-muted)"
-              >1 / 10</span
-            >
-            <button
-              id="pn-clippings-review-close"
-              class="pn-btn pn-btn--ghost"
-              type="button"
-              style="padding: 2px 8px"
-            >
-              ✕ Close
-            </button>
-          </div>
-
-          <div
-            id="pn-clippings-review-card-content"
-            style="
-              flex: 1;
-              overflow-y: auto;
-              min-height: 200px;
-              display: flex;
-              flex-direction: column;
-              gap: 16px;
-            "
-          >
-            <div
-              style="
-                font-size: 11px;
-                text-transform: uppercase;
-                letter-spacing: 0.05em;
-                color: var(--text-muted);
-              "
-              id="pn-clippings-review-meta-title"
-            >
-              Conversation Title
-            </div>
-            <blockquote
-              id="pn-clippings-review-text"
-              style="
-                font-size: 15px;
-                line-height: 1.6;
-                border-left: 3px solid #10b981;
-                padding-left: 12px;
-                margin: 0;
-                color: #f8fafc;
-                font-style: italic;
-              "
-            >
-              Highlighted Text
-            </blockquote>
-
-            <div
-              id="pn-clippings-review-context-block"
-              class="pn-hidden"
-              style="
-                background: rgba(255, 255, 255, 0.03);
-                padding: 12px;
-                border-radius: var(--radius-sm);
-                border: 1px solid rgba(255, 255, 255, 0.05);
-              "
-            >
-              <div
-                style="
-                  font-size: 10px;
-                  font-weight: 600;
-                  color: var(--text-muted);
-                  margin-bottom: 4px;
-                  text-transform: uppercase;
-                "
-              >
-                Surrounding Context
-              </div>
-              <div
-                id="pn-clippings-review-context-text"
-                style="
-                  font-size: 12px;
-                  color: #cbd5e1;
-                  white-space: pre-wrap;
-                  max-height: 150px;
-                  overflow-y: auto;
-                "
-              >
-                Context text...
-              </div>
-            </div>
-
-            <div
-              id="pn-clippings-review-note-block"
-              class="pn-hidden"
-              style="
-                background: rgba(16, 185, 129, 0.05);
-                padding: 12px;
-                border-radius: var(--radius-sm);
-                border: 1px solid rgba(16, 185, 129, 0.15);
-              "
-            >
-              <div
-                style="
-                  font-size: 10px;
-                  font-weight: 600;
-                  color: #34d399;
-                  margin-bottom: 4px;
-                  text-transform: uppercase;
-                "
-              >
-                Personal Note
-              </div>
-              <div
-                id="pn-clippings-review-note-text"
-                style="font-size: 13px; color: #e2e8f0; font-family: var(--font-mono)"
-              >
-                Note text...
-              </div>
-            </div>
-          </div>
-
-          <div
-            style="
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              margin-top: 8px;
-            "
-          >
-            <button
-              id="pn-clippings-review-reveal"
-              class="pn-btn pn-btn--ghost"
-              type="button"
-              style="font-size: 12px; padding: 4px 10px"
-            >
-              👁 Reveal More Context
-            </button>
-            <div style="display: flex; gap: 8px">
-              <button id="pn-clippings-review-prev" class="pn-btn pn-btn--ghost" type="button">
-                ◀ Previous
-              </button>
-              <button id="pn-clippings-review-next" class="pn-btn pn-btn--primary" type="button">
-                Next ▶
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <section class="tab-content pn-tab-content" data-tab="settings">
-        <div id="pn-settings-ui-root" class="pn-settings-container">
-          <nav id="pn-settings-nav" class="pn-settings-nav" aria-label="Settings sections"></nav>
-          <div class="pn-settings-panels">
-            <div class="pn-settings-panel is-active" data-settings-section="providers">
-              <div class="pn-settings-section">
-                <h4 class="pn-settings-section-title">AI Providers</h4>
-                <p class="pn-settings-section-desc">
-                  Configure API keys, choose models, and set your primary provider.
-                </p>
-                <div id="pn-settings-providers-list" class="pn-settings-provider-list"></div>
-              </div>
-            </div>
-            <div class="pn-settings-panel" data-settings-section="interface">
-              <div id="pn-settings-interface-content"></div>
-            </div>
-            <div class="pn-settings-panel" data-settings-section="data">
-              <div id="pn-settings-data-content"></div>
-            </div>
-            <div class="pn-settings-panel" data-settings-section="usage">
-              <div id="pn-settings-usage-content"></div>
-            </div>
-          </div>
-          <p id="pn-settings-ui-status" class="pn-settings-status pn-hidden"></p>
-        </div>
-      </section>
     </main>
 
     <div
@@ -1294,240 +257,356 @@
       aria-describedby="pn-add-modal-desc"
     >
       <div class="pn-modal__backdrop" data-close-modal></div>
-      <div class="pn-modal__panel pn-add-modal__panel">
-        <h2 id="pn-add-modal-title" class="pn-modal__title">Add Prompt</h2>
-        <p id="pn-add-modal-desc" class="pn-card-meta pn-add-modal__desc">
-          Choose plain or fill-in template mode.
-        </p>
-
-        <div id="pn-add-mode-selector" class="pn-add-mode-selector">
-          <p class="pn-mode-question">What kind of prompt do you want to save?</p>
-          <button class="pn-mode-card" id="pn-mode-plain" type="button">
-            <span class="pn-mode-icon">✏️</span>
-            <span class="pn-mode-text">
-              <span class="pn-mode-title">Plain Prompt</span>
-              <span class="pn-mode-desc">Just type and save. Use it as-is every time.</span>
-            </span>
-          </button>
-          <button class="pn-mode-card" id="pn-mode-template" type="button">
-            <span class="pn-mode-icon">🧩</span>
-            <span class="pn-mode-text">
-              <span class="pn-mode-title">Fill-in Template</span>
-              <span class="pn-mode-desc"
-                >Add blanks to fill in each time — like "Write about [topic]".</span
-              >
-            </span>
-          </button>
-          <button class="pn-mode-cancel" id="pn-mode-cancel" type="button">Cancel</button>
-        </div>
-
-        <div id="pn-add-plain-form" class="pn-add-form pn-hidden">
-          <div class="pn-form-header">
-            <button class="pn-back-btn" id="pn-plain-back" type="button">← Back</button>
-            <span class="pn-form-title">New Prompt</span>
-          </div>
-          <div id="pn-form-ai-status" class="pn-sv-api-hint pn-add-ai-status">
-            ○ AI unavailable — enable in Settings
-          </div>
-
-          <div class="pn-add-modal__section">
-            <label class="pn-field">
-              <span class="pn-field-head">
-                <span>Title</span>
-                <span id="pn-count-prompt-title" class="pn-field-counter">0/80</span>
-              </span>
-              <input
-                id="prompt-title"
-                type="text"
-                placeholder="Give it a name (e.g. My Study Helper)"
-                maxlength="80"
-              />
-            </label>
-            <p id="pn-error-title" class="pn-fill-error pn-hidden"></p>
-          </div>
-
-          <div class="pn-add-modal__section">
-            <label class="pn-field">
-              <span>Category</span>
-              <select id="prompt-category">
-                <option value="general">General</option>
-                <option value="writing">Writing</option>
-                <option value="coding">Coding</option>
-                <option value="study">Study</option>
-                <option value="research">Research</option>
-                <option value="creative">Creative</option>
-                <option value="work">Work</option>
-              </select>
-            </label>
-          </div>
-
-          <div class="pn-add-modal__section">
-            <label class="pn-field">
-              <span class="pn-field-head">
-                <span>Prompt Text</span>
-                <span id="pn-count-prompt-text" class="pn-field-counter">0</span>
-                <span id="pn-token-prompt-text" class="pn-token-count pn-hidden"></span>
-              </span>
-              <textarea
-                id="prompt-text"
-                rows="10"
-                placeholder="Type your prompt here..."
-              ></textarea>
-            </label>
-            <div id="pn-polish-wrap" class="pn-hidden">
-              <button id="pn-polish-btn" class="pn-btn pn-btn--ghost" type="button">
-                ✦ Polish
-              </button>
-              <button id="pn-polish-undo" class="pn-btn pn-btn--ghost pn-hidden" type="button">
-                Undo polish
-              </button>
-              <span id="pn-polish-error" class="pn-fill-error pn-hidden"></span>
-            </div>
-            <p id="pn-error-text" class="pn-fill-error pn-hidden"></p>
-          </div>
-
-          <div class="pn-add-modal__section">
-            <label class="pn-field">
-              <span>Tags</span>
-              <div class="pn-tag-badges" id="tag-badges-wrap">
-                <input
-                  id="prompt-tags-input"
-                  class="pn-tag-badges__input"
-                  type="text"
-                  placeholder="Tags (optional — e.g. study, writing)"
-                />
-              </div>
-              <input id="prompt-tags" type="hidden" />
-            </label>
-            <div id="pn-tag-suggestions" class="pn-tag-suggestions"></div>
-            <div id="pn-duplicate-warning" class="pn-duplicate-warning pn-hidden"></div>
-          </div>
-
-          <div class="pn-modal__actions pn-add-modal__actions">
-            <button id="cancel-modal" class="pn-btn pn-btn--ghost" type="button">Cancel</button>
-            <button id="confirm-duplicate" class="hidden pn-btn pn-btn--warn-ghost" type="button">
-              Save Anyway
-            </button>
-            <button id="save-new-prompt" class="pn-btn pn-btn--primary" type="button">
-              Save Prompt
-            </button>
-          </div>
-        </div>
-
-        <div id="pn-add-template-form" class="pn-add-form pn-hidden">
-          <div class="pn-form-header">
-            <button class="pn-back-btn" id="pn-template-back" type="button">← Back</button>
-            <span class="pn-form-title">New Template</span>
-          </div>
-          <div id="pn-template-ai-status" class="pn-sv-api-hint pn-add-ai-status">
-            ○ AI unavailable — enable in Settings
-          </div>
-
-          <label class="pn-field">
-            <span class="pn-field-head">
-              <span>Title</span>
-              <span id="pn-count-template-title" class="pn-field-counter">0/80</span>
-            </span>
-            <input
-              id="pn-template-title"
-              type="text"
-              placeholder="Give it a name (e.g. My Study Helper)"
-              maxlength="80"
-            />
-          </label>
-          <p id="pn-template-error-title" class="pn-fill-error pn-hidden"></p>
-
-          <div class="pn-add-modal__section" style="margin-top: 12px; margin-bottom: 12px">
-            <label class="pn-field">
-              <span>Category</span>
-              <select id="pn-template-category">
-                <option value="general">General</option>
-                <option value="writing">Writing</option>
-                <option value="coding">Coding</option>
-                <option value="study">Study</option>
-                <option value="research">Research</option>
-                <option value="creative">Creative</option>
-                <option value="work">Work</option>
-              </select>
-            </label>
-          </div>
-
-          <p class="pn-template-hint">
-            Use <strong>[brackets]</strong> for blanks, like <em>[topic]</em>. Add
-            <strong>?</strong> for optional blanks, like <em>[tone?]</em>.
-          </p>
-
-          <label class="pn-field">
-            <span class="pn-field-head">
-              <span>Template Text</span>
-              <span id="pn-count-template-text" class="pn-field-counter">0</span>
-              <span id="pn-token-template-text" class="pn-token-count pn-hidden"></span>
-            </span>
-            <div class="pn-textarea-wrap">
-              <textarea
-                id="pn-template-text"
-                class="pn-form-textarea"
-                rows="6"
-                placeholder="Type your prompt here..."
-              ></textarea>
-              <div class="pn-var-toolbar" id="pn-var-toolbar">
-                <span class="pn-var-toolbar-label">Add a blank:</span>
-                <button
-                  class="pn-var-btn"
-                  data-snippet="[label]"
-                  type="button"
-                  title="Required blank"
-                >
-                  [blank]
-                </button>
-                <button
-                  class="pn-var-btn"
-                  data-snippet="[label?]"
-                  type="button"
-                  title="Optional blank"
-                >
-                  [optional?]
-                </button>
-                <span class="pn-var-toolbar-divider"></span>
-                <span class="pn-var-toolbar-tip">Tap to insert at cursor</span>
-              </div>
-            </div>
-          </label>
-          <div id="pn-template-polish-wrap" class="pn-hidden">
-            <button id="pn-template-polish-btn" class="pn-btn pn-btn--ghost" type="button">
-              ✦ Polish
-            </button>
+      <div class="pn-modal__panel pn-builder-panel">
+        <!-- Toolbar -->
+        <header class="pn-builder-toolbar">
+          <div class="pn-builder-toolbar-left">
             <button
-              id="pn-template-polish-undo"
-              class="pn-btn pn-btn--ghost pn-hidden"
+              id="pn-builder-close"
+              class="pn-builder-close-btn"
+              type="button"
+              title="Close Workspace"
+            >
+              &times;
+            </button>
+            <span id="pn-builder-autosave-status" class="pn-autosave-status">
+              <span class="pn-status-dot pn-status-dot--saved"></span>
+              <span class="pn-status-text">Saved</span>
+            </span>
+          </div>
+          <div class="pn-builder-toolbar-right">
+            <button
+              id="pn-builder-save"
+              class="pn-btn pn-btn--primary pn-toolbar-action-btn"
               type="button"
             >
-              Undo polish
+              Save
             </button>
-            <span id="pn-template-polish-error" class="pn-fill-error pn-hidden"></span>
+            <div class="pn-builder-more-container">
+              <button
+                id="pn-builder-more-btn"
+                class="pn-btn pn-btn--ghost pn-icon-btn pn-toolbar-action-btn"
+                type="button"
+                title="More options"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <circle cx="12" cy="12" r="1"></circle>
+                  <circle cx="12" cy="5" r="1"></circle>
+                  <circle cx="12" cy="19" r="1"></circle>
+                </svg>
+              </button>
+              <div id="pn-builder-more-menu" class="pn-builder-more-menu pn-hidden">
+                <div class="pn-menu-section-header">Prompt Type</div>
+                <div class="pn-builder-mode-selector">
+                  <button id="pn-builder-mode-plain" class="pn-mode-btn active" type="button">
+                    Plain
+                  </button>
+                  <button id="pn-builder-mode-template" class="pn-mode-btn" type="button">
+                    Template
+                  </button>
+                </div>
+                <hr class="pn-menu-divider" />
+                <label class="pn-menu-checkbox-item">
+                  <input type="checkbox" id="prompt-favorite" />
+                  <span>Favorite</span>
+                </label>
+                <label class="pn-menu-checkbox-item">
+                  <input type="checkbox" id="prompt-pinned" />
+                  <span>Pin to Top</span>
+                </label>
+                <hr class="pn-menu-divider" />
+                <button id="pn-builder-standalone-btn" class="pn-menu-action-btn" type="button">
+                  Open Standalone
+                </button>
+                <button
+                  id="pn-builder-more-delete-btn"
+                  class="pn-menu-action-btn pn-menu-action-btn--danger"
+                  type="button"
+                >
+                  Delete Prompt
+                </button>
+              </div>
+            </div>
           </div>
-          <p id="pn-template-polish-warning" class="pn-fill-error pn-hidden">
-            AI may have altered your blanks — review before saving.
-          </p>
-          <p id="pn-template-error-text" class="pn-fill-error pn-hidden"></p>
+        </header>
 
-          <div class="pn-detected-vars" id="pn-detected-vars" aria-live="polite"></div>
+        <!-- Duplicate warning banner -->
+        <div
+          id="pn-builder-duplicate-banner"
+          class="pn-hidden"
+          style="
+            background: rgba(245, 158, 11, 0.12);
+            border-bottom: 1px solid rgba(245, 158, 11, 0.25);
+            padding: var(--space-2.5) var(--space-4);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-3);
+            font-size: var(--font-size-sm);
+            color: var(--color-text-primary);
+          "
+        ></div>
 
-          <label class="pn-field">
-            <span>Tags</span>
+        <!-- Main Workspace -->
+        <main class="pn-builder-container">
+          <!-- Inline Metadata -->
+          <div class="pn-inline-metadata">
+            <div
+              style="
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: var(--space-2);
+                width: 100%;
+              "
+            >
+              <input
+                id="prompt-title"
+                class="pn-inline-title-input"
+                type="text"
+                placeholder="Title"
+                maxlength="80"
+                autocomplete="off"
+              />
+              <button
+                id="pn-suggest-title-btn"
+                class="pn-btn pn-btn--ghost pn-hidden"
+                type="button"
+                style="
+                  padding: 2px 8px;
+                  font-size: var(--font-size-xs);
+                  height: 24px;
+                  min-height: 24px;
+                  white-space: nowrap;
+                  border: 1px solid var(--color-border-default);
+                "
+                title="Suggest Title based on content"
+              >
+                Suggest Title
+              </button>
+            </div>
             <input
-              id="pn-template-tags"
+              id="prompt-description"
+              class="pn-inline-description-input"
               type="text"
-              placeholder="Tags (optional — e.g. study, writing)"
+              placeholder="Add description..."
+              autocomplete="off"
             />
-          </label>
 
-          <div class="pn-modal__actions pn-add-modal__actions">
-            <button id="pn-template-cancel" class="pn-btn pn-btn--ghost" type="button">
-              Cancel
+            <div class="pn-inline-category-row">
+              <span class="pn-inline-label">Category</span>
+              <div class="pn-category-inline-select">
+                <select id="prompt-category" class="pn-inline-category-select">
+                  <option value="general">General</option>
+                  <option value="writing">Writing</option>
+                  <option value="coding">Coding</option>
+                  <option value="study">Study</option>
+                  <option value="research">Research</option>
+                  <option value="creative">Creative</option>
+                  <option value="work">Work</option>
+                </select>
+                <button id="pn-category-manage-btn" class="pn-btn-manage-cat-inline" type="button">
+                  Manage
+                </button>
+              </div>
+            </div>
+
+            <!-- Inline category management panel -->
+            <div id="pn-inline-categories-pane" class="pn-inline-categories-pane pn-hidden">
+              <div class="pn-category-manage-row">
+                <input
+                  id="pn-new-category-input"
+                  class="pn-dialog__input"
+                  type="text"
+                  placeholder="New Category Name"
+                  style="margin-bottom: 0"
+                />
+                <button
+                  id="pn-add-category-btn"
+                  class="pn-btn pn-btn--primary"
+                  type="button"
+                  style="padding: 6px 12px; height: 32px"
+                >
+                  Add
+                </button>
+              </div>
+              <div id="pn-manage-categories-list" style="margin-top: var(--space-2)"></div>
+            </div>
+
+            <div class="pn-inline-tags-row">
+              <div class="pn-inline-tags-wrap">
+                <span class="pn-inline-label">Tags</span>
+                <div class="pn-tag-badges" id="builder-tag-badges-wrap" style="flex: 1">
+                  <input
+                    id="prompt-tags-input"
+                    class="pn-tag-badges__input"
+                    type="text"
+                    placeholder="Add tag..."
+                    autocomplete="off"
+                  />
+                </div>
+                <input id="prompt-tags" type="hidden" />
+              </div>
+            </div>
+          </div>
+
+          <hr class="pn-inline-divider" />
+
+          <!-- Editor highlighting and writing area -->
+          <div class="pn-builder-editor-pane">
+            <div class="pn-editor-highlight-wrap">
+              <div id="pn-editor-backdrop" class="pn-editor-backdrop"></div>
+              <textarea
+                id="prompt-text"
+                class="pn-builder-textarea"
+                placeholder="Type your prompt here... Use {{variable_name}} to define blanks..."
+              ></textarea>
+            </div>
+          </div>
+
+          <!-- Bottom Collapsible Tabs container -->
+          <div class="pn-builder-tabs-container pn-collapsed">
+            <div class="pn-builder-tabs-header-bar">
+              <div class="pn-builder-tabs-header">
+                <button class="pn-builder-tab active" data-builder-tab="preview" type="button">
+                  Preview
+                </button>
+                <button class="pn-builder-tab" data-builder-tab="variables" type="button">
+                  Variables
+                </button>
+                <button
+                  id="pn-builder-tab-diagnostics"
+                  class="pn-builder-tab"
+                  data-builder-tab="diagnostics"
+                  type="button"
+                >
+                  Diagnostics (0)
+                </button>
+                <button class="pn-builder-tab" data-builder-tab="versions" type="button">
+                  Save History
+                </button>
+              </div>
+              <div
+                id="pn-editor-stat-info"
+                class="pn-editor-stats-bar"
+                style="display: flex; align-items: center; gap: var(--space-3)"
+              >
+                <span class="pn-stats-text">0 words • ~0 tokens • 0 variables</span>
+                <span
+                  id="pn-builder-health-score"
+                  class="pn-health-score-pill"
+                  style="
+                    font-weight: 600;
+                    padding: 2px 6px;
+                    border-radius: var(--radius-xs);
+                    background: rgba(16, 185, 129, 0.15);
+                    color: var(--color-success-soft);
+                  "
+                  >Health: 100/100</span
+                >
+              </div>
+            </div>
+
+            <div class="pn-builder-tab-panes">
+              <!-- Variables pane -->
+              <div class="pn-builder-tab-pane" data-builder-pane="variables">
+                <div id="pn-builder-vars-container" class="pn-vars-container"></div>
+              </div>
+
+              <!-- Diagnostics pane -->
+              <div class="pn-builder-tab-pane" data-builder-pane="diagnostics">
+                <div
+                  id="pn-builder-diagnostics-container"
+                  class="pn-diagnostics-container"
+                  style="display: flex; flex-direction: column; gap: var(--space-2)"
+                ></div>
+              </div>
+
+              <!-- Preview pane -->
+              <div class="pn-builder-tab-pane active" data-builder-pane="preview">
+                <div class="pn-preview-subtabs-row">
+                  <button class="pn-subtab active" data-subtab="rendered" type="button">
+                    Compiled Preview
+                  </button>
+                  <button class="pn-subtab" data-subtab="raw" type="button">Raw Preview</button>
+                </div>
+                <div id="pn-builder-preview-box" class="pn-preview-box"></div>
+                <div
+                  id="pn-builder-raw-box"
+                  class="pn-preview-box pn-hidden"
+                  style="white-space: pre-wrap; font-family: var(--font-mono)"
+                ></div>
+              </div>
+
+              <!-- Versions pane -->
+              <div class="pn-builder-tab-pane" data-builder-pane="versions">
+                <div id="pn-builder-versions-list"></div>
+                <div id="pn-builder-diff-container" class="pn-hidden">
+                  <div
+                    style="
+                      display: flex;
+                      justify-content: space-between;
+                      align-items: center;
+                      margin-bottom: 8px;
+                    "
+                  >
+                    <span style="font-weight: 600; font-size: var(--font-size-sm)"
+                      >Version Comparison</span
+                    >
+                    <button
+                      id="pn-close-diff-btn"
+                      class="pn-btn pn-btn--ghost"
+                      type="button"
+                      style="padding: 2px 8px; font-size: 11px"
+                    >
+                      Back
+                    </button>
+                  </div>
+                  <div
+                    id="pn-diff-box"
+                    class="pn-diff-box"
+                    style="
+                      white-space: pre-wrap;
+                      font-family: var(--font-mono);
+                      background: #111;
+                      padding: 8px;
+                      border-radius: 4px;
+                      max-height: 220px;
+                      overflow-y: auto;
+                    "
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+
+      <!-- Unsaved Changes dialog (rendered locally within add-modal context for easy overlays) -->
+      <div id="pn-unsaved-dialog" class="pn-dialog-overlay pn-hidden">
+        <div class="pn-dialog">
+          <h3 class="pn-dialog__title">Unsaved Changes</h3>
+          <p class="pn-dialog__message">
+            You have unsaved changes. Do you want to save them before leaving?
+          </p>
+          <div class="pn-dialog__actions">
+            <button id="pn-unsaved-save" class="pn-dialog__btn pn-btn--primary" type="button">
+              Save
             </button>
-            <button id="pn-template-save" class="pn-btn pn-btn--primary" type="button">
-              Save Template
+            <button id="pn-unsaved-discard" class="pn-dialog__btn pn-btn--warn-ghost" type="button">
+              Discard
+            </button>
+            <button id="pn-unsaved-continue" class="pn-dialog__btn pn-btn--ghost" type="button">
+              Keep Editing
             </button>
           </div>
         </div>
@@ -1535,573 +614,6 @@
     </div>
 
     <!-- Improve Prompt Diff Modal -->
-    <div
-      id="pn-improve-modal"
-      class="pn-modal pn-hidden"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="pn-improve-modal-title"
-    >
-      <div class="pn-modal__backdrop" data-close-improve></div>
-      <div
-        class="pn-modal__panel pn-improve-panel"
-        style="position: relative; max-width: 820px; width: calc(100vw - 32px)"
-      >
-        <!-- Info Overlay -->
-        <div
-          id="pn-improve-info-overlay"
-          class="pn-hidden"
-          style="
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(15, 23, 42, 0.98);
-            z-index: 100;
-            padding: 24px;
-            border-radius: var(--radius-md);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-          "
-        >
-          <h3 style="margin-top: 0; color: #fff; font-size: 18px; margin-bottom: 12px">
-            Prompt Refinement Workflow
-          </h3>
-          <div
-            style="
-              font-size: 13.5px;
-              line-height: 1.6;
-              color: var(--text-secondary);
-              margin-bottom: 20px;
-              text-align: left;
-            "
-          >
-            <p style="margin: 8px 0">
-              <strong>1. Fix (On-device)</strong><br />Corrects grammar, spelling, and local prompt
-              quality rules. Preserves original structure and makes small adjustments. Recommended
-              as the initial step.
-            </p>
-            <p style="margin: 8px 0">
-              <strong>2. Upgrade (On-device)</strong><br />Applies structured engineering templates
-              (CRISPE/RISEN) and configures skill-based roles offline. Moderately structures the
-              prompt.
-            </p>
-            <p style="margin: 8px 0">
-              <strong>3. Rewrite (AI Cloud)</strong><br />Uses the Gemini model to optimize the
-              prompt completely, using compiled structural guidelines and rules. Rewrites the prompt
-              significantly.
-            </p>
-            <p style="margin: 12px 0 4px; color: var(--text-primary)">
-              <strong>Recommended Flow</strong>: Fix first to clean rules -> Upgrade to structure
-              layout -> Rewrite if you need advanced AI polishing.
-            </p>
-          </div>
-          <button
-            id="pn-improve-info-ok"
-            class="pn-btn pn-btn--primary"
-            type="button"
-            style="align-self: flex-end"
-          >
-            Got It
-          </button>
-        </div>
-
-        <!-- Rewrite Transparency Overlay -->
-        <div
-          id="pn-improve-transparency-overlay"
-          class="pn-hidden"
-          style="
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(15, 23, 42, 0.98);
-            z-index: 100;
-            padding: 24px;
-            border-radius: var(--radius-md);
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-start;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            overflow-y: auto;
-          "
-        >
-          <h3
-            style="
-              margin-top: 0;
-              color: #fff;
-              font-size: 16px;
-              margin-bottom: 8px;
-              font-weight: 600;
-            "
-          >
-            Rewrite Transparency & Context Retrieval
-          </h3>
-          <p
-            style="
-              font-size: 12px;
-              line-height: 1.4;
-              color: var(--text-secondary);
-              margin-bottom: 12px;
-              margin-top: 0;
-            "
-          >
-            Below is the context retrieved and scored by the Context Retrieval Engine that will be
-            injected to guide the Gemini rewrite.
-          </p>
-
-          <!-- Budget Progress Indicator -->
-          <div
-            style="
-              margin-bottom: 12px;
-              padding: 8px;
-              background: rgba(255, 255, 255, 0.02);
-              border-radius: var(--radius-xs);
-              border: 1px solid rgba(255, 255, 255, 0.04);
-            "
-          >
-            <div
-              style="
-                display: flex;
-                justify-content: space-between;
-                font-size: 11px;
-                margin-bottom: 4px;
-              "
-            >
-              <span style="color: var(--text-secondary); font-weight: 500"
-                >Context Budget Allocation</span
-              >
-              <span style="color: var(--text-primary); font-weight: 600"
-                ><span id="pn-transparency-token-used">0</span> / 2500 tokens</span
-              >
-            </div>
-            <div
-              style="
-                width: 100%;
-                height: 6px;
-                background: rgba(255, 255, 255, 0.08);
-                border-radius: 3px;
-                overflow: hidden;
-              "
-            >
-              <div
-                id="pn-transparency-token-bar"
-                style="
-                  width: 0%;
-                  height: 100%;
-                  background: var(--color-primary, #38bdf8);
-                  transition: width 0.3s ease;
-                "
-              ></div>
-            </div>
-            <div
-              id="pn-transparency-budget-status"
-              style="font-size: 10px; color: var(--text-muted); margin-top: 4px; display: none"
-            >
-              ⚠️ Some items were dropped or truncated to fit the token budget limit.
-            </div>
-          </div>
-
-          <!-- Retrieved items container -->
-          <div
-            id="pn-transparency-items-list"
-            style="
-              flex: 1;
-              overflow-y: auto;
-              display: flex;
-              flex-direction: column;
-              gap: 8px;
-              margin-bottom: 16px;
-              padding-right: 4px;
-              min-height: 180px;
-            "
-          >
-            <!-- Items dynamically injected here -->
-          </div>
-          <div style="display: flex; gap: 8px; margin-bottom: 12px">
-            <select id="pn-transparency-add-context" style="flex: 1; min-width: 0"></select>
-            <button id="pn-transparency-add-context-btn" class="pn-btn pn-btn--ghost" type="button">
-              Add context
-            </button>
-          </div>
-
-          <div
-            style="
-              display: flex;
-              gap: 10px;
-              align-self: flex-end;
-              width: 100%;
-              justify-content: flex-end;
-              margin-top: auto;
-              border-top: 1px solid rgba(255, 255, 255, 0.06);
-              padding-top: 12px;
-            "
-          >
-            <button
-              id="pn-improve-transparency-cancel"
-              class="pn-btn pn-btn--ghost"
-              type="button"
-              style="font-size: 12px"
-            >
-              Cancel
-            </button>
-            <button
-              id="pn-improve-transparency-confirm"
-              class="pn-btn pn-btn--primary"
-              type="button"
-              style="font-size: 12px"
-            >
-              Proceed with Rewrite
-            </button>
-          </div>
-        </div>
-
-        <!-- Header -->
-        <div
-          class="pn-improve-header"
-          style="
-            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-            padding-bottom: 12px;
-            margin-bottom: 16px;
-          "
-        >
-          <div style="display: flex; align-items: center; gap: 8px">
-            <h2
-              id="pn-improve-modal-title"
-              class="pn-modal__title"
-              style="margin: 0; font-size: 16px"
-            >
-              Prompt Refinement Workspace
-            </h2>
-            <span
-              id="pn-improve-health-badge"
-              class="pn-health-badge"
-              style="
-                font-size: 11px;
-                padding: 2px 8px;
-                border-radius: 12px;
-                font-weight: 600;
-                text-transform: uppercase;
-                letter-spacing: 0.05em;
-              "
-            ></span>
-          </div>
-          <button
-            id="pn-improve-info-btn"
-            class="pn-btn pn-btn--ghost pn-icon-btn"
-            type="button"
-            title="Workflow Guidelines"
-            style="padding: 4px; display: inline-flex; align-items: center; justify-content: center"
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="12" y1="16" x2="12" y2="12"></line>
-              <line x1="12" y1="8" x2="12.01" y2="8"></line>
-            </svg>
-          </button>
-        </div>
-
-        <!-- Split Grid Workspace -->
-        <div
-          class="pn-workspace-grid"
-          style="
-            display: grid;
-            grid-template-columns: 240px 1fr 240px;
-            gap: 20px;
-            min-height: 380px;
-            max-height: 480px;
-            overflow: hidden;
-          "
-        >
-          <!-- Left Column: Insights & Recommendations -->
-          <div
-            style="
-              display: flex;
-              flex-direction: column;
-              gap: 16px;
-              overflow-y: auto;
-              padding-right: 8px;
-              border-right: 1px solid rgba(255, 255, 255, 0.06);
-            "
-          >
-            <!-- Quality Summary -->
-            <div
-              style="
-                background: rgba(255, 255, 255, 0.02);
-                border: 1px solid rgba(255, 255, 255, 0.04);
-                border-radius: var(--radius-sm);
-                padding: 12px;
-              "
-            >
-              <h4
-                style="
-                  margin: 0 0 8px;
-                  font-size: 12px;
-                  text-transform: uppercase;
-                  color: var(--text-muted);
-                  letter-spacing: 0.05em;
-                "
-              >
-                Prompt Insights
-              </h4>
-              <div style="display: flex; flex-direction: column; gap: 8px">
-                <div>
-                  <div
-                    style="font-size: 11px; font-weight: 600; color: #4ade80; margin-bottom: 2px"
-                  >
-                    Strengths
-                  </div>
-                  <ul
-                    id="pn-improve-strengths-list"
-                    style="
-                      margin: 0;
-                      padding-left: 14px;
-                      font-size: 12px;
-                      color: var(--text-secondary);
-                      line-height: 1.4;
-                    "
-                  ></ul>
-                </div>
-                <div style="margin-top: 4px">
-                  <div
-                    style="font-size: 11px; font-weight: 600; color: #fca5a5; margin-bottom: 2px"
-                  >
-                    Needs Improvement
-                  </div>
-                  <ul
-                    id="pn-improve-weaknesses-list"
-                    style="
-                      margin: 0;
-                      padding-left: 14px;
-                      font-size: 12px;
-                      color: var(--text-secondary);
-                      line-height: 1.4;
-                    "
-                  ></ul>
-                </div>
-              </div>
-            </div>
-
-            <!-- Recommendation Deck -->
-            <div>
-              <h4
-                style="
-                  margin: 0 0 8px;
-                  font-size: 12px;
-                  text-transform: uppercase;
-                  color: var(--text-muted);
-                  letter-spacing: 0.05em;
-                "
-              >
-                Smart Recommendations
-              </h4>
-              <div
-                id="pn-improve-recommendation-deck"
-                style="display: flex; flex-direction: column; gap: 10px"
-              ></div>
-            </div>
-          </div>
-
-          <!-- Middle Column: Before / After Split -->
-          <div
-            style="
-              display: flex;
-              flex-direction: column;
-              gap: 12px;
-              overflow-y: auto;
-              position: relative;
-            "
-          >
-            <!-- Before Box -->
-            <div style="display: flex; flex-direction: column; gap: 4px">
-              <div
-                style="
-                  font-size: 11px;
-                  text-transform: uppercase;
-                  color: var(--text-muted);
-                  letter-spacing: 0.05em;
-                  font-weight: 600;
-                "
-              >
-                Original Prompt
-              </div>
-              <div
-                id="pn-improve-original-preview"
-                style="
-                  background: rgba(255, 255, 255, 0.01);
-                  border: 1px solid rgba(255, 255, 255, 0.04);
-                  border-radius: var(--radius-sm);
-                  padding: 10px;
-                  color: var(--text-secondary);
-                  font-size: 13px;
-                  line-height: 1.5;
-                  max-height: 120px;
-                  overflow-y: auto;
-                  white-space: pre-wrap;
-                  font-family: var(--font-mono);
-                "
-              ></div>
-            </div>
-
-            <!-- After Box -->
-            <div
-              style="display: flex; flex-direction: column; gap: 4px; flex: 1; position: relative"
-            >
-              <div
-                style="
-                  font-size: 11px;
-                  text-transform: uppercase;
-                  color: var(--text-muted);
-                  letter-spacing: 0.05em;
-                  font-weight: 600;
-                "
-              >
-                Refined Prompt
-              </div>
-              <div style="position: relative; flex: 1; display: flex; flex-direction: column">
-                <textarea
-                  id="pn-improve-text-area"
-                  style="
-                    flex: 1;
-                    min-height: 180px;
-                    width: 100%;
-                    background: rgba(0, 0, 0, 0.25);
-                    border: 1px solid rgba(255, 255, 255, 0.08);
-                    color: #fff;
-                    padding: 10px;
-                    border-radius: var(--radius-sm);
-                    font-family: var(--font-mono);
-                    font-size: 13px;
-                    line-height: 1.5;
-                    resize: none;
-                  "
-                ></textarea>
-                <!-- Floating Add Note Button -->
-                <button
-                  id="pn-floating-add-note"
-                  class="pn-btn pn-btn--primary pn-hidden"
-                  type="button"
-                  style="
-                    position: absolute;
-                    bottom: 12px;
-                    right: 12px;
-                    font-size: 11px;
-                    padding: 4px 8px;
-                    height: 26px;
-                    z-index: 50;
-                    display: flex;
-                    align-items: center;
-                    gap: 4px;
-                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
-                  "
-                >
-                  <span>+</span> Add Note
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Right Column: Refinement Notes Sidebar -->
-          <div
-            style="
-              display: flex;
-              flex-direction: column;
-              gap: 16px;
-              overflow-y: auto;
-              padding-left: 8px;
-              border-left: 1px solid rgba(255, 255, 255, 0.06);
-            "
-          >
-            <div>
-              <h4
-                style="
-                  margin: 0 0 4px;
-                  font-size: 12px;
-                  text-transform: uppercase;
-                  color: var(--text-muted);
-                  letter-spacing: 0.05em;
-                "
-              >
-                Refinement Notes
-              </h4>
-              <p style="margin: 0 0 10px; font-size: 11px; color: var(--text-muted)">
-                Annotate segments to guide Rewrite engine.
-              </p>
-              <div
-                id="pn-notes-sidebar-list"
-                style="display: flex; flex-direction: column; gap: 8px"
-              ></div>
-            </div>
-          </div>
-        </div>
-
-        <div
-          id="pn-improve-loading"
-          class="pn-improve-loading pn-hidden"
-          style="text-align: center; margin-bottom: 12px; padding: 8px 0"
-        >
-          <p class="pn-improve-loading-text">Optimizing with Gemini...</p>
-        </div>
-
-        <div id="pn-improve-error" class="pn-improve-error pn-hidden">
-          <p id="pn-improve-error-msg">Error running action.</p>
-        </div>
-
-        <!-- Action Buttons -->
-        <div
-          class="pn-improve-actions"
-          style="
-            margin-top: 16px;
-            border-top: 1px solid rgba(255, 255, 255, 0.06);
-            padding-top: 12px;
-          "
-        >
-          <button id="pn-improve-close" class="pn-btn pn-btn--ghost" type="button">Cancel</button>
-          <div style="display: flex; gap: 8px; margin-left: auto">
-            <button
-              id="pn-improve-btn-fix"
-              class="pn-btn pn-btn--ghost"
-              type="button"
-              style="color: #60a5fa; border-color: rgba(96, 165, 250, 0.3)"
-            >
-              Fix
-            </button>
-            <button
-              id="pn-improve-btn-upgrade"
-              class="pn-btn pn-btn--ghost"
-              type="button"
-              style="color: #fbbf24; border-color: rgba(251, 191, 36, 0.3)"
-            >
-              Upgrade
-            </button>
-            <button
-              id="pn-improve-btn-rewrite"
-              class="pn-btn pn-btn--ghost"
-              type="button"
-              style="color: #c084fc; border-color: rgba(192, 132, 252, 0.3)"
-            >
-              Rewrite
-            </button>
-            <button id="pn-improve-accept" class="pn-btn pn-btn--primary" type="button">
-              Apply
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <script type="module" src="./index.ts"></script>
   </body>

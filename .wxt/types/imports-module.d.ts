@@ -17,14 +17,4 @@ declare module '#imports' {
   export { injectScript, ScriptPublicPath, InjectScriptOptions } from 'wxt/utils/inject-script';
   export { InvalidMatchPattern, MatchPattern } from 'wxt/utils/match-patterns';
   export { fakeBrowser } from 'wxt/testing';
-  export { AIBridge } from '../src/utils/ai-bridge';
-  export { commandPalette, createBuiltinCommands, Command } from '../src/utils/command-palette';
-  export { byId, assertElement } from '../src/utils/dom-safe';
-  export { keyboardManager, createBuiltinShortcuts, KeyboardShortcut } from '../src/utils/keyboard-shortcuts';
-  export { PROVIDER_IDS, MODEL_REGISTRY, getGeminiModels, getGeminiDefaultModel, getGeminiModelById } from '../src/utils/model-registry';
-  export { alert, confirm, prompt, PnDialog } from '../src/utils/pn-dialog';
-  export { recentsAndFavorites, UsageRecord } from '../src/utils/recents-favorites';
-  export { searchRanker, SearchableItem, RankedResult } from '../src/utils/search-ranker';
-  export { TERMINOLOGY } from '../src/utils/terminology';
-  export { toast, Toast } from '../src/utils/toast';
 }

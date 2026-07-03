@@ -92,4 +92,46 @@ export class CopilotAdapter implements PlatformAdapter {
     if (typeof document === 'undefined') return null;
     return document.querySelector<HTMLElement>(SELECTORS.input);
   }
+
+  isComposerFocused(): boolean {
+    const composer = this.getComposerElement();
+    return composer !== null && document.activeElement === composer;
+  }
+
+  getComposerText(): string {
+    const composer = this.getComposerElement();
+    if (!composer) return '';
+    if (composer instanceof HTMLTextAreaElement || composer instanceof HTMLInputElement) {
+      return composer.value;
+    }
+    return composer.textContent || '';
+  }
+
+  async setComposerText(text: string): Promise<void> {
+    const composer = this.getComposerElement();
+    if (!composer) return;
+    if (composer instanceof HTMLTextAreaElement || composer instanceof HTMLInputElement) {
+      composer.value = text;
+      composer.dispatchEvent(new Event('input', { bubbles: true }));
+    } else {
+      composer.textContent = text;
+      composer.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  }
+
+  getSelection(): string {
+    return this.getSelectedText();
+  }
+
+  isAssistantMessage(node: HTMLElement): boolean {
+    return node.matches(SELECTORS.botMsg) || node.closest(SELECTORS.botMsg) !== null;
+  }
+
+  isUserMessage(node: HTMLElement): boolean {
+    return node.matches(SELECTORS.userMsg) || node.closest(SELECTORS.userMsg) !== null;
+  }
+
+  supportsSelection(): boolean {
+    return true;
+  }
 }

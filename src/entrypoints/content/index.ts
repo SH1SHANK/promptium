@@ -1,30 +1,25 @@
-// Content script entry point for Promptium WXT migration
-import '../../utils/constants';
-import '../../utils/dom-helpers';
-import '../../utils/tags';
-import '../../platforms/index';
-import '../../stores/prompt-store';
-import '../../stores/settings-store';
-import '../../features/clippings/store';
-import '../../lib/variables';
-import '../../utils/smart-name';
-import '../../utils/bridge';
-import '../../utils/continuation';
-import '../../utils/templates';
+/// <reference path="../../shared/types/window.d.ts" />
+// Content script entry point — Promptium
+import '../../shared/utils/constants';
+import '../../shared/utils/dom-helpers';
+import '../../platform/index';
+import '../../prompt/storage/storage';
+import '../../shared/storage/settings-store';
+import '../../prompt/variables/index';
+import '../../shared/utils/prompt-parser';
 import '../../content/scraper';
 import '../../content/injector';
-import '../../content/clippings';
-import '../../content/suggestions';
-import '../../content/content';
 
-import '../../features/fab/fab.css';
+import '../../prompt/fab/fab.css';
 import './toolbar.css';
-import { fabManager } from '../../features/fab';
+import { fabManager } from '../../prompt/fab/fab';
+import { init } from '../../content/controller';
 
 export default defineContentScript({
   matches: ['<all_urls>'],
   runAt: 'document_idle',
   main() {
     fabManager.initialize();
+    void init();
   },
 });

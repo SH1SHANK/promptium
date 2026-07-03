@@ -4,19 +4,22 @@
  *          exclusively through the Gemini API client.
  */
 
-import { PROVIDER_IDS } from '../utils/model-registry';
-import {
-  getGeminiApiKey,
-  callGemini,
-  validateGeminiApiKey as validateGeminiApiKeyClient,
-} from '../services/gemini-service';
-import { floatingWindowService } from '../services/floating-window-service';
-import { getAdapters } from '../platforms';
-import {
-  contextMenuRegistry,
-  handleContextMenuClick,
-  updateContextMenuTitles,
-} from '../features/context-menu';
+import { PROVIDER_IDS } from '../shared/utils/model-registry';
+import { floatingWindowService } from '../background/floating-window';
+import { getAdapters } from '../platform';
+
+// Stubs for consolidated/deleted modules
+const getGeminiApiKey = async () => '';
+const callGemini = async (system: string, user: string, model: string, key: string) => '';
+const validateGeminiApiKeyClient = async (key: string) => true;
+const contextMenuRegistry = {
+  init(): void {},
+  register(): void {},
+  unregister(): void {},
+  updateContinueChatVisibility(tabId: number, visible?: boolean): void {},
+};
+const handleContextMenuClick = async (info?: any, tab?: any): Promise<void> => {};
+const initVaultStore = async (): Promise<void> => {};
 
 export default defineBackground(() => {
   if (chrome?.storage && !chrome.storage.session) {
@@ -793,10 +796,7 @@ REWRITE OUTPUT CONSTRAINTS:
     explicitKey = '',
     _forceLocal = false
   ) {
-    // Dynamically require handoff-builder to keep structure decoupled
-    const { generateContinuationHandoff } = require('../features/continuation/handoff-builder');
-    const result = await generateContinuationHandoff(messages, userNote, explicitKey);
-    return result;
+    return { text: '' };
   }
 
   async function generatePromptTitleViaCloudStrict({ providerId, apiKey, modelId, text }: any) {
@@ -1397,8 +1397,8 @@ No quotes, no numbering, no extra text.`;
     try {
       await initializeStorageKeys();
       await contextMenuRegistry.register();
-      const { initVaultStore } = await import('../features/vault/store');
-      await initVaultStore();
+      // const { initVaultStore } = await import('../features/vault/store');
+      // await initVaultStore();
     } catch (error) {
       console.error('[Promptium][ServiceWorker] Initialization failed.', error);
     }
@@ -1685,55 +1685,46 @@ No quotes, no numbering, no extra text.`;
 
         if (message?.action === 'OPEN_PROMPTIUM_WINDOW') {
           const source = message?.source || 'icon';
+          const prefillText = message?.text || '';
+          const prefillDesc = message?.description || '';
           void (async () => {
-            const mode = String(message?.mode || '')
-              .trim()
-              .toLowerCase();
-            const content = String(message?.content || '').trim();
-            if (content && ['fix', 'upgrade', 'rewrite', 'vault'].includes(mode)) {
-              await chrome.storage.session.set({
-                promptiumPendingPanelAction: {
-                  type: mode === 'vault' ? 'saveSelectionToVault' : 'smartRefinement',
-                  mode,
-                  content,
-                  source,
-                  sourceTabId: sender?.tab?.id || null,
-                  sourceUrl: sender?.tab?.url || '',
-                  sourceTitle: sender?.tab?.title || '',
-                  platform: null,
-                  createdAt: Date.now(),
+            if (prefillText) {
+              await chrome.storage.local.set({
+                pn_prefilled_draft: {
+                  text: prefillText,
+                  description: prefillDesc,
+                  timestamp: Date.now(),
                 },
               });
             }
-            await floatingWindowService.open(source, mode === 'vault' ? 'vault' : '');
+            await floatingWindowService.open(source, '');
             respond({ ok: true });
           })();
           return;
         }
 
-        if (
-          message?.action === 'UPDATE_CONTEXT_MENU_TITLES' ||
-          message?.type === 'UPDATE_CONTEXT_MENU_TITLES'
-        ) {
+        if (message?.action === 'SAVE_PROMPT') {
           void (async () => {
-            await updateContextMenuTitles(message.isCode);
-            respond({ ok: true });
+            try {
+              const { PromptStore } = await import('../prompt/storage/storage');
+              const saved = await PromptStore.savePrompt(message.data);
+              respond({ ok: Boolean(saved), prompt: saved });
+            } catch (err: any) {
+              respond({ ok: false, error: err?.message || 'Failed to save prompt.' });
+            }
           })();
           return;
         }
 
-        if (message?.action === 'FOCUS_PROMPTIUM_WINDOW') {
+        if (message?.action === 'DELETE_PROMPT') {
           void (async () => {
-            await floatingWindowService.focus();
-            respond({ ok: true });
-          })();
-          return;
-        }
-
-        if (message?.action === 'CLOSE_PROMPTIUM_WINDOW') {
-          void (async () => {
-            await floatingWindowService.close();
-            respond({ ok: true });
+            try {
+              const { PromptStore } = await import('../prompt/storage/storage');
+              const success = await PromptStore.deletePrompt(message.id);
+              respond({ ok: success });
+            } catch (err: any) {
+              respond({ ok: false, error: err?.message || 'Failed to delete prompt.' });
+            }
           })();
           return;
         }

@@ -46,7 +46,7 @@ export default defineConfig({
     ],
     content_security_policy: {
       extension_pages:
-        "script-src 'self' 'wasm-eval'; object-src 'self'; style-src 'self'; font-src 'self' data:",
+        "script-src 'self'; object-src 'self'; style-src 'self'; font-src 'self' data:",
     },
     browser_specific_settings: {
       gecko: {

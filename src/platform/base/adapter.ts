@@ -29,4 +29,12 @@ export interface PlatformAdapter {
   getMessageElements(): Promise<MessageElement[]>;
 
   getComposerElement(): HTMLElement | null;
+
+  isComposerFocused(): boolean;
+  getComposerText(): string;
+  setComposerText(text: string): Promise<void>;
+  getSelection(): string;
+  isAssistantMessage(node: HTMLElement): boolean;
+  isUserMessage(node: HTMLElement): boolean;
+  supportsSelection(): boolean;
 }
