@@ -4,7 +4,10 @@ import { PromptStore } from '../storage/storage';
 import { PromptVersionStore, PromptVersion } from '../versions/versions';
 import { VariablesManager } from '../variables/variables';
 import { PromptDiagnostics } from '../diagnostics/diagnostics';
-import { SimilarityEngine } from '../../shared/utils/similarity';
+import { SimilarityEngine } from '../search/similarity';
+import { BuilderDOM } from './builder-dom';
+import { BuilderActions } from './builder-actions';
+import { PnDialog } from '../shared/dialog';
 
 let activePromptId: string | null = null;
 let activeMode: 'plain' | 'template' = 'plain';
@@ -69,14 +72,14 @@ const renderLineDiff = (oldText: string, newText: string): string => {
 
     if (oldLine === newLine) {
       if (oldLine !== undefined) {
-        html += `<div class="pn-diff-line pn-diff-line--unchanged">  ${escapeHtml(oldLine)}</div>`;
+        html += `<div class="diff-line diff-line--unchanged">  ${escapeHtml(oldLine)}</div>`;
       }
     } else {
       if (oldLine !== undefined) {
-        html += `<div class="pn-diff-line pn-diff-line--removed">- ${escapeHtml(oldLine)}</div>`;
+        html += `<div class="diff-line diff-line--removed">- ${escapeHtml(oldLine)}</div>`;
       }
       if (newLine !== undefined) {
-        html += `<div class="pn-diff-line pn-diff-line--added">+ ${escapeHtml(newLine)}</div>`;
+        html += `<div class="diff-line diff-line--added">+ ${escapeHtml(newLine)}</div>`;
       }
     }
   }
@@ -92,6 +95,25 @@ const GENERIC_TITLES = new Set([
   'new template',
   'untitled template',
 ]);
+
+let cleanContentHash = '';
+
+const getContentHash = (): string => {
+  const title = BuilderDOM.titleInput?.value || '';
+  const description = BuilderDOM.descInput?.value || '';
+  const category = BuilderDOM.categorySelect?.value || 'general';
+  const text = BuilderDOM.textarea?.value || '';
+  const favorite = BuilderDOM.favoriteInput?.checked ? '1' : '0';
+  const pinned = BuilderDOM.pinnedInput?.checked ? '1' : '0';
+  const tags = BuilderDOM.tagsHidden?.value || '';
+  return `${title}::${description}::${category}::${favorite}::${pinned}::${tags}::${text}`;
+};
+
+const checkDirtyState = (): boolean => {
+  const currentHash = getContentHash();
+  isDirty = currentHash !== cleanContentHash;
+  return isDirty;
+};
 
 export const PromptForm = {
   diagnosticsFrameId: null as number | null,
@@ -112,10 +134,10 @@ export const PromptForm = {
   },
 
   runDiagnostics(): void {
-    const textEl = document.getElementById('prompt-text') as HTMLTextAreaElement;
-    const titleEl = document.getElementById('prompt-title') as HTMLInputElement;
-    const descEl = document.getElementById('prompt-description') as HTMLInputElement;
-    const tagsHidden = document.getElementById('prompt-tags') as HTMLInputElement;
+    const textEl = BuilderDOM.textarea;
+    const titleEl = BuilderDOM.titleInput;
+    const descEl = BuilderDOM.descInput;
+    const tagsHidden = BuilderDOM.tagsHidden;
 
     if (!textEl || !titleEl) return;
 
@@ -127,7 +149,7 @@ export const PromptForm = {
     const result = PromptDiagnostics.run(title, text, tags, description, activeVariablesConfig);
 
     // 1. Update Diagnostics Tab button count text
-    const tabBtn = document.getElementById('pn-builder-tab-diagnostics');
+    const tabBtn = BuilderDOM.tabDiagnostics;
     if (tabBtn) {
       tabBtn.textContent = `Diagnostics (${result.issues.length})`;
       if (result.issues.some((issue: any) => issue.severity === 'error')) {
@@ -140,14 +162,14 @@ export const PromptForm = {
     }
 
     // 2. Render issues inside diagnostics container pane
-    const container = document.getElementById('pn-builder-diagnostics-container');
+    const container = BuilderDOM.diagnostics;
     if (container) {
       container.innerHTML = '';
       if (result.issues.length === 0) {
         container.innerHTML = `
-          <div class="pn-empty-state" style="border: 1px dashed var(--color-border-default); padding: var(--space-4); text-align: center; border-radius: var(--radius-md); width: 100%; box-sizing: border-box;">
-            <p class="pn-empty-state__title" style="margin: 0; font-size: var(--font-size-md); color: var(--color-success-soft); font-weight: 600;">✓ All checks passed</p>
-            <p class="pn-empty-state__message" style="margin: var(--space-1) 0 0 0; font-size: var(--font-size-sm); color: var(--color-text-secondary);">Your prompt meets all quality and styling guidelines.</p>
+          <div class="empty-state" style="border: 1px dashed var(--color-border-default); padding: var(--space-4); text-align: center; border-radius: var(--radius-md); width: 100%; box-sizing: border-box;">
+            <p class="empty-state__title" style="margin: 0; font-size: var(--font-size-md); color: var(--color-success-soft); font-weight: 600;">✓ All checks passed</p>
+            <p class="empty-state__message" style="margin: var(--space-1) 0 0 0; font-size: var(--font-size-sm); color: var(--color-text-secondary);">Your prompt meets all quality and styling guidelines.</p>
           </div>
         `;
       } else {
@@ -182,7 +204,7 @@ export const PromptForm = {
     }
 
     // 3. Update Health Score Pill
-    const healthEl = document.getElementById('pn-builder-health-score');
+    const healthEl = BuilderDOM.healthScore;
     if (healthEl) {
       healthEl.textContent = `Health: ${result.score}/100`;
       if (result.score >= 80) {
@@ -198,31 +220,47 @@ export const PromptForm = {
     }
 
     // 4. Suggest Title Button Toggle
-    const suggestBtn = document.getElementById('pn-suggest-title-btn');
+    const suggestBtn = BuilderDOM.suggestTitleBtn;
     if (suggestBtn) {
       const cleanTitle = title.trim().toLowerCase();
       const isGeneric = !cleanTitle || GENERIC_TITLES.has(cleanTitle);
       if (isGeneric && text.trim().length > 5) {
-        suggestBtn.classList.remove('pn-hidden');
+        suggestBtn.classList.remove('hidden');
       } else {
-        suggestBtn.classList.add('pn-hidden');
+        suggestBtn.classList.add('hidden');
       }
     }
   },
 
   async open(
-    options: { id?: string; mode?: 'plain' | 'template'; text?: string; description?: string } = {}
+    options: {
+      id?: string;
+      mode?: 'plain' | 'template';
+      text?: string;
+      description?: string;
+      prompt?: Prompt;
+    } = {}
   ): Promise<void> {
-    const modal = document.getElementById('add-modal');
+    const modal = BuilderDOM.promptBuilder;
     if (!modal) return;
 
-    modal.classList.remove('pn-hidden');
-    document.body.classList.add('pn-modal-open');
+    if (
+      activePromptId &&
+      activePromptId === (options.prompt?.id || options.id) &&
+      !modal.classList.contains('hidden')
+    ) {
+      const textEl = BuilderDOM.textarea;
+      textEl?.focus();
+      return;
+    }
 
-    // Reset Form elements
-    activePromptId = options.id || null;
-    activeMode = options.mode || 'plain';
-    activeVariablesConfig = [];
+    modal.classList.remove('hidden');
+    document.body.classList.add('modal-open');
+
+    const prompt = options.prompt || null;
+    activePromptId = prompt ? prompt.id : options.id || null;
+    activeMode = prompt ? (prompt.isTemplate ? 'template' : 'plain') : options.mode || 'plain';
+    activeVariablesConfig = prompt ? prompt.variables || [] : [];
     playgroundValues = {};
     isDirty = false;
     lastSavedTime = 0;
@@ -230,52 +268,77 @@ export const PromptForm = {
     if (autosaveTimer) clearTimeout(autosaveTimer);
     if (saveStatusInterval) clearInterval(saveStatusInterval);
 
-    const textEl = document.getElementById('prompt-text') as HTMLTextAreaElement;
-    const titleEl = document.getElementById('prompt-title') as HTMLInputElement;
-    const descEl = document.getElementById('prompt-description') as HTMLInputElement;
-    const catEl = document.getElementById('prompt-category') as HTMLSelectElement;
-    const tagsInput = document.getElementById('prompt-tags-input') as HTMLInputElement;
-    const favEl = document.getElementById('prompt-favorite') as HTMLInputElement;
-    const pinEl = document.getElementById('prompt-pinned') as HTMLInputElement;
+    const textEl = BuilderDOM.textarea;
+    const titleEl = BuilderDOM.titleInput;
+    const descEl = BuilderDOM.descInput;
+    const catEl = BuilderDOM.categorySelect;
+    const tagsInput = BuilderDOM.tagsInput;
+    const favEl = BuilderDOM.favoriteInput;
+    const pinEl = BuilderDOM.pinnedInput;
+    const tagsHidden = BuilderDOM.tagsHidden;
 
-    if (textEl) textEl.value = options.text || '';
-    if (titleEl) titleEl.value = '';
-    if (descEl) descEl.value = options.description || '';
-    if (catEl) catEl.value = 'general';
+    if (textEl) textEl.value = prompt ? prompt.text || '' : options.text || '';
+    if (titleEl) titleEl.value = prompt ? prompt.title || '' : '';
+    if (descEl) descEl.value = prompt ? prompt.description || '' : options.description || '';
+    if (catEl) catEl.value = prompt ? prompt.category || 'general' : 'general';
     if (tagsInput) tagsInput.value = '';
-    if (favEl) favEl.checked = false;
-    if (pinEl) pinEl.checked = false;
+    if (tagsHidden) tagsHidden.value = prompt ? (prompt.tags || []).join(',') : '';
 
-    // Reset tags hidden list
-    const tagsHidden = document.getElementById('prompt-tags') as HTMLInputElement;
-    if (tagsHidden) tagsHidden.value = '';
-    const badgesWrap = document.getElementById('builder-tag-badges-wrap');
+    const badgesWrap = BuilderDOM.tagsContainer;
     if (badgesWrap) {
-      badgesWrap.querySelectorAll('.pn-tag-badge').forEach((b) => b.remove());
+      badgesWrap.querySelectorAll('.tag-badge').forEach((b) => b.remove());
+      const initialTags = prompt ? prompt.tags || [] : [];
+      initialTags.forEach((tag: string) => {
+        const badge = document.createElement('span');
+        badge.className = 'tag-badge';
+        badge.innerHTML = `${escapeHtml(tag)}<span class="tag-badge-close">&times;</span>`;
+        badge.querySelector('.tag-badge-close')?.addEventListener('click', () => {
+          badge.remove();
+          this.syncTagsInput();
+        });
+        badgesWrap.insertBefore(badge, tagsInput);
+      });
     }
 
-    // Toggle active mode buttons styling
     this.updateModeButtons();
-
-    // Load categories list
     await this.loadCategoriesList();
 
-    // Save active session draft key in local storage for crash/reload recovery
-    await chrome.storage.local.set({ active_draft_session_id: activePromptId || 'new' });
+    const sessionKey = activePromptId
+      ? `active_draft_session_${activePromptId}`
+      : 'active_draft_session_new';
+    await chrome.storage.local.set({ active_draft_session_id: sessionKey });
 
-    // Check for prefilled draft from FAB first!
+    let hasDraft = false;
     const prefilledSnap = await chrome.storage.local.get(['pn_prefilled_draft']);
     if (prefilledSnap && prefilledSnap.pn_prefilled_draft) {
       const draft = prefilledSnap.pn_prefilled_draft as any;
       await chrome.storage.local.remove(['pn_prefilled_draft']);
       if (textEl) textEl.value = draft.text || '';
-      if (descEl) descEl.value = draft.description || '';
+
+      const mode = draft.mode;
+      if (mode === 'fix') {
+        if (titleEl) titleEl.value = 'Fix Snippet';
+        if (descEl) descEl.value = draft.description || 'Fix grammar and clarity';
+        if (catEl) catEl.value = 'writing';
+      } else if (mode === 'upgrade') {
+        if (titleEl) titleEl.value = 'Upgrade Snippet';
+        if (descEl) descEl.value = draft.description || 'Upgrade prompt intelligence';
+        if (catEl) catEl.value = 'creative';
+      } else if (mode === 'rewrite') {
+        if (titleEl) titleEl.value = 'Rewrite Snippet';
+        if (descEl) descEl.value = draft.description || 'Rewrite text';
+        if (catEl) catEl.value = 'writing';
+      } else {
+        if (titleEl) titleEl.value = '';
+        if (descEl) descEl.value = draft.description || '';
+      }
+
       isDirty = true;
       lastSavedTime = Date.now();
-      this.updateStatusText('Saved');
+      this.updateStatusText('Draft saved');
       this.triggerAutosave();
+      hasDraft = true;
     } else {
-      // Check for cached draft in local storage to automatically resume!
       const cacheKey = `temporary_draft_${activePromptId || 'new'}`;
       const cached = await chrome.storage.local.get([cacheKey]);
       if (cached && cached[cacheKey]) {
@@ -289,14 +352,13 @@ export const PromptForm = {
         activeVariablesConfig = draft.variables || [];
         playgroundValues = draft.playgroundValues || {};
 
-        // Re-populate tags
-        if (draft.tags && draft.tags.length > 0 && badgesWrap) {
-          if (tagsHidden) tagsHidden.value = draft.tags.join(',');
-          draft.tags.forEach((tag: string) => {
+        if (badgesWrap) {
+          badgesWrap.querySelectorAll('.tag-badge').forEach((b) => b.remove());
+          (draft.tags || []).forEach((tag: string) => {
             const badge = document.createElement('span');
-            badge.className = 'pn-tag-badge';
-            badge.innerHTML = `${escapeHtml(tag)}<span class="pn-tag-badge-close">&times;</span>`;
-            badge.querySelector('.pn-tag-badge-close')?.addEventListener('click', () => {
+            badge.className = 'tag-badge';
+            badge.innerHTML = `${escapeHtml(tag)}<span class="tag-badge-close">&times;</span>`;
+            badge.querySelector('.tag-badge-close')?.addEventListener('click', () => {
               badge.remove();
               this.syncTagsInput();
             });
@@ -305,86 +367,67 @@ export const PromptForm = {
         }
         isDirty = true;
         lastSavedTime = draft.timestamp || Date.now();
-        this.updateStatusText('Saved');
-      } else {
-        this.updateStatusText('Saved');
+        this.updateStatusText('Draft saved');
+        if (
+          textEl &&
+          typeof draft.selectionStart === 'number' &&
+          typeof draft.selectionEnd === 'number'
+        ) {
+          setTimeout(() => {
+            textEl.setSelectionRange(draft.selectionStart, draft.selectionEnd);
+          }, 0);
+        }
+        hasDraft = true;
       }
     }
 
-    // Trigger initial highlights/counts
+    if (!hasDraft) {
+      if (prompt) {
+        isDirty = false;
+        this.updateStatusText('');
+      } else {
+        isDirty = options.text || options.description ? true : false;
+        if (isDirty) {
+          this.triggerAutosave();
+        } else {
+          this.updateStatusText('');
+        }
+      }
+    }
+
+    cleanContentHash = getContentHash();
+
     this.updateEditorHighlights();
     this.syncStats();
     this.detectAndSyncVariables();
 
-    // Reset bottom tabs (collapsed by default)
-    const tabsContainer = document.querySelector('.pn-builder-tabs-container');
-    tabsContainer?.classList.add('pn-collapsed');
-    document.querySelectorAll('.pn-builder-tab').forEach((t) => t.classList.remove('active'));
-    document.querySelectorAll('.pn-builder-tab-pane').forEach((p) => p.classList.remove('active'));
+    const tabsContainer = BuilderDOM.workspace;
+    tabsContainer?.classList.add('collapsed');
+    BuilderDOM.root.querySelectorAll('.builder-workspace-tab').forEach((t) => {
+      t.classList.remove('active');
+      t.setAttribute('aria-selected', 'false');
+    });
+    BuilderDOM.root
+      .querySelectorAll('.builder-workspace-tab-pane')
+      .forEach((p) => p.classList.remove('active'));
 
-    // Default subtab selection
     activePreviewSubtab = 'rendered';
     this.switchSubtab('rendered');
 
-    // Reset duplicate banner and run diagnostics immediately
-    document.getElementById('pn-builder-duplicate-banner')?.classList.add('pn-hidden');
+    BuilderDOM.duplicateBanner?.classList.add('hidden');
     this.runDiagnostics();
 
-    // Autofocus editor area instantly
-    textEl?.focus();
+    requestAnimationFrame(() => {
+      if (titleEl && !titleEl.value) {
+        titleEl.focus();
+      } else {
+        textEl?.focus();
+      }
+    });
   },
 
   async openForEdit(prompt: Prompt): Promise<void> {
-    await this.open({
-      id: prompt.id,
-      mode: prompt.isTemplate ? 'template' : 'plain',
-      text: prompt.text,
-      description: prompt.description,
-    });
-
-    const titleEl = document.getElementById('prompt-title') as HTMLInputElement;
-    const catEl = document.getElementById('prompt-category') as HTMLSelectElement;
-    const favEl = document.getElementById('prompt-favorite') as HTMLInputElement;
-    const pinEl = document.getElementById('prompt-pinned') as HTMLInputElement;
-
-    if (titleEl) titleEl.value = prompt.title || '';
-    if (catEl) catEl.value = prompt.category || 'general';
-    if (favEl) favEl.checked = Boolean(prompt.isFavorite);
-    if (pinEl) pinEl.checked = Boolean(prompt.isPinned);
-
-    // Prepopulate tags
-    const tagsHidden = document.getElementById('prompt-tags') as HTMLInputElement;
-    if (tagsHidden) tagsHidden.value = (prompt.tags || []).join(',');
-    const badgesWrap = document.getElementById('builder-tag-badges-wrap');
-    const tagsInput = document.getElementById('prompt-tags-input') as HTMLInputElement;
-    if (badgesWrap && prompt.tags && prompt.tags.length > 0) {
-      badgesWrap.querySelectorAll('.pn-tag-badge').forEach((b) => b.remove());
-      prompt.tags.forEach((tag: string) => {
-        const badge = document.createElement('span');
-        badge.className = 'pn-tag-badge';
-        badge.innerHTML = `${escapeHtml(tag)}<span class="pn-tag-badge-close">&times;</span>`;
-        badge.querySelector('.pn-tag-badge-close')?.addEventListener('click', () => {
-          badge.remove();
-          this.syncTagsInput();
-        });
-        badgesWrap.insertBefore(badge, tagsInput);
-      });
-    }
-
-    activeVariablesConfig = prompt.variables || [];
-
-    // Trigger highlights
-    this.updateEditorHighlights();
-    this.syncStats();
-    this.detectAndSyncVariables();
-    // We loaded fresh from DB, so not dirty yet!
-    isDirty = false;
-    this.updateStatusText('Saved');
-    this.runDiagnostics();
-
-    // Autofocus editor area instantly
-    const textEl = document.getElementById('prompt-text') as HTMLTextAreaElement;
-    textEl?.focus();
+    await this.open({ prompt });
   },
 
   async openPlainPrefilled(text: string, sourceUrl = ''): Promise<void> {
@@ -393,12 +436,10 @@ export const PromptForm = {
       text: text,
       description: sourceUrl ? `Saved from ${sourceUrl}` : '',
     });
-    isDirty = true;
-    this.triggerAutosave();
   },
 
   close(): void {
-    if (isDirty) {
+    if (getContentHash() !== cleanContentHash) {
       this.showUnsavedChangesDialog();
     } else {
       this.forceClose();
@@ -406,34 +447,38 @@ export const PromptForm = {
   },
 
   forceClose(): void {
-    const modal = document.getElementById('add-modal');
+    const modal = BuilderDOM.promptBuilder;
     if (modal) {
-      modal.classList.add('pn-hidden');
+      modal.classList.add('hidden');
     }
-    document.body.classList.remove('pn-modal-open');
+    document.body.classList.remove('modal-open');
     // Clear temporary drafts on complete exit/close
     const cacheKey = `temporary_draft_${activePromptId || 'new'}`;
     void chrome.storage.local.remove([cacheKey, 'active_draft_session_id']);
 
     activePromptId = null;
     isDirty = false;
+    activeVariablesConfig = [];
+    playgroundValues = {};
+    activeMode = 'plain';
+    cleanContentHash = '';
     if (autosaveTimer) clearTimeout(autosaveTimer);
     if (saveStatusInterval) clearInterval(saveStatusInterval);
   },
 
   showUnsavedChangesDialog(): void {
-    const dialog = document.getElementById('pn-unsaved-dialog');
-    if (dialog) dialog.classList.remove('pn-hidden');
+    const dialog = BuilderDOM.unsavedDialog;
+    if (dialog) dialog.classList.remove('hidden');
   },
 
   hideUnsavedChangesDialog(): void {
-    const dialog = document.getElementById('pn-unsaved-dialog');
-    if (dialog) dialog.classList.add('pn-hidden');
+    const dialog = BuilderDOM.unsavedDialog;
+    if (dialog) dialog.classList.add('hidden');
   },
 
   updateModeButtons(): void {
-    const plainBtn = document.getElementById('pn-builder-mode-plain');
-    const templateBtn = document.getElementById('pn-builder-mode-template');
+    const plainBtn = BuilderDOM.modePlain;
+    const templateBtn = BuilderDOM.modeTemplate;
     if (activeMode === 'plain') {
       plainBtn?.classList.add('active');
       templateBtn?.classList.remove('active');
@@ -444,27 +489,33 @@ export const PromptForm = {
   },
 
   updateEditorHighlights(): void {
-    const textarea = document.getElementById('prompt-text') as HTMLTextAreaElement | null;
-    const backdrop = document.getElementById('pn-editor-backdrop');
+    const textarea = BuilderDOM.textarea;
+    const backdrop = BuilderDOM.editorBackdrop;
     if (!textarea || !backdrop) return;
 
-    const val = textarea.value;
-    let html = escapeHtml(val);
+    requestAnimationFrame(() => {
+      const val = textarea.value;
+      let html = escapeHtml(val);
 
-    // Highlight variables: {{variable}}
-    html = html.replace(/(\{\{[\s\S]*?\}\})/g, '<span class="pn-editor-var-highlight">$1</span>');
+      // Highlight variables: {{variable}}
+      html = html.replace(/(\{\{[\s\S]*?\}\})/g, '<span class="editor-var-highlight">$1</span>');
 
-    // Highlight markdown headings: # Heading
-    html = html.replace(/^(#+ .*$)/gim, '<span class="pn-editor-heading-highlight">$1</span>');
+      // Highlight markdown headings: # Heading
+      html = html.replace(/^(#+ .*$)/gim, '<span class="editor-heading-highlight">$1</span>');
 
-    // Highlight fenced code blocks: ```code```
-    html = html.replace(/(```[\s\S]*?```)/g, '<span class="pn-editor-code-highlight">$1</span>');
+      // Highlight fenced code blocks: ```code```
+      html = html.replace(/(```[\s\S]*?```)/g, '<span class="editor-code-highlight">$1</span>');
 
-    backdrop.innerHTML = html + '\n';
+      backdrop.innerHTML = html + '\n';
+
+      // Mirror scroll positions
+      backdrop.scrollTop = textarea.scrollTop;
+      backdrop.scrollLeft = textarea.scrollLeft;
+    });
   },
 
   syncStats(): void {
-    const textarea = document.getElementById('prompt-text') as HTMLTextAreaElement | null;
+    const textarea = BuilderDOM.textarea;
     if (!textarea) return;
 
     const text = textarea.value;
@@ -476,14 +527,14 @@ export const PromptForm = {
     const tokens = TokenCounter ? TokenCounter.count(text, provider).count : 0;
     const variablesCount = activeVariablesConfig.length;
 
-    const statsEl = document.getElementById('pn-editor-stat-info');
+    const statsEl = BuilderDOM.statsBar;
     if (statsEl) {
       statsEl.textContent = `${words} words • ~${tokens} tokens • ${variablesCount} variables`;
     }
   },
 
   detectAndSyncVariables(): void {
-    const textarea = document.getElementById('prompt-text') as HTMLTextAreaElement | null;
+    const textarea = BuilderDOM.textarea;
     if (!textarea) return;
 
     const text = textarea.value;
@@ -513,24 +564,24 @@ export const PromptForm = {
   },
 
   renderVariablesTab(): void {
-    const container = document.getElementById('pn-builder-vars-container');
+    const container = BuilderDOM.variableList;
     if (!container) return;
 
     container.innerHTML = '';
 
     if (activeVariablesConfig.length === 0) {
       container.innerHTML = `
-        <div class="pn-empty-state" style="border: 1px dashed var(--color-border-default); padding: var(--space-4); text-align: center; border-radius: var(--radius-md);">
-          <p class="pn-empty-state__title" style="margin: 0; font-size: var(--font-size-md); font-weight: var(--font-weight-semibold);">No variables detected</p>
-          <p class="pn-empty-state__message" style="margin: var(--space-1) 0 0 0; font-size: var(--font-size-sm); color: var(--color-text-secondary);">Type double curly brackets <code>{{variable_name}}</code> in the editor to parameterize your prompt.</p>
+        <div class="empty-state" style="border: 1px dashed var(--color-border-default); padding: var(--space-4); text-align: center; border-radius: var(--radius-md);">
+          <p class="empty-state__title" style="margin: 0; font-size: var(--font-size-md); font-weight: var(--font-weight-semibold);">No variables detected</p>
+          <p class="empty-state__message" style="margin: var(--space-1) 0 0 0; font-size: var(--font-size-sm); color: var(--color-text-secondary);">Type double curly brackets <code>{{variable_name}}</code> in the editor to parameterize your prompt.</p>
         </div>
       `;
       return;
     }
 
     activeVariablesConfig.forEach((variable, index) => {
-      const card = document.createElement('div');
-      card.className = 'pn-variable-card';
+      const card = document.createElement('li');
+      card.className = 'variable-card';
 
       // Inline playground value matching
       const currentVal = (playgroundValues[variable.name] ?? variable.defaultValue ?? '') as string;
@@ -544,30 +595,30 @@ export const PromptForm = {
               `<option value="${escapeHtml(opt)}" ${currentVal === opt ? 'selected' : ''}>${escapeHtml(opt)}</option>`
           )
           .join('');
-        previewFieldHtml = `<select class="pn-var-playground-val">${optionsMarkup}</select>`;
+        previewFieldHtml = `<select class="var-playground-val">${optionsMarkup}</select>`;
       } else if (variable.type === 'boolean') {
         previewFieldHtml = `
-          <label class="pn-toggle-switch">
-            <input type="checkbox" class="pn-var-playground-val" ${currentVal === 'true' ? 'checked' : ''} />
-            <span class="pn-toggle-slider"></span>
+          <label class="toggle-switch">
+            <input type="checkbox" class="var-playground-val" ${currentVal === 'true' ? 'checked' : ''} />
+            <span class="toggle-slider"></span>
           </label>
         `;
       } else if (variable.type === 'long-text') {
-        previewFieldHtml = `<textarea class="pn-var-playground-val" rows="2" placeholder="${escapeHtml(variable.placeholder || '')}">${escapeHtml(currentVal)}</textarea>`;
+        previewFieldHtml = `<textarea class="var-playground-val" rows="2" placeholder="${escapeHtml(variable.placeholder || '')}">${escapeHtml(currentVal)}</textarea>`;
       } else if (variable.type === 'date') {
-        previewFieldHtml = `<input type="date" class="pn-var-playground-val" value="${escapeHtml(currentVal)}" />`;
+        previewFieldHtml = `<input type="date" class="var-playground-val" value="${escapeHtml(currentVal)}" />`;
       } else if (variable.type === 'url') {
-        previewFieldHtml = `<input type="url" class="pn-var-playground-val" value="${escapeHtml(currentVal)}" placeholder="https://..." />`;
+        previewFieldHtml = `<input type="url" class="var-playground-val" value="${escapeHtml(currentVal)}" placeholder="https://..." />`;
       } else {
-        previewFieldHtml = `<input type="text" class="pn-var-playground-val" value="${escapeHtml(currentVal)}" placeholder="${escapeHtml(variable.placeholder || '')}" />`;
+        previewFieldHtml = `<input type="text" class="var-playground-val" value="${escapeHtml(currentVal)}" placeholder="${escapeHtml(variable.placeholder || '')}" />`;
       }
 
       card.innerHTML = `
-        <div class="pn-var-card-header">
-          <span class="pn-var-card-name">{{${escapeHtml(variable.name)}}}</span>
-          <label class="pn-toggle-switch" title="Required field">
-            <input type="checkbox" class="pn-var-required" ${variable.required ? 'checked' : ''} />
-            <span class="pn-toggle-slider"></span>
+        <div class="var-card-header">
+          <span class="var-card-name">{{${escapeHtml(variable.name)}}}</span>
+          <label class="toggle-switch" title="Required field">
+            <input type="checkbox" class="var-required" ${variable.required ? 'checked' : ''} />
+            <span class="toggle-slider"></span>
           </label>
         </div>
         <div class="pn-var-card-grid">
@@ -590,8 +641,8 @@ export const PromptForm = {
             <input type="text" class="pn-var-default" value="${escapeHtml(variable.defaultValue || '')}" placeholder="Default value..." />
           </div>
 
-          <span class="pn-var-card-label pn-choice-label ${variable.type === 'choice' ? '' : 'pn-hidden'}">Choices</span>
-          <div class="pn-var-card-input-wrap pn-choice-input-wrap ${variable.type === 'choice' ? '' : 'pn-hidden'}">
+          <span class="pn-var-card-label pn-choice-label ${variable.type === 'choice' ? '' : 'hidden'}">Choices</span>
+          <div class="pn-var-card-input-wrap pn-choice-input-wrap ${variable.type === 'choice' ? '' : 'hidden'}">
             <input type="text" class="pn-var-choices" value="${escapeHtml((variable.choices || []).join(', '))}" placeholder="A, B, C..." />
           </div>
 
@@ -604,10 +655,10 @@ export const PromptForm = {
 
       // Elements binds
       const typeSelect = card.querySelector('.pn-var-type') as HTMLSelectElement;
-      const requiredCheck = card.querySelector('.pn-var-required') as HTMLInputElement;
+      const requiredCheck = card.querySelector('.var-required') as HTMLInputElement;
       const defaultInput = card.querySelector('.pn-var-default') as HTMLInputElement;
       const choicesInput = card.querySelector('.pn-var-choices') as HTMLInputElement;
-      const playgroundInput = card.querySelector('.pn-var-playground-val') as
+      const playgroundInput = card.querySelector('.var-playground-val') as
         | HTMLInputElement
         | HTMLSelectElement
         | HTMLTextAreaElement;
@@ -624,8 +675,8 @@ export const PromptForm = {
           .map((c) => c.trim())
           .filter(Boolean);
 
-        choicesLabel.classList.toggle('pn-hidden', type !== 'choice');
-        choicesWrap.classList.toggle('pn-hidden', type !== 'choice');
+        choicesLabel.classList.toggle('hidden', type !== 'choice');
+        choicesWrap.classList.toggle('hidden', type !== 'choice');
 
         // Check toggle value updates
         let playgroundVal = '';
@@ -695,20 +746,21 @@ export const PromptForm = {
 
   previewFrameId: null as number | null,
 
+  previewTimeout: null as any,
+
   triggerPreviewUpdate(): void {
-    if (this.previewFrameId !== null) {
-      cancelAnimationFrame(this.previewFrameId);
+    if (this.previewTimeout) {
+      clearTimeout(this.previewTimeout);
     }
-    this.previewFrameId = requestAnimationFrame(() => {
-      this.previewFrameId = null;
+    this.previewTimeout = setTimeout(() => {
       this.updatePreviewBox();
-    });
+    }, 150);
   },
 
   updatePreviewBox(): void {
-    const renderedBox = document.getElementById('pn-builder-preview-box');
-    const rawBox = document.getElementById('pn-builder-raw-box');
-    const textarea = document.getElementById('prompt-text') as HTMLTextAreaElement | null;
+    const renderedBox = BuilderDOM.previewBox;
+    const rawBox = BuilderDOM.rawBox;
+    const textarea = BuilderDOM.textarea;
     if (!textarea) return;
 
     // Use current playground inputs or configuration defaults
@@ -721,6 +773,11 @@ export const PromptForm = {
 
     if (activePreviewSubtab === 'rendered') {
       if (renderedBox) {
+        if (!compiled.trim()) {
+          renderedBox.innerHTML =
+            '<p class="empty-preview-msg">Start writing to see a preview.</p>';
+          return;
+        }
         let html = escapeHtml(compiled);
         // Convert Headings
         html = html
@@ -740,10 +797,7 @@ export const PromptForm = {
       if (rawBox) {
         let html = escapeHtml(textarea.value);
         // Highlight variables in Raw too
-        html = html.replace(
-          /(\{\{[\s\S]*?\}\})/g,
-          '<span class="pn-editor-var-highlight">$1</span>'
-        );
+        html = html.replace(/(\{\{[\s\S]*?\}\})/g, '<span class="editor-var-highlight">$1</span>');
         html = html
           .replace(/^### (.*$)/gim, '<h3>$1</h3>')
           .replace(/^## (.*$)/gim, '<h2>$1</h2>')
@@ -756,31 +810,32 @@ export const PromptForm = {
   },
 
   switchTab(tabName: string): void {
-    const container = document.querySelector('.pn-builder-tabs-container');
-    const clickedTab = document.querySelector(`.pn-builder-tab[data-builder-tab="${tabName}"]`);
+    const container = BuilderDOM.workspace;
+    const clickedTab = BuilderDOM.root.querySelector(
+      `.builder-workspace-tab[data-builder-tab="${tabName}"]`
+    );
 
     if (clickedTab?.classList.contains('active')) {
       // Toggle collapse if clicking the already active tab!
-      container?.classList.toggle('pn-collapsed');
+      container?.classList.toggle('collapsed');
       clickedTab.classList.remove('active');
-      document.querySelectorAll('.pn-builder-tab-pane').forEach((pane) => {
+      clickedTab.setAttribute('aria-selected', 'false');
+      BuilderDOM.root.querySelectorAll('.builder-workspace-tab-pane').forEach((pane) => {
         pane.classList.remove('active');
       });
       return;
     }
 
-    container?.classList.remove('pn-collapsed');
+    container?.classList.remove('collapsed');
 
-    document.querySelectorAll('.pn-builder-tab').forEach((tab) => {
-      tab.classList.toggle('active', tab.getAttribute('data-builder-tab') === tabName);
+    BuilderDOM.root.querySelectorAll('.builder-workspace-tab').forEach((tab) => {
+      const isSelected = tab.getAttribute('data-builder-tab') === tabName;
+      tab.classList.toggle('active', isSelected);
+      tab.setAttribute('aria-selected', String(isSelected));
     });
 
-    document.querySelectorAll('.pn-builder-tab-pane').forEach((pane) => {
-      pane.classList.toggle(
-        'active',
-        (pane.getAttribute('data-builder-pane') ||
-          pane.getAttribute('data-builder-tab-content')) === tabName
-      );
+    BuilderDOM.root.querySelectorAll('.builder-workspace-tab-pane').forEach((pane) => {
+      pane.classList.toggle('active', pane.getAttribute('data-builder-pane') === tabName);
     });
 
     if (tabName === 'preview') {
@@ -792,115 +847,119 @@ export const PromptForm = {
 
   switchSubtab(subtabName: 'rendered' | 'raw'): void {
     activePreviewSubtab = subtabName;
-    document.querySelectorAll('.pn-subtab').forEach((btn) => {
+    BuilderDOM.root.querySelectorAll('.subtab-btn').forEach((btn) => {
       btn.classList.toggle('active', btn.getAttribute('data-subtab') === subtabName);
     });
 
-    const renderedBox = document.getElementById('pn-builder-preview-box');
-    const rawBox = document.getElementById('pn-builder-raw-box');
+    const renderedBox = BuilderDOM.previewBox;
+    const rawBox = BuilderDOM.rawBox;
 
     if (subtabName === 'rendered') {
-      renderedBox?.classList.remove('pn-hidden');
-      rawBox?.classList.add('pn-hidden');
+      renderedBox?.classList.remove('hidden');
+      rawBox?.classList.add('hidden');
     } else {
-      renderedBox?.classList.add('pn-hidden');
-      rawBox?.classList.remove('pn-hidden');
+      renderedBox?.classList.add('hidden');
+      rawBox?.classList.remove('hidden');
     }
     this.triggerPreviewUpdate();
   },
 
   async renderVersionsList(): Promise<void> {
-    const container = document.getElementById('pn-builder-versions-list');
-    const diffContainer = document.getElementById('pn-builder-diff-container');
+    const container = BuilderDOM.versionList;
+    const diffContainer = BuilderDOM.diffContainer;
     if (!container || !activePromptId) return;
 
-    diffContainer?.classList.add('pn-hidden');
-    container.classList.remove('pn-hidden');
+    diffContainer?.classList.add('hidden');
+    container.classList.remove('hidden');
 
     const versions = await PromptVersionStore.getVersions(activePromptId);
     container.innerHTML = '';
 
     if (versions.length === 0) {
       container.innerHTML = `
-        <div class="pn-empty-state" style="border: 1px dashed var(--color-border-default); padding: var(--space-4); text-align: center; border-radius: var(--radius-md);">
-          <p class="pn-empty-state__title" style="margin: 0; font-size: var(--font-size-md); font-weight: var(--font-weight-semibold);">No version history</p>
-          <p class="pn-empty-state__message" style="margin: var(--space-1) 0 0 0; font-size: var(--font-size-sm); color: var(--color-text-secondary);">Saving manual changes will commit version history snapshots.</p>
+        <div class="empty-state" style="border: 1px dashed var(--color-border-default); padding: var(--space-4); text-align: center; border-radius: var(--radius-md);">
+          <p class="empty-state__title" style="margin: 0; font-size: var(--font-size-md); font-weight: var(--font-weight-semibold);">No version history</p>
+          <p class="empty-state__message" style="margin: var(--space-1) 0 0 0; font-size: var(--font-size-sm); color: var(--color-text-secondary);">Saving manual changes will commit version history snapshots.</p>
         </div>
       `;
       return;
     }
 
     versions.forEach((version: PromptVersion) => {
-      const div = document.createElement('div');
-      div.className = 'pn-detail-version-item';
+      const div = document.createElement('li');
+      div.className = 'detail-version-item';
       div.innerHTML = `
-        <div class="pn-version-info">
-          <span class="pn-version-number">v${version.version}</span>
-          <span class="pn-version-annotation">${escapeHtml(version.annotation || 'Manual snapshot')}</span>
-          <span class="pn-version-date">${formatShortDate(version.updatedAt)}</span>
+        <div class="version-info">
+          <span class="version-number">v${version.version}</span>
+          <span class="version-annotation">${escapeHtml(version.annotation || 'Manual snapshot')}</span>
+          <span class="version-date">${formatShortDate(version.updatedAt)}</span>
         </div>
-        <div class="pn-version-actions">
-          <button class="pn-btn pn-btn--ghost pn-btn--sm pn-diff-btn" type="button">Diff</button>
-          <button class="pn-btn pn-btn--ghost pn-btn--sm pn-restore-btn" type="button">Restore</button>
+        <div class="version-actions">
+          <button class="button button--ghost button--sm" data-action="diff" type="button">Diff</button>
+          <button class="button button--ghost button--sm" data-action="restore" type="button">Restore</button>
         </div>
       `;
 
-      div.querySelector('.pn-diff-btn')?.addEventListener('click', () => {
-        const diffBox = document.getElementById('pn-diff-box');
-        const textarea = document.getElementById('prompt-text') as HTMLTextAreaElement | null;
+      div.querySelector('[data-action="diff"]')?.addEventListener('click', () => {
+        const diffBox = BuilderDOM.diffBox;
+        const textarea = BuilderDOM.textarea;
         if (diffBox && textarea && diffContainer) {
           diffBox.innerHTML = renderLineDiff(version.text, textarea.value);
-          container.classList.add('pn-hidden');
-          diffContainer.classList.remove('pn-hidden');
+          container.classList.add('hidden');
+          diffContainer.classList.remove('hidden');
         }
       });
 
-      div.querySelector('.pn-restore-btn')?.addEventListener('click', () => {
-        const confirmed = window.confirm(`Restore editor content to version v${version.version}?`);
-        if (confirmed) {
-          const textarea = document.getElementById('prompt-text') as HTMLTextAreaElement | null;
-          const titleEl = document.getElementById('prompt-title') as HTMLInputElement | null;
-          const descEl = document.getElementById('prompt-description') as HTMLInputElement | null;
-          const catEl = document.getElementById('prompt-category') as HTMLSelectElement | null;
+      div.querySelector('[data-action="restore"]')?.addEventListener('click', () => {
+        void PnDialog.confirm(`Restore editor content to version v${version.version}?`, {
+          title: 'Restore Version',
+          confirmLabel: 'Restore',
+        }).then((confirmed) => {
+          if (confirmed) {
+            const textarea = BuilderDOM.textarea;
+            const titleEl = BuilderDOM.titleInput;
+            const descEl = BuilderDOM.descInput;
+            const catEl = BuilderDOM.categorySelect;
 
-          if (textarea) textarea.value = version.text;
-          if (titleEl) titleEl.value = version.title;
-          if (descEl) descEl.value = version.description;
-          if (catEl) catEl.value = version.category || 'general';
+            if (textarea) textarea.value = version.text;
+            if (titleEl) titleEl.value = version.title;
+            if (descEl) descEl.value = version.description;
+            if (catEl) catEl.value = version.category || 'general';
 
-          // Restore tags hidden input and badges
-          const tagsHidden = document.getElementById('prompt-tags') as HTMLInputElement;
-          if (tagsHidden) tagsHidden.value = (version.tags || []).join(',');
-          const badgesWrap = document.getElementById('builder-tag-badges-wrap');
-          const tagsInput = document.getElementById('prompt-tags-input') as HTMLInputElement;
-          if (badgesWrap) {
-            badgesWrap.querySelectorAll('.pn-tag-badge').forEach((b) => b.remove());
-            (version.tags || []).forEach((tag: string) => {
-              const badge = document.createElement('span');
-              badge.className = 'pn-tag-badge';
-              badge.innerHTML = `${escapeHtml(tag)}<span class="pn-tag-badge-close">&times;</span>`;
-              badge.querySelector('.pn-tag-badge-close')?.addEventListener('click', () => {
-                badge.remove();
-                this.syncTagsInput();
+            // Restore tags hidden input and badges
+            const tagsHidden = BuilderDOM.tagsHidden;
+            if (tagsHidden) tagsHidden.value = (version.tags || []).join(',');
+            const badgesWrap = BuilderDOM.tagsContainer;
+            const tagsInput = BuilderDOM.tagsInput;
+            if (badgesWrap) {
+              badgesWrap.querySelectorAll('.tag-badge').forEach((b) => b.remove());
+              (version.tags || []).forEach((tag: string) => {
+                const badge = document.createElement('span');
+                badge.className = 'tag-badge';
+                badge.innerHTML = `${escapeHtml(tag)}<span class="tag-badge-close">&times;</span>`;
+                badge.querySelector('.tag-badge-close')?.addEventListener('click', () => {
+                  badge.remove();
+                  this.syncTagsInput();
+                });
+                badgesWrap.insertBefore(badge, tagsInput);
               });
-              badgesWrap.insertBefore(badge, tagsInput);
-            });
+            }
+
+            activeVariablesConfig = version.variables || [];
+            this.updateEditorHighlights();
+            this.syncStats();
+            this.detectAndSyncVariables();
+
+            isDirty = true;
+            this.triggerAutosave();
+
+            this.switchTab('preview');
+
+            const DomHelpers = (window as any).DomHelpers;
+            if (DomHelpers?.showToast)
+              DomHelpers.showToast(`Restored to version v${version.version}`);
           }
-
-          activeVariablesConfig = version.variables || [];
-          this.updateEditorHighlights();
-          this.syncStats();
-          this.detectAndSyncVariables();
-
-          isDirty = true;
-          this.triggerAutosave();
-
-          this.switchTab('preview');
-
-          const DomHelpers = (window as any).DomHelpers;
-          if (DomHelpers?.showToast)
-            DomHelpers.showToast(`Restored to version v${version.version}`);
-        }
+        });
       });
 
       container.appendChild(div);
@@ -908,12 +967,12 @@ export const PromptForm = {
   },
 
   syncTagsInput(): void {
-    const badgesWrap = document.getElementById('builder-tag-badges-wrap');
-    const tagsHidden = document.getElementById('prompt-tags') as HTMLInputElement;
+    const badgesWrap = BuilderDOM.tagsContainer;
+    const tagsHidden = BuilderDOM.tagsHidden;
     if (!badgesWrap || !tagsHidden) return;
 
     const tags: string[] = [];
-    badgesWrap.querySelectorAll('.pn-tag-badge').forEach((badge) => {
+    badgesWrap.querySelectorAll('.tag-badge').forEach((badge) => {
       const text = String(badge.firstChild?.textContent || '').trim();
       if (text) tags.push(text);
     });
@@ -930,7 +989,7 @@ export const PromptForm = {
       color: string;
     }>;
 
-    const select = document.getElementById('prompt-category') as HTMLSelectElement | null;
+    const select = BuilderDOM.categorySelect;
     if (!select) return;
 
     const currentVal = select.value || 'general';
@@ -956,7 +1015,7 @@ export const PromptForm = {
   },
 
   async renderInlineCategoriesList(): Promise<void> {
-    const listContainer = document.getElementById('pn-manage-categories-list');
+    const listContainer = BuilderDOM.categoriesList;
     if (!listContainer) return;
 
     listContainer.innerHTML = '';
@@ -983,15 +1042,15 @@ export const PromptForm = {
         'work',
       ].includes(cat.id);
       const row = document.createElement('div');
-      row.className = 'pn-inline-category-manage-row';
+      row.className = 'builder-category-manage-row';
       row.innerHTML = `
-        <span class="pn-category-dot" style="background-color: ${cat.color || '#6366F1'}"></span>
-        <span class="pn-category-name">${escapeHtml(cat.name)}</span>
-        ${isSystem ? '<span class="pn-system-badge">System</span>' : '<button class="pn-btn-delete-cat" type="button" title="Delete category">&times;</button>'}
+        <span class="category-dot" style="background-color: ${cat.color || '#6366F1'}"></span>
+        <span class="category-name">${escapeHtml(cat.name)}</span>
+        ${isSystem ? '<span class="system-badge">System</span>' : '<button class="btn-delete-cat" type="button" title="Delete category">&times;</button>'}
       `;
 
       if (!isSystem) {
-        row.querySelector('.pn-btn-delete-cat')?.addEventListener('click', async () => {
+        row.querySelector('.btn-delete-cat')?.addEventListener('click', async () => {
           categoriesList = categoriesList.filter((c) => c.id !== cat.id);
           await chrome.storage.local.set({ custom_categories: categoriesList });
           await this.loadCategoriesList();
@@ -1003,56 +1062,74 @@ export const PromptForm = {
   },
 
   updateStatusText(status: string): void {
-    const dotEl = document.querySelector('.pn-status-dot');
-    const textEl = document.querySelector('.pn-status-text');
+    const dotEl = BuilderDOM.statusDot;
+    const textEl = BuilderDOM.statusText;
     if (!dotEl || !textEl) return;
 
     if (saveStatusInterval) clearInterval(saveStatusInterval);
 
-    if (status === 'Saved') {
-      dotEl.className = 'pn-status-dot pn-status-dot--saved';
+    if (status === 'Draft saved' || status === 'Saved') {
+      dotEl.className = 'status-dot status-dot--saved';
       const updateLabel = () => {
         if (lastSavedTime === 0) {
-          textEl.textContent = 'Saved';
+          textEl.textContent = 'Draft saved';
           return;
         }
         const diff = Math.floor((Date.now() - lastSavedTime) / 1000);
         if (diff < 5) {
-          textEl.textContent = 'Saved';
+          textEl.textContent = 'Draft saved';
         } else if (diff < 60) {
-          textEl.textContent = `Saved ${diff}s ago`;
+          textEl.textContent = `Draft saved ${diff}s ago`;
         } else {
-          textEl.textContent = `Saved ${Math.floor(diff / 60)}m ago`;
+          textEl.textContent = `Draft saved ${Math.floor(diff / 60)}m ago`;
         }
       };
       updateLabel();
       saveStatusInterval = setInterval(updateLabel, 5000);
-    } else if (status === 'Saving...') {
-      dotEl.className = 'pn-status-dot pn-status-dot--saving';
-      textEl.textContent = 'Saving...';
+    } else if (status === 'Saved to library') {
+      dotEl.className = 'status-dot status-dot--saved';
+      textEl.textContent = 'Saved to library';
+      setTimeout(() => {
+        if (!isDirty && textEl.textContent === 'Saved to library') {
+          dotEl.className = 'status-dot';
+          textEl.textContent = '';
+        }
+      }, 3000);
+    } else if (status === 'Saving draft...') {
+      dotEl.className = 'status-dot status-dot--saving';
+      textEl.textContent = 'Saving draft...';
+    } else if (status === 'Unsaved changes' || status === 'Unsaved Changes') {
+      dotEl.className = 'status-dot status-dot--dirty';
+      textEl.textContent = 'Unsaved changes';
     } else {
-      dotEl.className = 'pn-status-dot pn-status-dot--dirty';
+      dotEl.className = 'status-dot';
       textEl.textContent = status;
     }
   },
 
   triggerAutosave(): void {
-    this.updateStatusText('Unsaved Changes');
+    if (!checkDirtyState()) {
+      if (autosaveTimer) clearTimeout(autosaveTimer);
+      this.updateStatusText('');
+      return;
+    }
+
+    this.updateStatusText('Unsaved changes');
     if (autosaveTimer) clearTimeout(autosaveTimer);
 
     autosaveTimer = setTimeout(async () => {
-      this.updateStatusText('Saving...');
+      this.updateStatusText('Saving draft...');
       try {
-        const textEl = document.getElementById('prompt-text') as HTMLTextAreaElement;
-        const titleEl = document.getElementById('prompt-title') as HTMLInputElement;
-        const descEl = document.getElementById('prompt-description') as HTMLInputElement;
-        const catEl = document.getElementById('prompt-category') as HTMLSelectElement;
-        const tagsHidden = document.getElementById('prompt-tags') as HTMLInputElement;
-        const favEl = document.getElementById('prompt-favorite') as HTMLInputElement;
-        const pinEl = document.getElementById('prompt-pinned') as HTMLInputElement;
+        const textEl = BuilderDOM.textarea;
+        const titleEl = BuilderDOM.titleInput;
+        const descEl = BuilderDOM.descInput;
+        const catEl = BuilderDOM.categorySelect;
+        const tagsHidden = BuilderDOM.tagsHidden;
+        const favEl = BuilderDOM.favoriteInput;
+        const pinEl = BuilderDOM.pinnedInput;
 
         const text = String(textEl?.value || '').trim();
-        const title = String(titleEl?.value || '').trim() || 'Untitled Prompt';
+        const title = String(titleEl?.value || '').trim();
         const description = String(descEl?.value || '').trim();
         const category = catEl?.value || 'general';
         const tags = tagsHidden?.value
@@ -1063,7 +1140,6 @@ export const PromptForm = {
           : [];
         const isFavorite = favEl ? favEl.checked : false;
         const isPinned = pinEl ? pinEl.checked : false;
-        const isTemplate = activeMode === 'template';
 
         const cacheKey = `temporary_draft_${activePromptId || 'new'}`;
         await chrome.storage.local.set({
@@ -1078,12 +1154,14 @@ export const PromptForm = {
             isPinned,
             variables: activeVariablesConfig,
             playgroundValues,
+            selectionStart: textEl?.selectionStart || 0,
+            selectionEnd: textEl?.selectionEnd || 0,
             timestamp: Date.now(),
           },
         });
 
         lastSavedTime = Date.now();
-        this.updateStatusText('Saved');
+        this.updateStatusText('Draft saved');
       } catch (err) {
         console.error(err);
       }
@@ -1110,10 +1188,10 @@ export const PromptForm = {
   },
 
   showDuplicateBanner(duplicate: Prompt): void {
-    const banner = document.getElementById('pn-builder-duplicate-banner');
+    const banner = BuilderDOM.duplicateBanner;
     if (!banner) return;
 
-    const textEl = document.getElementById('prompt-text') as HTMLTextAreaElement;
+    const textEl = BuilderDOM.textarea;
     const similarity = SimilarityEngine.checkSimilarity(duplicate.text, textEl?.value || '');
 
     banner.innerHTML = `
@@ -1121,16 +1199,16 @@ export const PromptForm = {
         <span>⚠ Nearly identical prompt found: <strong>"${escapeHtml(duplicate.title)}"</strong> (${similarity}% match).</span>
       </div>
       <div style="display: flex; gap: var(--space-2);">
-        <button id="pn-dup-open" class="pn-btn pn-btn--ghost" type="button" style="padding: 2px var(--space-2); font-size: var(--font-size-xs); height: 24px; min-height: 24px;">Open Existing</button>
-        <button id="pn-dup-replace" class="pn-btn pn-btn--ghost" type="button" style="padding: 2px var(--space-2); font-size: var(--font-size-xs); height: 24px; min-height: 24px;">Replace</button>
-        <button id="pn-dup-save" class="pn-btn pn-btn--primary" type="button" style="padding: 2px var(--space-2); font-size: var(--font-size-xs); height: 24px; min-height: 24px;">Save Anyway</button>
+        <button data-action="dup-open" class="button button--ghost" type="button" style="padding: 2px var(--space-2); font-size: var(--font-size-xs); height: 24px; min-height: 24px;">Open Existing</button>
+        <button data-action="dup-replace" class="button button--ghost" type="button" style="padding: 2px var(--space-2); font-size: var(--font-size-xs); height: 24px; min-height: 24px;">Replace</button>
+        <button data-action="dup-save" class="button button--primary" type="button" style="padding: 2px var(--space-2); font-size: var(--font-size-xs); height: 24px; min-height: 24px;">Save Anyway</button>
       </div>
     `;
 
-    banner.classList.remove('pn-hidden');
+    banner.classList.remove('hidden');
 
-    document.getElementById('pn-dup-open')?.addEventListener('click', () => {
-      banner.classList.add('pn-hidden');
+    banner.querySelector('[data-action="dup-open"]')?.addEventListener('click', () => {
+      banner.classList.add('hidden');
       this.forceClose();
       const PromptsUI = (window as any).PromptsUI;
       if (PromptsUI?.openPreviewPanel) {
@@ -1138,12 +1216,12 @@ export const PromptForm = {
       }
     });
 
-    document.getElementById('pn-dup-replace')?.addEventListener('click', async () => {
-      banner.classList.add('pn-hidden');
-      const titleEl = document.getElementById('prompt-title') as HTMLInputElement;
-      const descEl = document.getElementById('prompt-description') as HTMLInputElement;
-      const catEl = document.getElementById('prompt-category') as HTMLSelectElement;
-      const tagsHidden = document.getElementById('prompt-tags') as HTMLInputElement;
+    banner.querySelector('[data-action="dup-replace"]')?.addEventListener('click', async () => {
+      banner.classList.add('hidden');
+      const titleEl = BuilderDOM.titleInput;
+      const descEl = BuilderDOM.descInput;
+      const catEl = BuilderDOM.categorySelect;
+      const tagsHidden = BuilderDOM.tagsHidden;
 
       const title = String(titleEl?.value || '').trim() || duplicate.title;
       const description = String(descEl?.value || '').trim() || duplicate.description;
@@ -1170,24 +1248,32 @@ export const PromptForm = {
       }
     });
 
-    document.getElementById('pn-dup-save')?.addEventListener('click', () => {
-      banner.classList.add('pn-hidden');
+    banner.querySelector('[data-action="dup-save"]')?.addEventListener('click', () => {
+      banner.classList.add('hidden');
       void this.save('Save duplicate anyway', true);
     });
   },
 
   async save(annotation = 'Manual save', force = false): Promise<void> {
-    const textEl = document.getElementById('prompt-text') as HTMLTextAreaElement;
-    const titleEl = document.getElementById('prompt-title') as HTMLInputElement;
-    const descEl = document.getElementById('prompt-description') as HTMLInputElement;
-    const catEl = document.getElementById('prompt-category') as HTMLSelectElement;
-    const tagsHidden = document.getElementById('prompt-tags') as HTMLInputElement;
-    const favEl = document.getElementById('prompt-favorite') as HTMLInputElement;
-    const pinEl = document.getElementById('prompt-pinned') as HTMLInputElement;
+    const textEl = BuilderDOM.textarea;
+    const titleEl = BuilderDOM.titleInput;
+    const descEl = BuilderDOM.descInput;
+    const catEl = BuilderDOM.categorySelect;
+    const tagsHidden = BuilderDOM.tagsHidden;
+    const favEl = BuilderDOM.favoriteInput;
+    const pinEl = BuilderDOM.pinnedInput;
 
     const text = String(textEl?.value || '').trim();
     if (!text) {
-      alert('Prompt text is required!');
+      await PnDialog.alert('Prompt text is required!', { title: 'Required Field' });
+      return;
+    }
+
+    if (!checkDirtyState()) {
+      isDirty = false;
+      const DomHelpers = (window as any).DomHelpers;
+      if (DomHelpers?.showToast) DomHelpers.showToast('No changes to save.');
+      this.forceClose();
       return;
     }
 
@@ -1254,7 +1340,6 @@ export const PromptForm = {
       activePromptId = savedPrompt.id;
       isDirty = false;
       lastSavedTime = Date.now();
-      this.updateStatusText('Saved');
 
       const DomHelpers = (window as any).DomHelpers;
       if (DomHelpers?.showToast) DomHelpers.showToast('Prompt saved successfully!');
@@ -1266,15 +1351,15 @@ export const PromptForm = {
         callbacks.onPromptSaved();
       }
     } else {
-      alert('Failed to save prompt.');
+      await PnDialog.alert('Failed to save prompt.', { title: 'Error' });
     }
   },
 
   bindEvents(): void {
-    const textarea = document.getElementById('prompt-text') as HTMLTextAreaElement | null;
-    const titleInput = document.getElementById('prompt-title') as HTMLInputElement | null;
-    const descInput = document.getElementById('prompt-description') as HTMLInputElement | null;
-    const catSelect = document.getElementById('prompt-category') as HTMLSelectElement | null;
+    const textarea = BuilderDOM.textarea;
+    const titleInput = BuilderDOM.titleInput;
+    const descInput = BuilderDOM.descInput;
+    const catSelect = BuilderDOM.categorySelect;
 
     if (textarea) {
       textarea.addEventListener('input', () => {
@@ -1287,10 +1372,22 @@ export const PromptForm = {
       });
 
       textarea.addEventListener('scroll', () => {
-        const backdrop = document.getElementById('pn-editor-backdrop');
+        const backdrop = BuilderDOM.editorBackdrop;
         if (backdrop) {
           backdrop.scrollTop = textarea.scrollTop;
           backdrop.scrollLeft = textarea.scrollLeft;
+        }
+      });
+
+      textarea.addEventListener('keydown', (e: KeyboardEvent) => {
+        if (e.key === 'Tab') {
+          e.preventDefault();
+          const start = textarea.selectionStart;
+          const end = textarea.selectionEnd;
+          const val = textarea.value;
+          textarea.value = val.substring(0, start) + '  ' + val.substring(end);
+          textarea.selectionStart = textarea.selectionEnd = start + 2;
+          textarea.dispatchEvent(new Event('input'));
         }
       });
     }
@@ -1320,16 +1417,16 @@ export const PromptForm = {
     }
 
     // Header close / save
-    document.getElementById('pn-builder-close')?.addEventListener('click', () => {
+    BuilderDOM.root.querySelector('#builder-close')?.addEventListener('click', () => {
       this.close();
     });
 
-    document.getElementById('pn-builder-save')?.addEventListener('click', () => {
+    BuilderDOM.root.querySelector('#builder-save')?.addEventListener('click', () => {
       void this.save();
     });
 
     // Sub-tab toggling for Preview
-    document.querySelectorAll('.pn-subtab').forEach((btn) => {
+    BuilderDOM.root.querySelectorAll('.subtab-btn').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         const sub = (e.currentTarget as HTMLElement).getAttribute('data-subtab') as
           | 'rendered'
@@ -1339,29 +1436,29 @@ export const PromptForm = {
     });
 
     // Standalone Button Bind
-    document.getElementById('pn-builder-standalone-btn')?.addEventListener('click', () => {
+    BuilderDOM.root.querySelector('#builder-standalone-btn')?.addEventListener('click', () => {
       chrome.tabs.create({ url: chrome.runtime.getURL('app.html?mode=standalone') });
     });
 
     // More Options button toggle dropdown menu
-    const moreBtn = document.getElementById('pn-builder-more-btn');
-    const moreMenu = document.getElementById('pn-builder-more-menu');
+    const moreBtn = BuilderDOM.root.querySelector('#builder-more-btn');
+    const moreMenu = BuilderDOM.root.querySelector('#builder-more-menu');
     if (moreBtn && moreMenu) {
       moreBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        moreMenu.classList.toggle('pn-hidden');
+        moreMenu.classList.toggle('hidden');
       });
 
       document.addEventListener('click', (e) => {
         const target = e.target as HTMLElement;
         if (!moreMenu.contains(target) && target !== moreBtn && !moreBtn.contains(target)) {
-          moreMenu.classList.add('pn-hidden');
+          moreMenu.classList.add('hidden');
         }
       });
     }
 
     // Mode Selector buttons inside menu dropdown
-    document.getElementById('pn-builder-mode-plain')?.addEventListener('click', () => {
+    BuilderDOM.modePlain?.addEventListener('click', () => {
       activeMode = 'plain';
       this.updateModeButtons();
       this.detectAndSyncVariables();
@@ -1369,7 +1466,7 @@ export const PromptForm = {
       this.triggerAutosave();
     });
 
-    document.getElementById('pn-builder-mode-template')?.addEventListener('click', () => {
+    BuilderDOM.modeTemplate?.addEventListener('click', () => {
       activeMode = 'template';
       this.updateModeButtons();
       this.detectAndSyncVariables();
@@ -1378,7 +1475,7 @@ export const PromptForm = {
     });
 
     // Favorite and Pinned toggle binds inside dropdown
-    const favEl = document.getElementById('prompt-favorite') as HTMLInputElement | null;
+    const favEl = BuilderDOM.favoriteInput;
     favEl?.addEventListener('change', async () => {
       isDirty = true;
       this.triggerAutosave();
@@ -1387,7 +1484,7 @@ export const PromptForm = {
       }
     });
 
-    const pinEl = document.getElementById('prompt-pinned') as HTMLInputElement | null;
+    const pinEl = BuilderDOM.pinnedInput;
     pinEl?.addEventListener('change', async () => {
       isDirty = true;
       this.triggerAutosave();
@@ -1397,30 +1494,37 @@ export const PromptForm = {
     });
 
     // Delete inside menu dropdown
-    document.getElementById('pn-builder-more-delete-btn')?.addEventListener('click', async () => {
-      if (activePromptId) {
-        const confirmed = window.confirm('Are you sure you want to delete this prompt?');
-        if (confirmed) {
-          await PromptStore.deletePrompt(activePromptId);
-          isDirty = false;
+    BuilderDOM.root
+      .querySelector('#builder-more-delete-btn')
+      ?.addEventListener('click', async () => {
+        if (activePromptId) {
+          void PnDialog.confirm('Are you sure you want to delete this prompt?', {
+            title: 'Delete Prompt',
+            confirmLabel: 'Delete',
+            danger: true,
+          }).then(async (confirmed) => {
+            if (confirmed) {
+              await PromptStore.deletePrompt(activePromptId!);
+              isDirty = false;
+              this.forceClose();
+              if (callbacks.onPromptSaved) {
+                callbacks.onPromptSaved();
+              }
+            }
+          });
+        } else {
+          // Just discard if new
           this.forceClose();
-          if (callbacks.onPromptSaved) {
-            callbacks.onPromptSaved();
-          }
         }
-      } else {
-        // Just discard if new
-        this.forceClose();
-      }
-      moreMenu?.classList.add('pn-hidden');
-    });
+        moreMenu?.classList.add('hidden');
+      });
 
     // Unsaved Dialog Actions Binds
-    document.getElementById('pn-unsaved-save')?.addEventListener('click', () => {
+    BuilderDOM.unsavedDialog.querySelector('#unsaved-save')?.addEventListener('click', () => {
       void this.save();
     });
 
-    document.getElementById('pn-unsaved-discard')?.addEventListener('click', () => {
+    BuilderDOM.unsavedDialog.querySelector('#unsaved-discard')?.addEventListener('click', () => {
       this.hideUnsavedChangesDialog();
       this.forceClose();
       if (callbacks.onPromptSaved) {
@@ -1428,12 +1532,12 @@ export const PromptForm = {
       }
     });
 
-    document.getElementById('pn-unsaved-continue')?.addEventListener('click', () => {
+    BuilderDOM.unsavedDialog.querySelector('#unsaved-continue')?.addEventListener('click', () => {
       this.hideUnsavedChangesDialog();
     });
 
     // Tab bindings
-    document.querySelectorAll('.pn-builder-tab').forEach((tab) => {
+    BuilderDOM.root.querySelectorAll('.builder-workspace-tab').forEach((tab) => {
       tab.addEventListener('click', (e) => {
         const tabName =
           (e.currentTarget as HTMLElement).getAttribute('data-builder-tab') || 'preview';
@@ -1442,25 +1546,27 @@ export const PromptForm = {
     });
 
     // Preview Toolbar button bind toggle bottom preview tab
-    document.getElementById('pn-builder-tab-toggle-preview')?.addEventListener('click', () => {
-      this.switchTab('preview');
-    });
+    BuilderDOM.root
+      .querySelector('#builder-workspace-tab-toggle-preview')
+      ?.addEventListener('click', () => {
+        this.switchTab('preview');
+      });
 
     // Inline category management toggler
-    document.getElementById('pn-category-manage-btn')?.addEventListener('click', async (e) => {
+    BuilderDOM.categoryManageBtn?.addEventListener('click', async (e) => {
       e.stopPropagation();
-      const pane = document.getElementById('pn-inline-categories-pane');
+      const pane = BuilderDOM.categoriesPane;
       if (pane) {
-        pane.classList.toggle('pn-hidden');
-        if (!pane.classList.contains('pn-hidden')) {
+        pane.classList.toggle('hidden');
+        if (!pane.classList.contains('hidden')) {
           await this.renderInlineCategoriesList();
         }
       }
     });
 
     // Add category inline
-    document.getElementById('pn-add-category-btn')?.addEventListener('click', async () => {
-      const input = document.getElementById('pn-new-category-input') as HTMLInputElement | null;
+    BuilderDOM.addCategoryBtn?.addEventListener('click', async () => {
+      const input = BuilderDOM.newCategoryInput;
       const name = String(input?.value || '').trim();
       if (!name) return;
 
@@ -1478,8 +1584,8 @@ export const PromptForm = {
     });
 
     // Tag autocomplete input handling
-    const tagsInput = document.getElementById('prompt-tags-input') as HTMLInputElement | null;
-    const badgesWrap = document.getElementById('builder-tag-badges-wrap');
+    const tagsInput = BuilderDOM.tagsInput;
+    const badgesWrap = BuilderDOM.tagsContainer;
     if (tagsInput && badgesWrap) {
       tagsInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ',') {
@@ -1489,9 +1595,9 @@ export const PromptForm = {
             .trim();
           if (tag) {
             const badge = document.createElement('span');
-            badge.className = 'pn-tag-badge';
-            badge.innerHTML = `${escapeHtml(tag)}<span class="pn-tag-badge-close">&times;</span>`;
-            badge.querySelector('.pn-tag-badge-close')?.addEventListener('click', () => {
+            badge.className = 'tag-badge';
+            badge.innerHTML = `${escapeHtml(tag)}<span class="tag-badge-close">&times;</span>`;
+            badge.querySelector('.tag-badge-close')?.addEventListener('click', () => {
               badge.remove();
               this.syncTagsInput();
             });
@@ -1504,14 +1610,14 @@ export const PromptForm = {
     }
 
     // Version diff close back btn
-    document.getElementById('pn-close-diff-btn')?.addEventListener('click', () => {
-      document.getElementById('pn-builder-diff-container')?.classList.add('pn-hidden');
-      document.getElementById('pn-builder-versions-list')?.classList.remove('pn-hidden');
+    BuilderDOM.closeDiffBtn?.addEventListener('click', () => {
+      BuilderDOM.diffContainer?.classList.add('hidden');
+      BuilderDOM.versionList?.classList.remove('hidden');
     });
 
-    document.getElementById('pn-suggest-title-btn')?.addEventListener('click', () => {
-      const textEl = document.getElementById('prompt-text') as HTMLTextAreaElement | null;
-      const titleEl = document.getElementById('prompt-title') as HTMLInputElement | null;
+    BuilderDOM.suggestTitleBtn?.addEventListener('click', () => {
+      const textEl = BuilderDOM.textarea;
+      const titleEl = BuilderDOM.titleInput;
       if (textEl && titleEl) {
         const suggestion = PromptDiagnostics.suggestTitle(textEl.value);
         titleEl.value = suggestion;

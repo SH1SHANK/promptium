@@ -1,176 +1,124 @@
-/* Reusable Button component variants */
-
-.pn-btn {
+/* Button Component */
+.button,
+.btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
   border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-input);
   background: transparent;
   color: var(--color-text-primary);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-1-5) var(--space-3);
   font-size: var(--font-size-md);
-  cursor: pointer;
   font-family: var(--font-family-body);
   font-weight: var(--font-weight-medium);
-  min-height: 36px;
+  cursor: pointer;
+  min-height: 32px;
   box-sizing: border-box;
-  transition:
-    border-color var(--motion-fast) var(--motion-ease),
-    background var(--motion-fast) var(--motion-ease),
-    box-shadow var(--motion-fast) var(--motion-ease),
-    transform var(--motion-fast) var(--motion-ease),
-    color var(--motion-fast) var(--motion-ease);
+  user-select: none;
+  transition: all var(--pn-transition-base);
 }
 
-.pn-btn svg {
+.button svg,
+.btn svg {
   flex-shrink: 0;
 }
 
-.pn-btn:hover {
-  border-color: var(--color-accent-strong);
+.button:hover,
+.btn:hover {
+  border-color: var(--color-accent);
   background: var(--color-accent-glow);
-  color: var(--color-text-primary);
 }
 
-.pn-btn:active {
-  transform: scale(0.97);
+.button:active,
+.btn:active {
+  transform: scale(0.98);
 }
 
-.pn-btn:disabled {
+.button:focus-visible,
+.btn:focus-visible {
+  outline: none;
+  box-shadow: var(--pn-focus-ring);
+}
+
+.button:disabled,
+.btn:disabled {
   cursor: not-allowed;
   opacity: 0.4;
-  box-shadow: none !important;
-  border-color: var(--color-border-subtle);
   background: transparent !important;
+  border-color: var(--color-border-subtle) !important;
   color: var(--color-text-muted) !important;
 }
 
-.pn-btn:focus-visible {
-  outline: 2px solid var(--color-accent) !important;
-  outline-offset: 2px;
-}
-
-/* Primary Button variant */
-.pn-btn--primary {
+/* Primary Variant */
+.button--primary,
+.btn--primary {
+  background: var(--color-accent);
   border-color: var(--color-accent-strong);
-  background: var(--color-accent-strong);
-  color: #000000;
+  color: var(--pn-gray-900);
   font-weight: var(--font-weight-semibold);
 }
 
-.pn-btn--primary:hover {
-  border-color: var(--color-accent);
-  background: var(--color-accent);
-  color: #000000;
+.button--primary:hover,
+.btn--primary:hover {
+  background: var(--color-accent-strong);
+  border-color: var(--color-accent-strong);
+  color: var(--pn-gray-900);
 }
 
-/* Secondary Button variant */
-.pn-btn--secondary {
-  border-color: var(--color-border-default);
-  background: var(--color-bg-elevated);
+/* Ghost Variant */
+.button--ghost,
+.btn--ghost {
+  background: transparent;
+  border-color: transparent;
   color: var(--color-text-secondary);
 }
 
-.pn-btn--secondary:hover {
-  border-color: var(--color-border-accent);
+.button--ghost:hover,
+.btn--ghost:hover {
   background: var(--color-bg-hover);
   color: var(--color-text-primary);
 }
 
-/* Ghost Button variant */
-.pn-btn--ghost {
-  border-color: transparent;
-  background: transparent;
-  color: var(--color-text-secondary);
-}
-
-.pn-btn--ghost:hover {
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--color-text-primary);
-}
-
-.pn-btn--ghost:active {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-/* Danger Button variants */
-.pn-btn--danger {
+/* Danger Variant */
+.button--danger,
+.btn--danger {
   background: var(--color-danger);
   border-color: var(--color-danger);
   color: var(--color-text-primary);
 }
 
-.pn-btn--danger:hover {
-  background: #fca5a5;
-  border-color: #fca5a5;
-  color: #000000;
+.button--danger:hover,
+.btn--danger:hover {
+  background: var(--color-danger-soft);
+  border-color: var(--color-danger-soft);
+  color: var(--pn-gray-900);
 }
 
-.pn-btn--danger-ghost {
-  border-color: rgba(var(--color-danger-rgb), 0.4);
+.button--warn-ghost,
+.button--danger-ghost,
+.btn--warn-ghost,
+.btn--danger-ghost {
+  border-color: hsla(350, 80%, 54%, 0.3);
   color: var(--color-danger-soft);
   background: transparent;
 }
 
-.pn-btn--danger-ghost:hover {
-  background: rgba(var(--color-danger-rgb), 0.12);
+.button--warn-ghost:hover,
+.button--danger-ghost:hover,
+.btn--warn-ghost:hover,
+.btn--danger-ghost:hover {
+  background: hsla(350, 80%, 54%, 0.1);
   border-color: var(--color-danger);
   color: var(--color-text-primary);
 }
 
-/* Icon / Toolbar specialized actions */
-.pn-icon-btn {
+/* Icon button size override */
+.icon-btn {
   padding: 0;
   width: 32px;
   height: 32px;
   min-height: 32px;
-  border-radius: var(--radius-xs);
-}
-
-.pn-btn-icon-label {
-  gap: var(--space-1);
-}
-
-.pn-btn-icon--accent {
-  color: var(--color-secondary-accent-text);
-}
-
-.pn-btn--block {
-  width: 100%;
-}
-
-.pn-btn--copy {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  font-size: var(--font-size-md);
-  padding: var(--space-2) var(--space-3);
-  white-space: nowrap;
-}
-
-.pn-btn--copied {
-  color: var(--color-success) !important;
-  border-color: rgba(16, 185, 129, 0.3) !important;
-}
-
-/* Loading status spinner helper inside button */
-.pn-btn--loading {
-  position: relative;
-  color: var(--color-text-muted);
-  pointer-events: none;
-}
-
-.pn-btn--loading::after {
-  content: '';
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  margin-left: var(--space-2);
-  border: 2px solid var(--color-border-default);
-  border-top-color: var(--color-accent);
-  border-radius: 50%;
-  animation: pn-spin 0.8s linear infinite;
-  vertical-align: -1px;
+  border-radius: var(--radius-sm);
 }

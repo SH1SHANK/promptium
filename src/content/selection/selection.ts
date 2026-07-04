@@ -5,10 +5,7 @@
  */
 import { getCurrentAdapter } from '../../platform';
 import { notify } from '../integration/messaging';
-import {
-  exportSelectionState,
-  SELECTION_SHADOW_HOST_ID,
-} from '../state';
+import { exportSelectionState, SELECTION_SHADOW_HOST_ID } from '../state';
 
 // Inline shadow CSS is self-contained here as it owns the selection UI
 const INLINE_SELECT_SHADOW_CSS = `
@@ -22,7 +19,7 @@ const INLINE_SELECT_SHADOW_CSS = `
     transition: opacity 0.2s ease, transform 0.2s ease;
     pointer-events: none;
   }
-  :host-context(.pn-selectable-message--relative:hover) {
+  :host-context(.selectable-message--relative:hover) {
     opacity: 0.85; transform: scale(1) translateX(0); pointer-events: auto;
   }
   :host([data-visible="true"]) { opacity: 0.9; transform: scale(1) translateX(0); pointer-events: auto; }
@@ -58,12 +55,20 @@ const INLINE_SELECT_SHADOW_CSS = `
 
 export const safeQuery = async (selector: any, root: any = document) => {
   if (!selector || typeof selector !== 'string') return null;
-  try { return root.querySelector(selector); } catch (_) { return null; }
+  try {
+    return root.querySelector(selector);
+  } catch (_) {
+    return null;
+  }
 };
 
 export const safeQueryAllInScope = async (selector: any, root: any = document) => {
   if (!selector || typeof selector !== 'string') return [];
-  try { return Array.from(root.querySelectorAll(selector)); } catch (_) { return []; }
+  try {
+    return Array.from(root.querySelectorAll(selector));
+  } catch (_) {
+    return [];
+  }
 };
 
 export const sortContentNodesByDomOrder = async (nodes: any[]) => {
@@ -87,22 +92,40 @@ export const ensureMessageNodeId = async (node: any) => {
 export const getSanitizedMessageHtml = async (node: any) => {
   if (!node) return '';
   const clone = node.cloneNode(true);
-  clone.querySelectorAll('.pn-inline-select, .pn-inline-select-host').forEach((n: any) => n.remove());
-  clone.querySelectorAll('script, style, iframe, object, embed, link, meta').forEach((n: any) => n.remove());
+  clone
+    .querySelectorAll('.pn-inline-select, .pn-inline-select-host')
+    .forEach((n: any) => n.remove());
+  clone
+    .querySelectorAll('script, style, iframe, object, embed, link, meta')
+    .forEach((n: any) => n.remove());
   clone.querySelectorAll('*').forEach((element: any) => {
     Array.from(element.attributes).forEach((attribute: any) => {
       const name = String(attribute.name || '').toLowerCase();
       const value = String(attribute.value || '').trim();
-      if (name.startsWith('on') || name === 'style') { element.removeAttribute(attribute.name); return; }
+      if (name.startsWith('on') || name === 'style') {
+        element.removeAttribute(attribute.name);
+        return;
+      }
       if (['href', 'src', 'xlink:href', 'formaction'].includes(name)) {
         const normalized = value.toLowerCase();
-        if (!normalized) { element.removeAttribute(attribute.name); return; }
-        if (normalized.startsWith('#') || normalized.startsWith('/') || normalized.startsWith('./') || normalized.startsWith('../')) return;
+        if (!normalized) {
+          element.removeAttribute(attribute.name);
+          return;
+        }
+        if (
+          normalized.startsWith('#') ||
+          normalized.startsWith('/') ||
+          normalized.startsWith('./') ||
+          normalized.startsWith('../')
+        )
+          return;
         const allowedSchemes = ['http:', 'https:', 'mailto:', 'tel:'];
         try {
           const url = new URL(value, window.location.href);
           if (!allowedSchemes.includes(url.protocol)) element.removeAttribute(attribute.name);
-        } catch (_) { element.removeAttribute(attribute.name); }
+        } catch (_) {
+          element.removeAttribute(attribute.name);
+        }
       }
     });
   });
@@ -188,7 +211,10 @@ export const ensureMessageCheckbox = async (
       const group = exportSelectionState.groups?.find((g: any) => g.messageIds.includes(messageId));
       if (group && group.messageIds.length > 1) {
         splitBtn.textContent = group.split ? '🔗' : '✂️';
-        splitBtn.setAttribute('title', group.split ? 'Group messages in this turn' : 'Select messages in this turn independently');
+        splitBtn.setAttribute(
+          'title',
+          group.split ? 'Group messages in this turn' : 'Select messages in this turn independently'
+        );
       } else {
         splitBtn.remove();
       }
@@ -201,7 +227,7 @@ export const ensureMessageCheckbox = async (
   }
 
   if (window.getComputedStyle(node).position === 'static') {
-    node.classList.add('pn-selectable-message--relative');
+    node.classList.add('selectable-message--relative');
   }
 
   const host = document.createElement('span');
@@ -230,7 +256,10 @@ export const ensureMessageCheckbox = async (
   if (group && group.messageIds.length > 1) {
     if (splitBtn) {
       splitBtn.textContent = group.split ? '🔗' : '✂️';
-      splitBtn.setAttribute('title', group.split ? 'Group messages in this turn' : 'Select messages in this turn independently');
+      splitBtn.setAttribute(
+        'title',
+        group.split ? 'Group messages in this turn' : 'Select messages in this turn independently'
+      );
       splitBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         group.split = !group.split;
@@ -252,7 +281,10 @@ export const ensureMessageCheckbox = async (
   }
 
   if (checkbox instanceof HTMLInputElement) {
-    setControlChecked({ host, input: checkbox, control, messageId }, exportSelectionState.selectedIds.has(messageId));
+    setControlChecked(
+      { host, input: checkbox, control, messageId },
+      exportSelectionState.selectedIds.has(messageId)
+    );
 
     const toggleMessage = (id: string, checked: boolean) => {
       if (checked) exportSelectionState.selectedIds.add(id);
@@ -261,7 +293,9 @@ export const ensureMessageCheckbox = async (
 
     const handleValueChange = (checked: boolean, isShift: boolean) => {
       if (isShift && exportSelectionState.lastClickedId) {
-        const lastIdx = exportSelectionState.messageOrder.indexOf(exportSelectionState.lastClickedId);
+        const lastIdx = exportSelectionState.messageOrder.indexOf(
+          exportSelectionState.lastClickedId
+        );
         const currIdx = exportSelectionState.messageOrder.indexOf(messageId);
         if (lastIdx !== -1 && currIdx !== -1) {
           const start = Math.min(lastIdx, currIdx);
@@ -272,7 +306,9 @@ export const ensureMessageCheckbox = async (
           }
         }
       } else {
-        const activeGroup = exportSelectionState.groups?.find((g: any) => g.messageIds.includes(messageId));
+        const activeGroup = exportSelectionState.groups?.find((g: any) =>
+          g.messageIds.includes(messageId)
+        );
         if (activeGroup && !activeGroup.split) {
           for (const id of activeGroup.messageIds) toggleMessage(id, checked);
         } else {
@@ -300,14 +336,19 @@ export const ensureMessageCheckbox = async (
         handleValueChange(exportSelectionState.dragChecked, e.shiftKey);
       }) as EventListener);
       control.addEventListener('mouseenter', () => {
-        if (exportSelectionState.isDragging) handleValueChange(exportSelectionState.dragChecked, false);
+        if (exportSelectionState.isDragging)
+          handleValueChange(exportSelectionState.dragChecked, false);
       });
     }
   }
 
   control?.addEventListener('click', (event) => event.stopPropagation());
-  node.addEventListener('mouseenter', () => { if (host.dataset.checked !== 'true') host.dataset.visible = 'true'; });
-  node.addEventListener('mouseleave', () => { if (host.dataset.checked !== 'true') host.dataset.visible = 'false'; });
+  node.addEventListener('mouseenter', () => {
+    if (host.dataset.checked !== 'true') host.dataset.visible = 'true';
+  });
+  node.addEventListener('mouseleave', () => {
+    if (host.dataset.checked !== 'true') host.dataset.visible = 'false';
+  });
   node.appendChild(host);
 };
 
@@ -315,7 +356,9 @@ export const ensureMessageCheckbox = async (
 
 export const pruneMissingSelections = async (currentIds: any) => {
   const missing = new Set<string>();
-  exportSelectionState.selectedIds.forEach((id) => { if (!currentIds.has(id)) missing.add(id); });
+  exportSelectionState.selectedIds.forEach((id) => {
+    if (!currentIds.has(id)) missing.add(id);
+  });
   if (missing.size > 0) {
     missing.forEach((id) => exportSelectionState.selectedIds.delete(id));
   }
@@ -363,7 +406,12 @@ export const buildSelectedMessages = () =>
     .filter((id: any) => exportSelectionState.selectedIds.has(id))
     .map((id: any) => exportSelectionState.messagesById.get(id))
     .filter(Boolean)
-    .map((message: any) => ({ role: message.role, text: message.text, html: message.html, index: message.order }));
+    .map((message: any) => ({
+      role: message.role,
+      text: message.text,
+      html: message.html,
+      index: message.order,
+    }));
 
 // ─── Selection Mode Lifecycle ─────────────────────────────────────────────────
 
@@ -421,7 +469,11 @@ export const deactivateSelectionMode = async (
 
   document.querySelectorAll('.pn-inline-select-host').forEach((host) => host.remove());
   document.querySelectorAll('.pn-message-selected').forEach((node) => {
-    node.classList.remove('pn-message-selected', 'pn-chat-highlight-solid', 'pn-chat-highlight-dotted');
+    node.classList.remove(
+      'pn-message-selected',
+      'pn-chat-highlight-solid',
+      'pn-chat-highlight-dotted'
+    );
   });
 
   if (exportSelectionState.scanTimer) {
@@ -479,15 +531,22 @@ export const openSidePanelWithAllMessages = async () => {
     url: window.location.href,
     createdAt: new Date().toISOString(),
     messages: messages.map((message: any, index: any) => ({
-      role: message.role, text: message.text, html: String(message.html || ''), index,
+      role: message.role,
+      text: message.text,
+      html: String(message.html || ''),
+      index,
     })),
   };
   try {
     const response = await chrome.runtime.sendMessage({ action: 'SET_SIDEPANEL_PAYLOAD', payload });
-    if (!response?.ok) return { ok: false, error: response?.error || 'Failed to stage full export payload.' };
+    if (!response?.ok)
+      return { ok: false, error: response?.error || 'Failed to stage full export payload.' };
     return { ok: true };
   } catch (error) {
-    return { ok: false, error: (error as any)?.message || 'Failed to prepare full export payload.' };
+    return {
+      ok: false,
+      error: (error as any)?.message || 'Failed to prepare full export payload.',
+    };
   }
 };
 
@@ -508,5 +567,7 @@ export const activateSelectionModeAll = async (
 
 // Global drag-end listener
 if (typeof window !== 'undefined') {
-  window.addEventListener('mouseup', () => { exportSelectionState.isDragging = false; });
+  window.addEventListener('mouseup', () => {
+    exportSelectionState.isDragging = false;
+  });
 }

@@ -1,141 +1,65 @@
-/* Form fields, textareas, searchbars inputs */
-
-.pn-search-row {
-  padding: var(--space-3);
-  position: relative;
-  display: grid;
-  gap: var(--space-2);
-}
-
-.pn-search-input-wrap {
-  position: relative;
-  flex: 1;
-  display: flex;
-  align-items: center;
-}
-
-.pn-search {
+/* Input Components */
+.input,
+.textarea,
+.select {
   width: 100%;
   border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-sm);
-  padding: var(--space-2) var(--space-5) var(--space-2) var(--space-3);
+  border-radius: var(--radius-input);
+  padding: var(--space-2) var(--space-2-5);
   background: var(--color-bg-surface);
   color: var(--color-text-primary);
-  font-size: var(--font-size-md);
   font-family: var(--font-family-body);
-  transition:
-    border-color var(--motion-fast) var(--motion-ease),
-    box-shadow var(--motion-fast) var(--motion-ease),
-    background var(--motion-fast) var(--motion-ease);
+  font-size: var(--font-size-md);
+  box-sizing: border-box;
+  transition: all var(--pn-transition-base);
 }
 
-.pn-search:focus {
+.input:hover,
+.textarea:hover,
+.select:hover {
+  border-color: var(--pn-gray-500);
+}
+
+.input:focus,
+.textarea:focus,
+.select:focus,
+.input:focus-visible,
+.textarea:focus-visible,
+.select:focus-visible {
   outline: none;
   border-color: var(--color-accent);
   background: var(--color-bg-elevated);
-  box-shadow: var(--shadow-focus);
+  box-shadow: var(--pn-focus-ring);
 }
 
-.pn-search-clear {
-  position: absolute;
-  right: var(--space-3);
-  width: 16px;
-  height: 16px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  transition: color var(--motion-fast) var(--motion-ease);
+.input:disabled,
+.textarea:disabled,
+.select:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: var(--color-bg-base) !important;
+  border-color: var(--color-border-subtle) !important;
+  color: var(--color-text-muted) !important;
 }
 
-.pn-search-clear:hover {
-  color: var(--color-text-primary);
-}
-
-/* Fields & standard inputs */
-.pn-field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  margin-bottom: var(--space-3);
-  font-size: var(--font-size-md);
-  color: var(--color-text-secondary);
-}
-
-.pn-field-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-
-.pn-field-counter {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-  font-family: var(--font-family-mono);
-}
-
-.pn-field input,
-.pn-field textarea,
-.pn-field select {
-  width: 100%;
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-xs);
-  padding: var(--space-2);
-  background: var(--color-bg-surface);
-  color: var(--color-text-primary);
-  font-family: inherit;
-  font-size: var(--font-size-md);
-  box-sizing: border-box;
-  transition:
-    border-color var(--motion-fast) var(--motion-ease),
-    box-shadow var(--motion-fast) var(--motion-ease);
-}
-
-.pn-field input:focus,
-.pn-field textarea:focus,
-.pn-field select:focus {
-  outline: none;
-  border-color: var(--color-accent);
-  box-shadow: var(--shadow-focus);
-}
-
-.pn-field-hint {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-}
-
-/* Playground / SV specific fields */
-.pn-fill-input,
-.pn-sv-textarea,
-.pn-sv-select {
-  width: 100%;
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-xs);
-  background: var(--color-bg-surface);
-  color: var(--color-text-primary);
-  padding: var(--space-2) var(--space-3);
-  font: inherit;
-  font-size: var(--font-size-md);
-  box-sizing: border-box;
-  transition:
-    border-color var(--motion-fast) var(--motion-ease),
-    box-shadow var(--motion-fast) var(--motion-ease);
-}
-
-.pn-fill-input:focus,
-.pn-sv-textarea:focus,
-.pn-sv-select:focus {
-  outline: none;
-  border-color: var(--color-accent);
-  box-shadow: var(--shadow-focus);
-}
-
-.pn-sv-textarea {
+.textarea {
   resize: vertical;
-  min-height: 60px;
+  min-height: 80px;
+  line-height: var(--line-height-relaxed);
+}
+
+/* Shared Live Preview Box (Monospace Rendering) */
+.preview-box {
+  background: hsla(240, 6%, 9%, 0.45);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-md);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-relaxed);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-y: auto;
+  min-height: 80px;
 }

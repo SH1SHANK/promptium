@@ -1,0 +1,44 @@
+/* Scrollbar customizations */
+
+body.popup::-webkit-scrollbar {
+  width: 8px;
+}
+
+body.popup::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.16);
+}
+
+body.popup::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: var(--radius-pill);
+}
+
+body.popup::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--color-accent-rgb), 0.5);
+}
+
+.settings-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.template-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.bridge-targets::-webkit-scrollbar {
+  display: none;
+}
+
+body.sidepanel *::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+body.sidepanel *::-webkit-scrollbar-thumb {
+  background: var(--color-border-default);
+  border-radius: 2px;
+}
+
+body.sidepanel *::-webkit-scrollbar-track {
+  background: transparent;
+}

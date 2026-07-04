@@ -35,7 +35,7 @@ export const ONBOARDING_CARDS: OnboardingCard[] = [
   {
     id: 'welcome',
     icon: '✦',
-    iconClass: 'pn-card-icon--violet',
+    iconClass: 'card-icon--violet',
     subheadline: 'Welcome to Promptium',
     headline: 'Your dedicated prompt writing environment.',
     body: 'Create, parameterize, compile, and organize your prompts with a local-first editor built for writing speed and efficiency.',
@@ -44,7 +44,7 @@ export const ONBOARDING_CARDS: OnboardingCard[] = [
   {
     id: 'diagnostics',
     icon: '◈',
-    iconClass: 'pn-card-icon--pink',
+    iconClass: 'card-icon--pink',
     subheadline: 'Diagnostics & Quality',
     headline: 'Power your writing with live feedback.',
     body: 'Get live checks for malformed variables, duplicate variables, unused configs, generic titles, and prompt health directly as you type.',
@@ -53,7 +53,7 @@ export const ONBOARDING_CARDS: OnboardingCard[] = [
   {
     id: 'launch',
     icon: '→',
-    iconClass: 'pn-card-icon--pink',
+    iconClass: 'card-icon--pink',
     subheadline: 'Ready',
     headline: 'Choose your first step.',
     body: 'Open your prompt library, configure settings, or dive straight into writing.',

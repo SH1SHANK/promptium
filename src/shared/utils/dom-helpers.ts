@@ -53,7 +53,7 @@ const flushToastQueue = async () => {
     toast.setAttribute('role', 'status');
     toast.setAttribute('aria-live', 'polite');
     activeToast = toast;
-    document.body.appendChild(toast);
+    (document.querySelector('.runtime-toasts') || document.body).appendChild(toast);
 
     await wait(inferredError ? TOAST_DURATION_ERROR_MS : TOAST_DURATION_SUCCESS_MS);
     toast.remove();
@@ -89,11 +89,11 @@ export const createEmptyState = (messageOrConfig: any, maybeOptions: any = {}) =
   const onAction = isConfig ? (messageOrConfig as any).onAction : maybeOptions.onAction;
 
   const stateNode = document.createElement('div');
-  stateNode.className = 'pn-empty-state';
+  stateNode.className = 'empty-state';
   const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   icon.setAttribute('viewBox', '0 0 64 64');
   icon.setAttribute('fill', 'none');
-  icon.setAttribute('class', 'pn-empty-state__illustration');
+  icon.setAttribute('class', 'empty-state__illustration');
   icon.setAttribute('aria-hidden', 'true');
 
   const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -124,20 +124,20 @@ export const createEmptyState = (messageOrConfig: any, maybeOptions: any = {}) =
 
   if (title) {
     const titleNode = document.createElement('p');
-    titleNode.className = 'pn-empty-state__title';
+    titleNode.className = 'empty-state__title';
     titleNode.textContent = title;
     stateNode.appendChild(titleNode);
   }
 
   const messageNode = document.createElement('p');
-  messageNode.className = 'pn-empty-state__message';
+  messageNode.className = 'empty-state__message';
   messageNode.textContent = message;
   stateNode.appendChild(messageNode);
 
   if (actionLabel) {
     const actionButton = document.createElement('button');
     actionButton.type = 'button';
-    actionButton.className = 'pn-btn pn-btn--primary pn-empty-state__action';
+    actionButton.className = 'button button--primary empty-state__action';
     actionButton.textContent = actionLabel;
     if (typeof onAction === 'function') {
       actionButton.addEventListener('click', onAction);

@@ -1,10 +1,10 @@
 /**
- * File: utils/pn-dialog.ts
+ * File: utils/dialog.ts
  * Purpose: Lightweight custom dialog replacement for window.prompt/window.confirm/window.alert.
  * Implements strict keyboard trapping, Escape handling, Enter defaults, and focus restoration.
  */
 
-const DIALOG_WRAPPER_ID = 'pn-dialog-overlay';
+const DIALOG_WRAPPER_ID = 'dialog-overlay';
 let previousActiveElement: HTMLElement | null = null;
 
 const removeExisting = () => {
@@ -21,11 +21,11 @@ const createOverlay = () => {
 
   const overlay = document.createElement('div');
   overlay.id = DIALOG_WRAPPER_ID;
-  overlay.className = 'pn-dialog-overlay';
+  overlay.className = 'dialog-overlay';
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
-  document.body.appendChild(overlay);
-  requestAnimationFrame(() => overlay.classList.add('pn-dialog-overlay--visible'));
+  (document.querySelector('.runtime-dialogs') || document.body).appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('dialog-overlay--visible'));
   return overlay;
 };
 
@@ -98,16 +98,16 @@ const createDialog = (
   const overlay = createOverlay();
 
   const dialog = document.createElement('div');
-  dialog.className = 'pn-dialog';
+  dialog.className = 'dialog';
 
   const titleEl = document.createElement('h3');
-  titleEl.className = 'pn-dialog__title';
+  titleEl.className = 'dialog__title';
   titleEl.textContent = String(title || '');
   dialog.appendChild(titleEl);
 
   if (typeof body === 'string') {
     const msg = document.createElement('p');
-    msg.className = 'pn-dialog__message';
+    msg.className = 'dialog__message';
     msg.textContent = body;
     dialog.appendChild(msg);
   } else if (body instanceof HTMLElement) {
@@ -115,7 +115,7 @@ const createDialog = (
   }
 
   const actionsWrap = document.createElement('div');
-  actionsWrap.className = 'pn-dialog__actions';
+  actionsWrap.className = 'dialog__actions';
   actions.forEach((action) => actionsWrap.appendChild(action));
   dialog.appendChild(actionsWrap);
 
@@ -132,7 +132,7 @@ const createDialog = (
 export const alert = (message: string, { title = 'Notice' } = {}): Promise<void> =>
   new Promise<void>((resolve) => {
     const okBtn = document.createElement('button');
-    okBtn.className = 'pn-btn pn-btn--primary pn-dialog__btn';
+    okBtn.className = 'button button--primary dialog__btn';
     okBtn.textContent = 'OK';
     const closeAlert = () => {
       removeExisting();
@@ -153,7 +153,7 @@ export const confirm = (
 ): Promise<boolean> =>
   new Promise<boolean>((resolve) => {
     const cancelBtn = document.createElement('button');
-    cancelBtn.className = 'pn-btn pn-btn--ghost pn-dialog__btn';
+    cancelBtn.className = 'button button--ghost dialog__btn';
     cancelBtn.textContent = cancelLabel;
     const doCancel = () => {
       removeExisting();
@@ -162,7 +162,7 @@ export const confirm = (
     cancelBtn.addEventListener('click', doCancel);
 
     const confirmBtn = document.createElement('button');
-    confirmBtn.className = `pn-btn ${danger ? 'pn-btn--danger' : 'pn-btn--primary'} pn-dialog__btn`;
+    confirmBtn.className = `button ${danger ? 'button--danger' : 'button--primary'} dialog__btn`;
     confirmBtn.textContent = confirmLabel;
     const doConfirm = () => {
       removeExisting();
@@ -190,22 +190,22 @@ export const prompt = (
 ): Promise<string | null> =>
   new Promise<string | null>((resolve) => {
     const body = document.createElement('div');
-    body.className = 'pn-dialog__body';
+    body.className = 'dialog__body';
 
     const label = document.createElement('p');
-    label.className = 'pn-dialog__message';
+    label.className = 'dialog__message';
     label.textContent = String(message || '');
     body.appendChild(label);
 
     const input = document.createElement('input');
     input.type = 'text';
-    input.className = 'pn-dialog__input';
+    input.className = 'dialog__input';
     input.value = String(defaultValue || '');
     input.placeholder = String(placeholder || '');
     body.appendChild(input);
 
     const cancelBtn = document.createElement('button');
-    cancelBtn.className = 'pn-btn pn-btn--ghost pn-dialog__btn';
+    cancelBtn.className = 'button button--ghost dialog__btn';
     cancelBtn.textContent = 'Cancel';
     const doCancel = () => {
       removeExisting();
@@ -214,7 +214,7 @@ export const prompt = (
     cancelBtn.addEventListener('click', doCancel);
 
     const okBtn = document.createElement('button');
-    okBtn.className = 'pn-btn pn-btn--primary pn-dialog__btn';
+    okBtn.className = 'button button--primary dialog__btn';
     okBtn.textContent = 'OK';
     const doConfirm = () => {
       removeExisting();

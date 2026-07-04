@@ -176,16 +176,28 @@ function launchWorkflow(mode: FabWorkflowMode): void {
     return;
   }
 
-  chrome.runtime
-    .sendMessage({
-      action: 'OPEN_PROMPTIUM_WINDOW',
-      source: 'fab',
-      mode,
-      content,
-    })
-    .catch((err) => {
-      console.error('[Promptium FAB] Failed to launch Promptium workflow:', err);
-    });
-}
+  chrome.storage.local.get(['prompts'], (result) => {
+    const prompts = (result as any).prompts || [];
+    const isDuplicate = prompts.some((p: any) => p.text.trim() === content.trim());
+    if (isDuplicate) {
+      const toastObj = (window as any).toast;
+      if (toastObj?.info) {
+        toastObj.info('Prompt already exists in library.');
+      } else {
+        console.warn('[Promptium FAB] Prompt already exists in library.');
+      }
+      return;
+    }
 
-export { fabManager } from './fab-manager';
+    chrome.runtime
+      .sendMessage({
+        action: 'OPEN_PROMPTIUM_WINDOW',
+        source: 'fab',
+        mode,
+        content,
+      })
+      .catch((err) => {
+        console.error('[Promptium FAB] Failed to launch Promptium workflow:', err);
+      });
+  });
+}

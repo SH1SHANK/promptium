@@ -1,0 +1,21 @@
+:root {
+  --font-family-body: 'Inter', 'Outfit', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-family-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-md: 13px;
+  --font-size-lg: 14px;
+  --font-size-xl: 16px;
+  --font-size-2xl: 20px;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --line-height-tight: 1.25;
+  --line-height-snug: 1.35;
+  --line-height-base: 1.5;
+  --line-height-relaxed: 1.65;
+}

@@ -11,7 +11,7 @@ export const OBSERVER_DEBOUNCE_MS = 300;
 export const URL_WATCH_INTERVAL_MS = 1000;
 export const INJECTION_UNDO_TTL_MS = 8000;
 export const INJECTION_CONFIRMATION_DELAY_MS = 360;
-export const SELECTION_SHADOW_HOST_ID = 'pn-selection-shadow-host';
+export const SELECTION_SHADOW_HOST_ID = 'selection-shadow-host';
 
 // ─── FAB State Machine ────────────────────────────────────────────────────────
 
@@ -142,14 +142,38 @@ export let lastSavedPromptTime = 0;
 
 export const ALLOWED_TRANSITIONS: Record<FabState, FabState[]> = {
   hidden: ['idle', 'typing', 'selection_user', 'selection_assistant', 'conversation', 'sleeping'],
-  idle: ['hidden', 'typing', 'selection_user', 'selection_assistant', 'conversation', 'expanded', 'sleeping'],
+  idle: [
+    'hidden',
+    'typing',
+    'selection_user',
+    'selection_assistant',
+    'conversation',
+    'expanded',
+    'sleeping',
+  ],
   typing: ['hidden', 'idle', 'processing', 'sleeping'],
   selection_user: ['hidden', 'idle', 'processing', 'sleeping'],
   selection_assistant: ['hidden', 'idle', 'processing', 'sleeping'],
   conversation: ['hidden', 'idle', 'processing', 'sleeping'],
   expanded: ['hidden', 'idle', 'processing', 'sleeping'],
   processing: ['success', 'error'],
-  success: ['idle', 'typing', 'selection_user', 'selection_assistant', 'conversation', 'sleeping', 'hidden'],
-  error: ['idle', 'typing', 'selection_user', 'selection_assistant', 'conversation', 'sleeping', 'hidden'],
+  success: [
+    'idle',
+    'typing',
+    'selection_user',
+    'selection_assistant',
+    'conversation',
+    'sleeping',
+    'hidden',
+  ],
+  error: [
+    'idle',
+    'typing',
+    'selection_user',
+    'selection_assistant',
+    'conversation',
+    'sleeping',
+    'hidden',
+  ],
   sleeping: ['idle', 'typing', 'selection_user', 'selection_assistant', 'conversation', 'hidden'],
 };

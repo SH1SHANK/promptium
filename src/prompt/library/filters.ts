@@ -70,13 +70,13 @@ export const bindTemplateFilters = (onFilterChange: () => void): void => {
   if (filterBtn && filterMenu) {
     filterBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      filterMenu.classList.toggle('pn-hidden');
+      filterMenu.classList.toggle('hidden');
     });
 
     document.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
       if (!filterMenu.contains(target) && target !== filterBtn && !filterBtn.contains(target)) {
-        filterMenu.classList.add('pn-hidden');
+        filterMenu.classList.add('hidden');
       }
     });
   }

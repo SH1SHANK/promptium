@@ -3,6 +3,6 @@ export const SELECTORS = {
   botMsg:
     '[data-message-author-role="assistant"], .text-message[data-message-author-role="assistant"]',
   input:
-    '#prompt-textarea, div[contenteditable="true"][data-id], div[contenteditable="true"].ProseMirror',
+    '#builder-textarea, div[contenteditable="true"][data-id], div[contenteditable="true"].ProseMirror',
   inputParent: 'div.relative.flex, form',
 };

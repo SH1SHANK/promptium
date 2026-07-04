@@ -1,14 +1,14 @@
 /* Tag pills, labels, category chips, badges */
 
-.pn-tag-wrap {
+.tag-wrap {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
   margin: var(--space-2) 0;
 }
 
-.pn-tag-pill,
-.pn-tag {
+.tag-pill,
+.tag {
   display: inline-flex;
   align-items: center;
   padding: 2px var(--space-2);
@@ -20,7 +20,7 @@
   font-family: var(--font-family-mono);
 }
 
-.pn-tag-pill--clickable {
+.tag-pill--clickable {
   cursor: pointer;
   transition:
     background var(--motion-fast) var(--motion-ease),
@@ -28,14 +28,14 @@
     color var(--motion-fast) var(--motion-ease);
 }
 
-.pn-tag-pill--clickable:hover {
+.tag-pill--clickable:hover {
   background: var(--color-accent-glow);
   border-color: var(--color-accent);
   color: var(--color-text-primary);
 }
 
 /* Badge-Style Tag Input */
-.pn-tag-badges {
+.tag-badges {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -51,12 +51,12 @@
     box-shadow var(--motion-fast) var(--motion-ease);
 }
 
-.pn-tag-badges:focus-within {
+.tag-badges:focus-within {
   border-color: var(--color-accent);
   box-shadow: var(--shadow-focus);
 }
 
-.pn-tag-badge {
+.tag-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -70,8 +70,8 @@
   line-height: 1.5;
 }
 
-.pn-tag-badge-close,
-.pn-tag-badge__remove {
+.tag-badge-close,
+.tag-badge__remove {
   cursor: pointer;
   color: var(--color-text-muted);
   font-size: 14px;
@@ -79,12 +79,12 @@
   transition: color var(--motion-fast) var(--motion-ease);
 }
 
-.pn-tag-badge-close:hover,
-.pn-tag-badge__remove:hover {
+.tag-badge-close:hover,
+.tag-badge__remove:hover {
   color: var(--color-danger);
 }
 
-.pn-tag-badges__input {
+.tag-badges__input {
   flex: 1;
   min-width: 80px;
   border: none !important;
@@ -98,14 +98,14 @@
 }
 
 /* Tag Suggestion Chips */
-.pn-tag-suggestions {
+.tag-suggestions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
   margin-top: var(--space-2);
 }
 
-.pn-tag-chip--suggestion {
+.tag-chip--suggestion {
   padding: 3px var(--space-2);
   border: 1px dashed var(--color-border-accent);
   border-radius: var(--radius-pill);
@@ -119,12 +119,21 @@
     color var(--motion-fast) var(--motion-ease);
 }
 
-.pn-tag-chip--suggestion:hover {
+.tag-chip--suggestion:hover {
   background: var(--color-accent);
   color: #000000;
 }
 
-.pn-tag-suggestions__label {
+.tag-chip--suggestion:focus-visible {
+  outline: none;
+  box-shadow: var(--pn-focus-ring);
+}
+
+.tag-chip--suggestion:active {
+  transform: scale(0.97);
+}
+
+.tag-suggestions__label {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   width: 100%;
@@ -135,7 +144,7 @@
 }
 
 /* Tag Filter chips row in sidepanel */
-.pn-tag-filter-bar {
+.tag-filter-bar {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
@@ -143,8 +152,8 @@
   border-bottom: 1px solid var(--color-border-default);
 }
 
-.pn-tag-filter-chip,
-.pn-filter-chip {
+.tag-filter-chip,
+.filter-chip {
   padding: 4px var(--space-3);
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-default);
@@ -161,21 +170,33 @@
     background var(--motion-fast) var(--motion-ease);
 }
 
-.pn-tag-filter-chip:hover,
-.pn-filter-chip:hover {
+.tag-filter-chip:hover,
+.filter-chip:hover {
   border-color: var(--color-accent);
   color: var(--color-text-primary);
   background: var(--color-bg-hover);
 }
 
-.pn-tag-filter-chip.active,
-.pn-filter-chip.active {
+.tag-filter-chip.active,
+.filter-chip.active {
   background: var(--color-accent-glow);
   border-color: var(--color-accent);
   color: var(--color-accent-text);
 }
 
-.pn-tag-dot {
+.tag-filter-chip:focus-visible,
+.filter-chip:focus-visible {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: var(--pn-focus-ring);
+}
+
+.tag-filter-chip:active,
+.filter-chip:active {
+  transform: scale(0.97);
+}
+
+.tag-dot {
   width: 6px;
   height: 6px;
   border-radius: var(--radius-pill);

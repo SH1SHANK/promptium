@@ -12,7 +12,7 @@ import '../../content/injector';
 
 import '../../prompt/fab/fab.css';
 import './toolbar.css';
-import { fabManager } from '../../prompt/fab/fab';
+import { fabManager } from '../../prompt/fab/fab-manager';
 import { init } from '../../content/controller';
 
 export default defineContentScript({

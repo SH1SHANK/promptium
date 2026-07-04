@@ -1,9 +1,18 @@
-/* Master Modular Stylesheet entry point */
+/* Reset and browser normalization */
+@import './foundations/reset.css';
+
+/* Design system tokens & themes */
 @import './tokens/index.css';
 @import './themes/dark.css';
-@import './base/reset.css';
-@import './base/globals.css';
-@import './base/scrollbar.css';
+
+/* Foundations & Base styles */
+@import './foundations/globals.css';
+@import './foundations/scrollbar.css';
+@import './animations.css';
+
+/* Layouts */
+@import './layouts/flex.css';
+@import './layouts/grid.css';
 
 /* Components */
 @import './components/button.css';
@@ -17,7 +26,10 @@
 @import './components/toolbar.css';
 @import './components/tabs.css';
 
-/* Features */
+/* Utilities */
+@import './utilities/helpers.css';
+
+/* Features (Colocated) */
 @import '../../prompt/library/library.css';
 @import '../../prompt/builder/builder.css';
 @import './features/onboarding.css';

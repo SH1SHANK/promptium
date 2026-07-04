@@ -6,18 +6,23 @@
     <title>Promptium</title>
     <link rel="icon" type="image/png" sizes="32x32" href="/icons/promptium/icon32.png" />
   </head>
-  <body class="pn-popup pn-sidepanel pn-app-window">
-    <header class="pn-header pn-sidepanel-header">
-      <div class="pn-header-actions">
+  <body class="app popup sidepanel app-window">
+    <!-- Library Landmark -->
+    <main class="library">
+      <header class="library-header">
         <span
-          id="pn-search-setup-indicator"
-          class="pn-search-setup-indicator pn-hidden"
+          id="search-setup-indicator"
+          class="search-setup-indicator hidden"
           title="Setting up search..."
           aria-label="Setting up search"
         ></span>
+        <h1 id="header-page-title" class="hidden library-title">Promptium</h1>
+      </header>
+
+      <section class="toolbar library-toolbar" aria-label="Library Controls">
         <button
           id="back-btn"
-          class="hidden pn-btn pn-btn--ghost pn-icon-btn pn-mr-auto"
+          class="hidden button button--ghost icon-btn"
           type="button"
           title="Back"
           aria-label="Back"
@@ -37,11 +42,10 @@
           </svg>
           <span>Back</span>
         </button>
-        <span id="header-page-title" class="hidden"></span>
 
         <button
           id="refresh-btn"
-          class="pn-btn pn-btn--ghost pn-icon-btn"
+          class="button button--ghost icon-btn"
           type="button"
           title="Refresh Workspace"
           aria-label="Refresh Workspace"
@@ -61,7 +65,8 @@
             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
           </svg>
         </button>
-        <button id="add-prompt-btn" class="pn-btn pn-btn--primary" type="button">
+
+        <button id="add-prompt-btn" class="button button--primary" type="button">
           <svg
             width="14"
             height="14"
@@ -77,74 +82,97 @@
           </svg>
           Add Prompt
         </button>
+
         <button
           id="panel-close-btn"
-          class="pn-btn pn-btn--ghost pn-icon-btn hidden"
+          class="button button--ghost icon-btn hidden"
           type="button"
           title="Close"
           aria-label="Close"
         >
-          ×
+          &times;
         </button>
-      </div>
-    </header>
+      </section>
 
-    <div id="search-wrap" class="pn-search-row">
-      <div class="pn-search-input-wrap">
-        <input
-          id="prompt-search"
-          class="pn-search"
-          type="text"
-          placeholder="Search title, prompt text, tags, or category"
-        />
-        <button
-          id="pn-search-clear"
-          type="button"
-          class="pn-search-clear pn-hidden"
-          aria-label="Clear search"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+      <!-- Search Landmark -->
+      <section class="library-search" aria-label="Search and System Status">
+        <search id="search-wrap" role="search">
+          <input
+            id="prompt-search"
+            class="input search-field"
+            type="text"
+            placeholder="Search title, prompt text, tags, or category"
+            aria-label="Search prompts"
+          />
+          <button
+            id="search-clear"
+            type="button"
+            class="search-clear hidden"
+            aria-label="Clear search"
           >
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-      </div>
-      <span id="pn-search-mode-badge" class="pn-search-mode-badge pn-hidden">Keyword search</span>
-      <span id="pn-search-spark" class="pn-search-spark pn-hidden">✦</span>
-      <div id="pn-model-feedback" class="pn-model-feedback pn-hidden" aria-live="polite">
-        <span id="pn-model-feedback-dot" class="pn-model-feedback__dot"></span>
-        <span id="pn-model-feedback-text">Checking Gemini state…</span>
-      </div>
-      <div id="pn-ai-bar" class="pn-ai-bar pn-ai-bar--hidden">
-        <div class="pn-ai-bar__line"></div>
-      </div>
-    </div>
-    <nav class="pn-tab-bar" aria-label="Promptium tabs">
-      <button class="tab pn-tab active" data-tab="prompts" type="button">Prompt Library</button>
-      <button id="pn-nav-new-prompt" class="tab pn-tab" type="button">New Prompt</button>
-    </nav>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </search>
 
-    <main class="pn-main pn-sidepanel-main">
-      <section class="tab-content pn-tab-content active" data-tab="prompts">
-        <div id="pn-search-assists" class="pn-search-assists pn-hidden">
-          <div id="pn-recent-searches" class="pn-search-chip-row"></div>
-          <div id="pn-category-filters" class="pn-search-chip-row"></div>
+        <span id="search-mode-badge" class="search-mode-badge hidden">Keyword search</span>
+        <span id="search-spark" class="search-spark hidden">✦</span>
+
+        <div id="model-feedback" class="model-feedback hidden" aria-live="polite">
+          <span id="model-feedback-dot" class="model-feedback-dot"></span>
+          <span id="model-feedback-text">Checking Gemini state…</span>
         </div>
+
+        <div id="ai-bar" class="ai-bar ai-bar--hidden" aria-hidden="true">
+          <div class="ai-bar-line"></div>
+        </div>
+      </section>
+
+      <!-- Filters Landmark -->
+      <section class="library-filters" aria-label="Category Filters">
+        <nav class="library-nav" aria-label="Library Views">
+          <button
+            class="tab-btn active"
+            data-tab="prompts"
+            type="button"
+            role="tab"
+            aria-selected="true"
+          >
+            Prompt Library
+          </button>
+          <button
+            id="nav-new-prompt"
+            class="tab-btn"
+            type="button"
+            role="tab"
+            aria-selected="false"
+          >
+            New Prompt
+          </button>
+        </nav>
+
+        <div id="search-assists" class="search-assists hidden">
+          <div id="recent-searches" class="search-chip-row"></div>
+          <div id="category-filters" class="search-chip-row"></div>
+        </div>
+
         <div
-          id="pn-template-filters"
-          class="pn-template-filters pn-hidden"
+          id="template-filters"
+          class="library-filters-row hidden"
           role="tablist"
-          aria-label="Filter templates by category"
+          aria-label="Filter prompts by category"
         >
           <button
-            class="pn-filter-chip active"
+            class="filter-chip active"
             data-filter="all"
             role="tab"
             aria-selected="true"
@@ -153,7 +181,7 @@
             All
           </button>
           <button
-            class="pn-filter-chip"
+            class="filter-chip"
             data-filter="writing"
             role="tab"
             aria-selected="false"
@@ -162,7 +190,7 @@
             Writing
           </button>
           <button
-            class="pn-filter-chip"
+            class="filter-chip"
             data-filter="coding"
             role="tab"
             aria-selected="false"
@@ -171,7 +199,7 @@
             Coding
           </button>
           <button
-            class="pn-filter-chip"
+            class="filter-chip"
             data-filter="study"
             role="tab"
             aria-selected="false"
@@ -180,7 +208,7 @@
             Study
           </button>
           <button
-            class="pn-filter-chip"
+            class="filter-chip"
             data-filter="research"
             role="tab"
             aria-selected="false"
@@ -189,7 +217,7 @@
             Research
           </button>
           <button
-            class="pn-filter-chip"
+            class="filter-chip"
             data-filter="creative"
             role="tab"
             aria-selected="false"
@@ -198,7 +226,7 @@
             Creative
           </button>
           <button
-            class="pn-filter-chip"
+            class="filter-chip"
             data-filter="work"
             role="tab"
             aria-selected="false"
@@ -207,7 +235,7 @@
             Work
           </button>
           <button
-            class="pn-filter-chip"
+            class="filter-chip"
             data-filter="general"
             role="tab"
             aria-selected="false"
@@ -216,404 +244,441 @@
             General
           </button>
         </div>
-        <div id="pn-template-fill-panel" class="pn-template-fill-panel pn-hidden"></div>
-        <div id="prompt-list" class="pn-list"></div>
+
+        <div id="template-fill-panel" class="template-fill-panel hidden"></div>
       </section>
 
-      <!-- Add/Edit Vault Item Modal Dialog -->
+      <!-- Content Landmark -->
+      <section class="library-content">
+        <ul class="library-list" role="list"></ul>
 
-      <!-- Universal AI Context Importer Preview Modal -->
+        <!-- Details Panel Landmark -->
+        <aside
+          id="prompt-detail-panel"
+          class="library-details hidden"
+          aria-label="Prompt details preview"
+        >
+          <header class="details-header">
+            <h4 class="details-title">Prompt Details</h4>
+            <button
+              class="details-close"
+              data-action="close-details"
+              type="button"
+              aria-label="Close details panel"
+            >
+              &times;
+            </button>
+          </header>
+          <div class="details-content">
+            <div class="details-meta-group">
+              <span class="details-category category-badge">General</span>
+              <span class="details-updated details-date">Updated today</span>
+            </div>
 
-      <!-- Review Mode Modal Overlay -->
+            <p class="details-desc details-description">Description here...</p>
+
+            <div class="details-tags details-tags-list"></div>
+
+            <div class="details-actions-row">
+              <button class="button button--primary" data-action="use" type="button">
+                Use Prompt
+              </button>
+              <button class="button button--ghost" data-action="copy" type="button">
+                Copy Raw
+              </button>
+              <button class="button button--ghost" data-action="copy-compiled" type="button">
+                Copy Compiled
+              </button>
+              <button class="button button--ghost" data-action="edit" type="button">Edit</button>
+              <button class="button button--ghost" data-action="duplicate" type="button">
+                Duplicate
+              </button>
+              <button class="button button--warn-ghost" data-action="delete" type="button">
+                Delete
+              </button>
+            </div>
+
+            <section
+              class="details-vars-section details-section hidden"
+              aria-label="Variables playground"
+            >
+              <h5 class="details-section-title">Variables Playground</h5>
+              <div class="details-vars-inputs details-vars-grid"></div>
+            </section>
+
+            <section class="details-section" aria-label="Live compiling preview">
+              <h5 class="details-section-title">Live Preview</h5>
+              <div class="details-preview-box"></div>
+            </section>
+
+            <section class="details-section" aria-label="Version history snapshots">
+              <h5 class="details-section-title">Version History</h5>
+              <ul class="library-version-list" role="list"></ul>
+            </section>
+          </div>
+        </aside>
+      </section>
     </main>
 
+    <!-- Command Palette Dialog -->
     <div
-      id="pn-command-palette"
-      class="pn-command-palette pn-hidden"
+      id="command-palette"
+      class="command-palette hidden"
       role="dialog"
       aria-modal="true"
-      aria-labelledby="pn-command-palette-title"
+      aria-labelledby="command-palette-title"
     >
-      <div class="pn-command-palette__backdrop" data-command-close></div>
-      <div class="pn-command-palette__panel">
-        <h2 id="pn-command-palette-title" class="pn-command-palette__title">Command Palette</h2>
+      <div class="command-palette-backdrop" data-command-close></div>
+      <div class="command-palette-panel">
+        <h2 id="command-palette-title" class="command-palette-title">Command Palette</h2>
         <input
-          id="pn-command-input"
-          class="pn-command-input"
+          id="command-input"
+          class="command-input"
           type="text"
           placeholder="Search commands or prompts"
           autocomplete="off"
         />
-        <div id="pn-command-results" class="pn-command-results"></div>
+        <div id="command-results" class="command-results"></div>
       </div>
     </div>
 
-    <div
-      id="add-modal"
-      class="pn-modal pn-hidden"
-      role="dialog"
+    <!-- Builder Workspace Modal Dialog -->
+    <dialog
+      id="prompt-builder"
+      class="builder-modal"
       aria-modal="true"
-      aria-labelledby="pn-add-modal-title"
-      aria-describedby="pn-add-modal-desc"
+      aria-labelledby="builder-title"
     >
-      <div class="pn-modal__backdrop" data-close-modal></div>
-      <div class="pn-modal__panel pn-builder-panel">
+      <form class="builder" method="dialog">
         <!-- Toolbar -->
-        <header class="pn-builder-toolbar">
-          <div class="pn-builder-toolbar-left">
+        <header class="builder-toolbar">
+          <button
+            id="builder-close"
+            class="button button--ghost icon-btn"
+            type="button"
+            title="Close Workspace"
+            aria-label="Close Workspace"
+          >
+            &times;
+          </button>
+
+          <span id="builder-autosave-status" class="builder-autosave-status">
+            <span class="status-dot status-dot--saved"></span>
+            <span class="status-text">Saved</span>
+          </span>
+
+          <button id="builder-save" class="button button--primary" type="button">Save</button>
+
+          <div class="builder-more-container">
             <button
-              id="pn-builder-close"
-              class="pn-builder-close-btn"
+              id="builder-more-btn"
+              class="button button--ghost icon-btn"
               type="button"
-              title="Close Workspace"
+              title="More options"
+              aria-haspopup="true"
+              aria-expanded="false"
+              aria-label="More options"
             >
-              &times;
-            </button>
-            <span id="pn-builder-autosave-status" class="pn-autosave-status">
-              <span class="pn-status-dot pn-status-dot--saved"></span>
-              <span class="pn-status-text">Saved</span>
-            </span>
-          </div>
-          <div class="pn-builder-toolbar-right">
-            <button
-              id="pn-builder-save"
-              class="pn-btn pn-btn--primary pn-toolbar-action-btn"
-              type="button"
-            >
-              Save
-            </button>
-            <div class="pn-builder-more-container">
-              <button
-                id="pn-builder-more-btn"
-                class="pn-btn pn-btn--ghost pn-icon-btn pn-toolbar-action-btn"
-                type="button"
-                title="More options"
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
               >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <circle cx="12" cy="12" r="1"></circle>
-                  <circle cx="12" cy="5" r="1"></circle>
-                  <circle cx="12" cy="19" r="1"></circle>
-                </svg>
-              </button>
-              <div id="pn-builder-more-menu" class="pn-builder-more-menu pn-hidden">
-                <div class="pn-menu-section-header">Prompt Type</div>
-                <div class="pn-builder-mode-selector">
-                  <button id="pn-builder-mode-plain" class="pn-mode-btn active" type="button">
-                    Plain
-                  </button>
-                  <button id="pn-builder-mode-template" class="pn-mode-btn" type="button">
-                    Template
-                  </button>
-                </div>
-                <hr class="pn-menu-divider" />
-                <label class="pn-menu-checkbox-item">
-                  <input type="checkbox" id="prompt-favorite" />
-                  <span>Favorite</span>
-                </label>
-                <label class="pn-menu-checkbox-item">
-                  <input type="checkbox" id="prompt-pinned" />
-                  <span>Pin to Top</span>
-                </label>
-                <hr class="pn-menu-divider" />
-                <button id="pn-builder-standalone-btn" class="pn-menu-action-btn" type="button">
-                  Open Standalone
-                </button>
+                <circle cx="12" cy="12" r="1"></circle>
+                <circle cx="12" cy="5" r="1"></circle>
+                <circle cx="12" cy="19" r="1"></circle>
+              </svg>
+            </button>
+
+            <div id="builder-more-menu" class="builder-more-menu hidden" role="menu">
+              <div class="menu-section-header">Prompt Type</div>
+              <div class="builder-mode-selector">
                 <button
-                  id="pn-builder-more-delete-btn"
-                  class="pn-menu-action-btn pn-menu-action-btn--danger"
+                  id="builder-mode-plain"
+                  class="mode-btn active"
                   type="button"
+                  role="menuitem"
                 >
-                  Delete Prompt
+                  Plain
+                </button>
+                <button id="builder-mode-template" class="mode-btn" type="button" role="menuitem">
+                  Template
                 </button>
               </div>
+              <hr class="menu-divider" />
+              <label class="menu-checkbox-item">
+                <input type="checkbox" id="builder-favorite" />
+                <span>Favorite</span>
+              </label>
+              <label class="menu-checkbox-item">
+                <input type="checkbox" id="builder-pinned" />
+                <span>Pin to Top</span>
+              </label>
+              <hr class="menu-divider" />
+              <button
+                id="builder-standalone-btn"
+                class="menu-action-btn"
+                type="button"
+                role="menuitem"
+              >
+                Open Standalone
+              </button>
+              <button
+                id="builder-more-delete-btn"
+                class="menu-action-btn menu-action-btn--danger"
+                type="button"
+                role="menuitem"
+              >
+                Delete Prompt
+              </button>
             </div>
           </div>
         </header>
 
         <!-- Duplicate warning banner -->
         <div
-          id="pn-builder-duplicate-banner"
-          class="pn-hidden"
-          style="
-            background: rgba(245, 158, 11, 0.12);
-            border-bottom: 1px solid rgba(245, 158, 11, 0.25);
-            padding: var(--space-2.5) var(--space-4);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: var(--space-3);
-            font-size: var(--font-size-sm);
-            color: var(--color-text-primary);
-          "
+          id="builder-duplicate-banner"
+          class="builder-duplicate-banner hidden"
+          role="alert"
         ></div>
 
-        <!-- Main Workspace -->
-        <main class="pn-builder-container">
-          <!-- Inline Metadata -->
-          <div class="pn-inline-metadata">
-            <div
-              style="
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                gap: var(--space-2);
-                width: 100%;
-              "
-            >
-              <input
-                id="prompt-title"
-                class="pn-inline-title-input"
-                type="text"
-                placeholder="Title"
-                maxlength="80"
-                autocomplete="off"
-              />
-              <button
-                id="pn-suggest-title-btn"
-                class="pn-btn pn-btn--ghost pn-hidden"
-                type="button"
-                style="
-                  padding: 2px 8px;
-                  font-size: var(--font-size-xs);
-                  height: 24px;
-                  min-height: 24px;
-                  white-space: nowrap;
-                  border: 1px solid var(--color-border-default);
-                "
-                title="Suggest Title based on content"
-              >
-                Suggest Title
-              </button>
-            </div>
+        <!-- Metadata Fields -->
+        <section class="builder-metadata" aria-label="Prompt metadata">
+          <div class="builder-title-row">
+            <label for="builder-title" class="sr-only">Prompt Title</label>
             <input
-              id="prompt-description"
-              class="pn-inline-description-input"
+              id="builder-title"
+              class="input builder-title-input"
               type="text"
-              placeholder="Add description..."
+              placeholder="Untitled Prompt"
+              maxlength="80"
               autocomplete="off"
             />
-
-            <div class="pn-inline-category-row">
-              <span class="pn-inline-label">Category</span>
-              <div class="pn-category-inline-select">
-                <select id="prompt-category" class="pn-inline-category-select">
-                  <option value="general">General</option>
-                  <option value="writing">Writing</option>
-                  <option value="coding">Coding</option>
-                  <option value="study">Study</option>
-                  <option value="research">Research</option>
-                  <option value="creative">Creative</option>
-                  <option value="work">Work</option>
-                </select>
-                <button id="pn-category-manage-btn" class="pn-btn-manage-cat-inline" type="button">
-                  Manage
-                </button>
-              </div>
-            </div>
-
-            <!-- Inline category management panel -->
-            <div id="pn-inline-categories-pane" class="pn-inline-categories-pane pn-hidden">
-              <div class="pn-category-manage-row">
-                <input
-                  id="pn-new-category-input"
-                  class="pn-dialog__input"
-                  type="text"
-                  placeholder="New Category Name"
-                  style="margin-bottom: 0"
-                />
-                <button
-                  id="pn-add-category-btn"
-                  class="pn-btn pn-btn--primary"
-                  type="button"
-                  style="padding: 6px 12px; height: 32px"
-                >
-                  Add
-                </button>
-              </div>
-              <div id="pn-manage-categories-list" style="margin-top: var(--space-2)"></div>
-            </div>
-
-            <div class="pn-inline-tags-row">
-              <div class="pn-inline-tags-wrap">
-                <span class="pn-inline-label">Tags</span>
-                <div class="pn-tag-badges" id="builder-tag-badges-wrap" style="flex: 1">
-                  <input
-                    id="prompt-tags-input"
-                    class="pn-tag-badges__input"
-                    type="text"
-                    placeholder="Add tag..."
-                    autocomplete="off"
-                  />
-                </div>
-                <input id="prompt-tags" type="hidden" />
-              </div>
-            </div>
+            <button
+              id="builder-suggest-title-btn"
+              class="button button--ghost hidden"
+              type="button"
+              title="Suggest Title based on content"
+            >
+              Suggest Title
+            </button>
           </div>
 
-          <hr class="pn-inline-divider" />
+          <label for="builder-description" class="sr-only">Prompt Description</label>
+          <input
+            id="builder-description"
+            class="input builder-description-input"
+            type="text"
+            placeholder="Add description..."
+            autocomplete="off"
+          />
 
-          <!-- Editor highlighting and writing area -->
-          <div class="pn-builder-editor-pane">
-            <div class="pn-editor-highlight-wrap">
-              <div id="pn-editor-backdrop" class="pn-editor-backdrop"></div>
-              <textarea
-                id="prompt-text"
-                class="pn-builder-textarea"
-                placeholder="Type your prompt here... Use {{variable_name}} to define blanks..."
-              ></textarea>
-            </div>
-          </div>
-
-          <!-- Bottom Collapsible Tabs container -->
-          <div class="pn-builder-tabs-container pn-collapsed">
-            <div class="pn-builder-tabs-header-bar">
-              <div class="pn-builder-tabs-header">
-                <button class="pn-builder-tab active" data-builder-tab="preview" type="button">
-                  Preview
-                </button>
-                <button class="pn-builder-tab" data-builder-tab="variables" type="button">
-                  Variables
-                </button>
-                <button
-                  id="pn-builder-tab-diagnostics"
-                  class="pn-builder-tab"
-                  data-builder-tab="diagnostics"
-                  type="button"
-                >
-                  Diagnostics (0)
-                </button>
-                <button class="pn-builder-tab" data-builder-tab="versions" type="button">
-                  Save History
-                </button>
-              </div>
-              <div
-                id="pn-editor-stat-info"
-                class="pn-editor-stats-bar"
-                style="display: flex; align-items: center; gap: var(--space-3)"
+          <fieldset class="builder-fieldset">
+            <legend class="sr-only">Category Settings</legend>
+            <label for="builder-category" class="builder-field-label">Category</label>
+            <div class="builder-category-wrapper">
+              <select id="builder-category" class="select builder-category-select">
+                <option value="general">General</option>
+                <option value="writing">Writing</option>
+                <option value="coding">Coding</option>
+                <option value="study">Study</option>
+                <option value="research">Research</option>
+                <option value="creative">Creative</option>
+                <option value="work">Work</option>
+              </select>
+              <button
+                id="builder-category-manage-btn"
+                class="button button--ghost builder-btn-manage-cat"
+                type="button"
               >
-                <span class="pn-stats-text">0 words • ~0 tokens • 0 variables</span>
-                <span
-                  id="pn-builder-health-score"
-                  class="pn-health-score-pill"
-                  style="
-                    font-weight: 600;
-                    padding: 2px 6px;
-                    border-radius: var(--radius-xs);
-                    background: rgba(16, 185, 129, 0.15);
-                    color: var(--color-success-soft);
-                  "
-                  >Health: 100/100</span
-                >
-              </div>
+                Manage
+              </button>
             </div>
+          </fieldset>
 
-            <div class="pn-builder-tab-panes">
-              <!-- Variables pane -->
-              <div class="pn-builder-tab-pane" data-builder-pane="variables">
-                <div id="pn-builder-vars-container" class="pn-vars-container"></div>
-              </div>
-
-              <!-- Diagnostics pane -->
-              <div class="pn-builder-tab-pane" data-builder-pane="diagnostics">
-                <div
-                  id="pn-builder-diagnostics-container"
-                  class="pn-diagnostics-container"
-                  style="display: flex; flex-direction: column; gap: var(--space-2)"
-                ></div>
-              </div>
-
-              <!-- Preview pane -->
-              <div class="pn-builder-tab-pane active" data-builder-pane="preview">
-                <div class="pn-preview-subtabs-row">
-                  <button class="pn-subtab active" data-subtab="rendered" type="button">
-                    Compiled Preview
-                  </button>
-                  <button class="pn-subtab" data-subtab="raw" type="button">Raw Preview</button>
-                </div>
-                <div id="pn-builder-preview-box" class="pn-preview-box"></div>
-                <div
-                  id="pn-builder-raw-box"
-                  class="pn-preview-box pn-hidden"
-                  style="white-space: pre-wrap; font-family: var(--font-mono)"
-                ></div>
-              </div>
-
-              <!-- Versions pane -->
-              <div class="pn-builder-tab-pane" data-builder-pane="versions">
-                <div id="pn-builder-versions-list"></div>
-                <div id="pn-builder-diff-container" class="pn-hidden">
-                  <div
-                    style="
-                      display: flex;
-                      justify-content: space-between;
-                      align-items: center;
-                      margin-bottom: 8px;
-                    "
-                  >
-                    <span style="font-weight: 600; font-size: var(--font-size-sm)"
-                      >Version Comparison</span
-                    >
-                    <button
-                      id="pn-close-diff-btn"
-                      class="pn-btn pn-btn--ghost"
-                      type="button"
-                      style="padding: 2px 8px; font-size: 11px"
-                    >
-                      Back
-                    </button>
-                  </div>
-                  <div
-                    id="pn-diff-box"
-                    class="pn-diff-box"
-                    style="
-                      white-space: pre-wrap;
-                      font-family: var(--font-mono);
-                      background: #111;
-                      padding: 8px;
-                      border-radius: 4px;
-                      max-height: 220px;
-                      overflow-y: auto;
-                    "
-                  ></div>
-                </div>
-              </div>
+          <!-- Inline category management panel -->
+          <div
+            id="builder-categories-pane"
+            class="builder-categories-pane hidden"
+            aria-label="Manage categories"
+          >
+            <div class="builder-category-manage-row">
+              <label for="builder-new-category-input" class="sr-only">New Category Name</label>
+              <input
+                id="builder-new-category-input"
+                class="input"
+                type="text"
+                placeholder="New Category Name"
+              />
+              <button id="builder-add-category-btn" class="button button--primary" type="button">
+                Add
+              </button>
             </div>
+            <div id="builder-categories-list" class="builder-categories-list"></div>
+          </div>
+
+          <fieldset class="builder-fieldset">
+            <legend class="sr-only">Tags Settings</legend>
+            <label for="builder-tags-input" class="builder-field-label">Tags</label>
+            <div id="builder-tags-container" class="tag-badges">
+              <input
+                id="builder-tags-input"
+                class="tag-badges__input"
+                type="text"
+                placeholder="Add tag..."
+                autocomplete="off"
+              />
+            </div>
+            <input id="builder-tags-hidden" type="hidden" />
+          </fieldset>
+        </section>
+
+        <!-- Editor Area -->
+        <main class="builder-editor" aria-label="Prompt editor">
+          <div class="builder-editor-wrapper">
+            <div
+              id="builder-editor-backdrop"
+              class="builder-editor-backdrop"
+              aria-hidden="true"
+            ></div>
+            <label for="builder-text" class="sr-only">Prompt text content</label>
+            <textarea
+              id="builder-text"
+              class="textarea builder-textarea"
+              placeholder="Type your prompt here... Use {{variable_name}} to define blanks..."
+            ></textarea>
           </div>
         </main>
-      </div>
 
-      <!-- Unsaved Changes dialog (rendered locally within add-modal context for easy overlays) -->
-      <div id="pn-unsaved-dialog" class="pn-dialog-overlay pn-hidden">
-        <div class="pn-dialog">
-          <h3 class="pn-dialog__title">Unsaved Changes</h3>
-          <p class="pn-dialog__message">
-            You have unsaved changes. Do you want to save them before leaving?
-          </p>
-          <div class="pn-dialog__actions">
-            <button id="pn-unsaved-save" class="pn-dialog__btn pn-btn--primary" type="button">
-              Save
-            </button>
-            <button id="pn-unsaved-discard" class="pn-dialog__btn pn-btn--warn-ghost" type="button">
-              Discard
-            </button>
-            <button id="pn-unsaved-continue" class="pn-dialog__btn pn-btn--ghost" type="button">
-              Keep Editing
-            </button>
+        <!-- Bottom collapsible workspace utilities -->
+        <section class="builder-workspace collapsed" aria-label="Utilities">
+          <div class="builder-workspace-header">
+            <nav class="builder-workspace-tabs" role="tablist" aria-label="Utilities tabs">
+              <button
+                class="builder-workspace-tab active"
+                data-builder-tab="preview"
+                role="tab"
+                aria-selected="true"
+                type="button"
+              >
+                Preview
+              </button>
+              <button
+                class="builder-workspace-tab"
+                data-builder-tab="variables"
+                role="tab"
+                aria-selected="false"
+                type="button"
+              >
+                Variables
+              </button>
+              <button
+                id="builder-tab-diagnostics"
+                class="builder-workspace-tab"
+                data-builder-tab="diagnostics"
+                role="tab"
+                aria-selected="false"
+                type="button"
+              >
+                Diagnostics (0)
+              </button>
+              <button
+                class="builder-workspace-tab"
+                data-builder-tab="versions"
+                role="tab"
+                aria-selected="false"
+                type="button"
+              >
+                History
+              </button>
+            </nav>
           </div>
+
+          <div class="builder-workspace-content">
+            <!-- Variables pane -->
+            <div class="builder-tab-pane" data-builder-pane="variables" role="tabpanel">
+              <ul class="builder-variable-list" role="list"></ul>
+            </div>
+
+            <!-- Diagnostics pane -->
+            <div class="builder-tab-pane" data-builder-pane="diagnostics" role="tabpanel">
+              <div class="diagnostics-container"></div>
+            </div>
+
+            <!-- Preview pane -->
+            <div class="builder-tab-pane active" data-builder-pane="preview" role="tabpanel">
+              <div class="preview-subtabs">
+                <button class="subtab-btn active" data-subtab="rendered" type="button">
+                  Compiled Preview
+                </button>
+                <button class="subtab-btn" data-subtab="raw" type="button">Raw Preview</button>
+              </div>
+              <div class="builder-preview builder-preview--rendered preview-box"></div>
+              <div class="builder-preview builder-preview--raw preview-box hidden"></div>
+            </div>
+
+            <!-- Versions pane -->
+            <div class="builder-tab-pane" data-builder-pane="versions" role="tabpanel">
+              <ul class="builder-version-list" role="list"></ul>
+              <div class="diff-container hidden">
+                <div class="diff-header">
+                  <span class="diff-title">Version Comparison</span>
+                  <button id="builder-close-diff-btn" class="button button--ghost" type="button">
+                    Back
+                  </button>
+                </div>
+                <div class="diff-box"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Footer status -->
+        <footer class="builder-status">
+          <div class="builder-stats-bar">
+            <span>0 words • ~0 tokens • 0 variables</span>
+          </div>
+          <span class="health-score-pill"> Health: 100/100 </span>
+        </footer>
+      </form>
+    </dialog>
+
+    <!-- Unsaved Changes dialog -->
+    <div
+      id="prompt-unsaved-dialog"
+      class="dialog-overlay hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="unsaved-title"
+    >
+      <div class="dialog">
+        <h3 id="unsaved-title" class="dialog-title">Unsaved Changes</h3>
+        <p class="dialog-message">
+          You have unsaved changes. Do you want to save them before leaving?
+        </p>
+        <div class="dialog-actions">
+          <button id="unsaved-save" class="button button--primary" type="button">Save</button>
+          <button id="unsaved-discard" class="button button--warn-ghost" type="button">
+            Discard
+          </button>
+          <button id="unsaved-continue" class="button button--ghost" type="button">
+            Keep Editing
+          </button>
         </div>
       </div>
     </div>
 
-    <!-- Improve Prompt Diff Modal -->
+    <!-- Runtime Mount Points -->
+    <div class="runtime">
+      <div class="runtime-dialogs" aria-live="assertive"></div>
+      <div class="runtime-toasts" aria-live="polite"></div>
+      <div class="runtime-overlays"></div>
+    </div>
 
     <script type="module" src="./index.ts"></script>
   </body>

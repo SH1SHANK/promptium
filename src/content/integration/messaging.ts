@@ -21,8 +21,7 @@ export const notify = async (message: any) => {
   toast.info(text);
 };
 
-export const normalizeComposerText = (value: any) =>
-  String(value || '').replace(/\r\n/g, '\n');
+export const normalizeComposerText = (value: any) => String(value || '').replace(/\r\n/g, '\n');
 
 export const getComposerNode = async (_platform: any) => {
   const adapter = getCurrentAdapter();

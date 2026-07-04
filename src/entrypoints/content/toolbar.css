@@ -21,6 +21,7 @@
   --pn-motion-panel: 200ms;
 }
 
+.pn-button,
 .pn-btn {
   border: 1px solid var(--pn-border-default);
   border-radius: 7px;
@@ -49,6 +50,7 @@
   transform: translateY(1px);
 }
 
+.pn-button--primary,
 .pn-btn--primary {
   border-color: var(--pn-accent-strong);
   background: var(--pn-accent-strong);
@@ -56,11 +58,13 @@
   border-radius: 8px;
 }
 
+.pn-button--primary:hover,
 .pn-btn--primary:hover {
   background: var(--pn-accent);
   border-color: var(--pn-accent);
 }
 
+.pn-button--ghost,
 .pn-btn--ghost {
   background: transparent;
 }

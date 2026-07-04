@@ -12,10 +12,9 @@ registerAdapter(new ClaudeAdapter());
 registerAdapter(new PerplexityAdapter());
 registerAdapter(new CopilotAdapter());
 
-// Export types, interface, registry, validation harness, diagnostics, and navigation
+// Export types, interface, registry, diagnostics, and navigation
 export * from './base/types';
 export * from './base/adapter';
 export * from './base/registry';
 export * from './base/diagnostics';
 export * from './base/navigation';
-export * from './testing/validateAdapter';

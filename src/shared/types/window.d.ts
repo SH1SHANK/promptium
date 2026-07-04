@@ -214,12 +214,6 @@ interface Window {
     highlightCodeForPreview(code: string, language: string): string;
     renderMarkdownDocument(parser: any, markdown: string): string;
   };
-  SessionStorage: {
-    cloneExportPayload(payload: any): any;
-    getStoredProviderKey(provider: string): Promise<string>;
-    getStoredGeminiKey(): Promise<string>;
-    getActiveExportPayload(state: any): any;
-  };
   Bridge: {
     LLM_URLS: Record<string, string>;
     bridgeTo(messages: any[], source: string, target: string): Promise<boolean>;
@@ -227,7 +221,6 @@ interface Window {
 
   // Helper Utilities
   PnDialog: any;
-  PromptDuplicate: any;
   SmartName: any;
   Tags: any;
   PromptTemplates: any;

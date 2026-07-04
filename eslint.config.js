@@ -22,7 +22,7 @@ export default tseslint.config(
       'no-useless-escape': 'off',
       'no-case-declarations': 'off',
       'no-inner-declarations': 'off',
-      'no-empty': 'off',
+      'no-empty': 'warn',
       'no-control-regex': 'off',
       'no-extra-boolean-cast': 'off',
       'prefer-const': 'off',
@@ -39,6 +39,7 @@ export default tseslint.config(
       // Surface DOM security patterns as warnings
       'no-restricted-syntax': 'off',
       '@typescript-eslint/no-require-imports': 'off',
+      '@typescript-eslint/triple-slash-reference': 'off',
     },
   }
 );

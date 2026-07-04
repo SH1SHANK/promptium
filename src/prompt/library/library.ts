@@ -16,9 +16,14 @@ import {
 } from '../search/search';
 import { doInject, callbacks, setCallbacks } from './actions';
 import { bindTemplateFilters, resetTemplateFilter } from './filters';
+import { LibraryDOM } from './library-dom';
+import { LibraryActions } from './library-actions';
+import { PnDialog } from '../shared/dialog';
 
 let selectedPrompt: Prompt | null = null;
 let currentPlaygroundValues: Record<string, string> = {};
+
+const cardMap = new Map<string, HTMLElement>();
 
 const CATEGORY_LABELS: Record<string, string> = {
   writing: 'Writing',
@@ -53,7 +58,6 @@ const renderLineDiff = (oldText: string, newText: string): string => {
   const newLines = newText.split('\n');
   let html = '';
 
-  // Simple line-by-line rendering for changes
   const maxLines = Math.max(oldLines.length, newLines.length);
   for (let i = 0; i < maxLines; i++) {
     const oldLine = oldLines[i];
@@ -61,14 +65,14 @@ const renderLineDiff = (oldText: string, newText: string): string => {
 
     if (oldLine === newLine) {
       if (oldLine !== undefined) {
-        html += `<div class="pn-diff-line pn-diff-line--unchanged">  ${escapeHtml(oldLine)}</div>`;
+        html += `<div class="diff-line diff-line--unchanged">  ${escapeHtml(oldLine)}</div>`;
       }
     } else {
       if (oldLine !== undefined) {
-        html += `<div class="pn-diff-line pn-diff-line--removed">- ${escapeHtml(oldLine)}</div>`;
+        html += `<div class="diff-line diff-line--removed">- ${escapeHtml(oldLine)}</div>`;
       }
       if (newLine !== undefined) {
-        html += `<div class="pn-diff-line pn-diff-line--added">+ ${escapeHtml(newLine)}</div>`;
+        html += `<div class="diff-line diff-line--added">+ ${escapeHtml(newLine)}</div>`;
       }
     }
   }
@@ -84,89 +88,166 @@ const escapeHtml = (text: string): string => {
     .replace(/'/g, '&#039;');
 };
 
+const formatRelativeTime = (timestamp: string | number | null): string => {
+  if (!timestamp) return '';
+  const timeMs = typeof timestamp === 'string' ? new Date(timestamp).getTime() : timestamp;
+  if (isNaN(timeMs)) return '';
+
+  const diff = Date.now() - timeMs;
+  const secs = Math.floor(diff / 1000);
+  const mins = Math.floor(secs / 60);
+  const hours = Math.floor(mins / 60);
+  const days = Math.floor(hours / 24);
+
+  if (secs < 60) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return `${days}d ago`;
+  return new Date(timeMs).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+};
+
+const getCardInnerHtml = (prompt: Prompt): string => {
+  const displayTags = prompt.tags || [];
+  const maxVisibleTags = 3;
+  const visibleTags = displayTags.slice(0, maxVisibleTags);
+  const remainingCount = displayTags.length - maxVisibleTags;
+
+  const tagsMarkup = visibleTags
+    .map((tag: string) => `<span class="card-tag">${escapeHtml(tag)}</span>`)
+    .join('');
+  const overflowMarkup =
+    remainingCount > 0 ? `<span class="card-tag card-tag--overflow">+${remainingCount}</span>` : '';
+
+  const varsCount = (prompt.variables || []).length;
+  const varsMarkup = varsCount > 0 ? `<span class="card-vars-badge">${varsCount} vars</span>` : '';
+
+  return `
+    <div class="card-content">
+      <div class="card-header">
+        <span class="card-category category-badge category-badge--${prompt.category || 'general'}">${
+          CATEGORY_LABELS[prompt.category || 'general'] || 'General'
+        }</span>
+        <div class="card-indicators">
+          <button
+            class="card-indicator button-pin"
+            data-action="pin"
+            title="${prompt.isPinned ? 'Unpin prompt' : 'Pin prompt'}"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="${
+              prompt.isPinned ? 'currentColor' : 'none'
+            }" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a6 6 0 0 1 8.49 8.49Z"/><path d="M8.53 16.11 9 15.62"/><path d="m12 12.16.4-.39"/></svg>
+          </button>
+          <button
+            class="card-indicator button-favorite"
+            data-action="favorite"
+            title="${prompt.isFavorite ? 'Remove from favorites' : 'Add to favorites'}"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="${
+              prompt.isFavorite ? 'currentColor' : 'none'
+            }" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+          </button>
+        </div>
+      </div>
+      <h3 class="card-title">${escapeHtml(prompt.title || 'Untitled Prompt')}</h3>
+      <p class="card-description">${escapeHtml(prompt.description || '')}</p>
+      <div class="card-tags">${tagsMarkup}${overflowMarkup}</div>
+      <div class="card-footer">
+        ${varsMarkup}
+        <span class="card-date">${formatRelativeTime(prompt.updatedAt || prompt.createdAt)}</span>
+      </div>
+    </div>
+  `;
+};
+
+export const updateCard = (prompt: Prompt): void => {
+  const card = cardMap.get(prompt.id);
+  if (!card) return;
+
+  const newHtml = getCardInnerHtml(prompt);
+  if (card.innerHTML !== newHtml) {
+    card.innerHTML = newHtml;
+  }
+  card.setAttribute('data-pinned', String(prompt.isPinned));
+  card.setAttribute('data-favorite', String(prompt.isFavorite));
+  card.setAttribute('data-selected', String(selectedPrompt && selectedPrompt.id === prompt.id));
+};
+
 const bindCardListeners = (card: HTMLElement, prompt: Prompt, query: string) => {
-  const pinBtn = card.querySelector('.pn-card-pin-btn') as HTMLElement;
-  pinBtn.addEventListener('click', async (e) => {
-    e.stopPropagation();
-    await PromptStore.setPinned(prompt.id, !prompt.isPinned);
-    await render(query);
-    if (selectedPrompt && selectedPrompt.id === prompt.id) {
-      selectedPrompt.isPinned = !prompt.isPinned;
-      await openPreviewPanel(selectedPrompt);
+  const pinBtn = card.querySelector('[data-action="pin"]') as HTMLElement;
+  if (pinBtn) {
+    pinBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const updated = await PromptStore.setPinned(prompt.id, !prompt.isPinned);
+      if (updated) {
+        updateCard(updated);
+        if (selectedPrompt && selectedPrompt.id === prompt.id) {
+          selectedPrompt = updated;
+          await openPreviewPanel(updated);
+        }
+      }
+    });
+  }
+
+  const favBtn = card.querySelector('[data-action="favorite"]') as HTMLElement;
+  if (favBtn) {
+    favBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const updated = await PromptStore.setFavorite(prompt.id, !prompt.isFavorite);
+      if (updated) {
+        updateCard(updated);
+        if (selectedPrompt && selectedPrompt.id === prompt.id) {
+          selectedPrompt = updated;
+          await openPreviewPanel(updated);
+        }
+      }
+    });
+  }
+
+  card.addEventListener('click', async () => {
+    const list = LibraryDOM.list;
+    if (list) {
+      list
+        .querySelectorAll('.prompt-card')
+        .forEach((c) => c.setAttribute('data-selected', 'false'));
     }
+    card.setAttribute('data-selected', 'true');
+    selectedPrompt = prompt;
+    await openPreviewPanel(prompt);
   });
 
-  const favBtn = card.querySelector('.pn-card-fav-btn') as HTMLElement;
-  favBtn.addEventListener('click', async (e) => {
-    e.stopPropagation();
-    await PromptStore.setFavorite(prompt.id, !prompt.isFavorite);
-    await render(query);
-    if (selectedPrompt && selectedPrompt.id === prompt.id) {
-      selectedPrompt.isFavorite = !prompt.isFavorite;
-      await openPreviewPanel(selectedPrompt);
-    }
-  });
-
-  card.querySelector('.pn-action-use')?.addEventListener('click', async (e) => {
-    e.stopPropagation();
-    const compiled = VariablesManager.compile(prompt.text, {}, prompt.variables || []);
-    const btn = e.currentTarget as HTMLButtonElement;
-    await doInject(compiled, false, btn);
-    await PromptStore.incrementUsageCount(prompt.id);
-  });
-
-  card.querySelector('.pn-action-edit')?.addEventListener('click', async (e) => {
-    e.stopPropagation();
+  card.addEventListener('dblclick', async () => {
     const PromptForm = (window as any).PromptForm;
     if (PromptForm?.openForEdit) {
       await PromptForm.openForEdit(prompt);
     }
   });
-
-  card.querySelector('.pn-action-duplicate')?.addEventListener('click', async (e) => {
-    e.stopPropagation();
-    const duplicated = await PromptStore.duplicatePrompt(prompt.id);
-    if (duplicated) {
-      await render(query);
-    }
-  });
-
-  card.querySelector('.pn-action-delete')?.addEventListener('click', async (e) => {
-    e.stopPropagation();
-    const confirmed = window.confirm(`Delete prompt "${prompt.title}"?`);
-    if (confirmed) {
-      await PromptStore.deletePrompt(prompt.id);
-      if (selectedPrompt && selectedPrompt.id === prompt.id) {
-        closePreviewPanel();
-      }
-      await render(query);
-    }
-  });
-
-  card.addEventListener('click', async () => {
-    document
-      .querySelectorAll('.pn-prompt-card')
-      .forEach((c) => c.classList.remove('pn-card--selected'));
-    card.classList.add('pn-card--selected');
-    selectedPrompt = prompt;
-    await openPreviewPanel(prompt);
-  });
 };
 
-export const render = async (query = ''): Promise<void> => {
-  const container = document.getElementById('prompt-list');
+export const render = async (query = '', keepSelection = false): Promise<void> => {
+  const container = LibraryDOM.list;
   if (!container) return;
 
   const sorted = promptSearchIndex.search(query);
-  const allPrompts = promptSearchIndex.search('');
+  const allPrompts = query ? promptSearchIndex.search('') : sorted;
+
+  if (selectedPrompt && !keepSelection) {
+    const isStillVisible = sorted.some((p: Prompt) => p.id === selectedPrompt!.id);
+    if (!isStillVisible) {
+      closePreviewPanel();
+    }
+  }
 
   if (allPrompts.length === 0) {
     container.innerHTML = `
-      <div class="pn-empty-state">
-        <p class="pn-empty-state__title">No prompts yet</p>
-        <p class="pn-empty-state__message">Create your first prompt to get started.</p>
-        <div class="pn-empty-state__action">
-          <button id="pn-empty-create-btn" class="pn-btn pn-btn--primary" type="button">Create Prompt</button>
+      <div class="empty-state">
+        <p class="empty-state__title">No prompts yet</p>
+        <p class="empty-state__message">Your prompt library is empty. Create your first prompt to get started.</p>
+        <div class="empty-state__action">
+          <button id="pn-empty-create-btn" class="button button--primary" type="button">Create Prompt</button>
         </div>
       </div>
     `;
@@ -181,20 +262,18 @@ export const render = async (query = ''): Promise<void> => {
 
   if (sorted.length === 0) {
     container.innerHTML = `
-      <div class="pn-empty-state">
-        <p class="pn-empty-state__title">No results found</p>
-        <p class="pn-empty-state__message">No prompts matched your search. Try adjusting keywords or choosing tag suggestions.</p>
-        <div class="pn-empty-suggestions" style="margin-top: var(--space-2); display: flex; gap: var(--space-2); flex-wrap: wrap; justify-content: center;">
-          <span class="pn-suggestion-chip" style="cursor: pointer; background: var(--color-bg-elevated); padding: 4px var(--space-2); border-radius: var(--radius-xs); border: 1px solid var(--color-border-default); font-size: var(--font-size-sm);" data-query="">Clear search</span>
-          <span class="pn-suggestion-chip" style="cursor: pointer; background: var(--color-bg-elevated); padding: 4px var(--space-2); border-radius: var(--radius-xs); border: 1px solid var(--color-border-default); font-size: var(--font-size-sm);" data-query="writing">writing</span>
-          <span class="pn-suggestion-chip" style="cursor: pointer; background: var(--color-bg-elevated); padding: 4px var(--space-2); border-radius: var(--radius-xs); border: 1px solid var(--color-border-default); font-size: var(--font-size-sm);" data-query="coding">coding</span>
+      <div class="empty-state">
+        <p class="empty-state__title">No results for "${escapeHtml(query)}"</p>
+        <p class="empty-state__message">No prompts matched your search. Try adjusting keywords or clearing the search.</p>
+        <div class="empty-suggestions">
+          <span class="suggestion-chip" data-query="">Clear search</span>
         </div>
       </div>
     `;
-    container.querySelectorAll('.pn-suggestion-chip').forEach((chip) => {
+    container.querySelectorAll('.suggestion-chip').forEach((chip) => {
       chip.addEventListener('click', (e) => {
         const targetQ = (e.currentTarget as HTMLElement).getAttribute('data-query') || '';
-        const searchInput = document.getElementById('prompt-search') as HTMLInputElement | null;
+        const searchInput = getSearchInput() as HTMLInputElement | null;
         if (searchInput) {
           searchInput.value = targetQ;
           void render(targetQ);
@@ -204,6 +283,8 @@ export const render = async (query = ''): Promise<void> => {
     return;
   }
 
+  const scrollTop = container.scrollTop;
+
   const existingCards = Array.from(container.children) as HTMLElement[];
   const existingCardMap: Record<string, HTMLElement> = {};
   existingCards.forEach((c) => {
@@ -212,94 +293,61 @@ export const render = async (query = ''): Promise<void> => {
   });
 
   const fragment = document.createDocumentFragment();
+  cardMap.clear();
 
   sorted.forEach((prompt: Prompt) => {
     let card = existingCardMap[prompt.id];
-    const tagsMarkup = (prompt.tags || [])
-      .map((tag: string) => `<span class="pn-card-tag">${escapeHtml(tag)}</span>`)
-      .join('');
-
-    const innerHtmlContent = `
-      <div class="pn-card-main-content">
-        <div class="pn-card-top-row">
-          <span class="pn-card-category pn-category-badge pn-category-badge--${prompt.category || 'general'}">${
-            CATEGORY_LABELS[prompt.category || 'general'] || 'General'
-          }</span>
-          <div class="pn-card-quick-indicators">
-            <button class="pn-card-pin-btn ${prompt.isPinned ? 'active' : ''}" type="button" title="Pin prompt">📌</button>
-            <button class="pn-card-fav-btn ${prompt.isFavorite ? 'active' : ''}" type="button" title="Favorite prompt">★</button>
-          </div>
-        </div>
-        <h3 class="pn-card-title">${escapeHtml(prompt.title)}</h3>
-        <p class="pn-card-desc">${escapeHtml(prompt.description || 'No description.')}</p>
-        <div class="pn-card-tags">
-          ${tagsMarkup}
-        </div>
-      </div>
-      <div class="pn-card-footer">
-        <span class="pn-card-var-count">${(prompt.variables || []).length} variables</span>
-        <span class="pn-card-date">Updated ${formatShortDate(prompt.updatedAt || prompt.createdAt)}</span>
-      </div>
-      <div class="pn-card-hover-actions">
-        <button class="pn-hover-action-btn pn-action-use" type="button" title="Inject into active tab">Use</button>
-        <button class="pn-hover-action-btn pn-action-edit" type="button" title="Edit Prompt">Edit</button>
-        <button class="pn-hover-action-btn pn-action-duplicate" type="button" title="Duplicate">Duplicate</button>
-        <button class="pn-hover-action-btn pn-action-delete" type="button" title="Delete">Delete</button>
-      </div>
-    `;
+    const innerHtmlContent = getCardInnerHtml(prompt);
 
     if (card) {
       if (card.innerHTML !== innerHtmlContent) {
-        card.className = `pn-prompt-card ${prompt.isPinned ? 'pn-card--pinned' : ''}`;
-        if (selectedPrompt && selectedPrompt.id === prompt.id) {
-          card.classList.add('pn-card--selected');
-        }
-        card.innerHTML = innerHtmlContent;
+        const newCard = card.cloneNode(false) as HTMLElement;
+        newCard.innerHTML = innerHtmlContent;
+        card.replaceWith(newCard);
+        card = newCard;
         bindCardListeners(card, prompt, query);
-      } else {
-        card.className = `pn-prompt-card ${prompt.isPinned ? 'pn-card--pinned' : ''}`;
-        if (selectedPrompt && selectedPrompt.id === prompt.id) {
-          card.classList.add('pn-card--selected');
-        }
       }
     } else {
-      card = document.createElement('article');
-      card.className = `pn-prompt-card ${prompt.isPinned ? 'pn-card--pinned' : ''}`;
-      if (selectedPrompt && selectedPrompt.id === prompt.id) {
-        card.classList.add('pn-card--selected');
-      }
+      card = document.createElement('li');
+      card.className = 'prompt-card';
       card.dataset.promptId = prompt.id;
       card.innerHTML = innerHtmlContent;
       bindCardListeners(card, prompt, query);
     }
 
+    card.setAttribute('data-pinned', String(prompt.isPinned));
+    card.setAttribute('data-favorite', String(prompt.isFavorite));
+    card.setAttribute('data-selected', String(selectedPrompt && selectedPrompt.id === prompt.id));
+    card.tabIndex = 0;
+
+    cardMap.set(prompt.id, card);
     fragment.appendChild(card);
   });
 
-  container.innerHTML = '';
-  container.appendChild(fragment);
+  container.replaceChildren(fragment);
+  container.scrollTop = scrollTop;
 };
 
 /**
  * Opens and renders the details preview panel for the selected prompt.
  */
 export const openPreviewPanel = async (prompt: Prompt): Promise<void> => {
-  const panel = document.getElementById('pn-prompt-detail-panel');
+  const panel = LibraryDOM.details;
   if (!panel) return;
 
-  panel.classList.remove('pn-hidden');
+  panel.classList.remove('hidden');
   void PromptStore.recordOpen(prompt.id);
 
-  const titleEl = document.getElementById('pn-detail-title');
-  const catEl = document.getElementById('pn-detail-category');
-  const dateEl = document.getElementById('pn-detail-updated');
-  const descEl = document.getElementById('pn-detail-desc');
-  const tagsListEl = document.getElementById('pn-detail-tags');
-  const previewBox = document.getElementById('pn-detail-preview-box');
+  const titleEl = LibraryDOM.title;
+  const catEl = LibraryDOM.category;
+  const dateEl = LibraryDOM.updated;
+  const descEl = LibraryDOM.desc;
+  const tagsListEl = LibraryDOM.tags;
+  const previewBox = LibraryDOM.previewBox;
 
   if (titleEl) titleEl.textContent = prompt.title;
   if (catEl) {
-    catEl.className = `pn-category-badge pn-category-badge--${prompt.category || 'general'}`;
+    catEl.className = `category-badge category-badge--${prompt.category || 'general'}`;
     catEl.textContent = CATEGORY_LABELS[prompt.category || 'general'] || 'General';
   }
   if (dateEl)
@@ -308,7 +356,7 @@ export const openPreviewPanel = async (prompt: Prompt): Promise<void> => {
 
   if (tagsListEl) {
     tagsListEl.innerHTML = (prompt.tags || [])
-      .map((tag: string) => `<span class="pn-card-tag">${escapeHtml(tag)}</span>`)
+      .map((tag: string) => `<span class="card-tag">${escapeHtml(tag)}</span>`)
       .join('');
   }
 
@@ -316,22 +364,22 @@ export const openPreviewPanel = async (prompt: Prompt): Promise<void> => {
   currentPlaygroundValues = {};
 
   // Setup Playground inputs if it has variables
-  const varsSection = document.getElementById('pn-detail-vars-section');
-  const varsInputsWrap = document.getElementById('pn-detail-vars-inputs');
+  const varsSection = LibraryDOM.varsSection;
+  const varsInputsWrap = LibraryDOM.varsInputs;
 
   if (prompt.variables && prompt.variables.length > 0) {
-    varsSection?.classList.remove('pn-hidden');
+    varsSection?.classList.remove('hidden');
     if (varsInputsWrap) {
       varsInputsWrap.innerHTML = '';
       prompt.variables.forEach((variable: any) => {
         const inputId = `playground-var-${variable.name}`;
         const inputFieldContainer = document.createElement('div');
-        inputFieldContainer.className = 'pn-playground-field-group';
+        inputFieldContainer.className = 'playground-field-group';
 
         const label = document.createElement('label');
         label.setAttribute('for', inputId);
         label.innerHTML = `<span>${escapeHtml(variable.name)}</span> ${
-          variable.required ? '<small class="pn-required-indicator">*</small>' : ''
+          variable.required ? '<small class="required-indicator">*</small>' : ''
         }`;
 
         let inputEl: HTMLElement;
@@ -396,7 +444,10 @@ export const openPreviewPanel = async (prompt: Prompt): Promise<void> => {
       });
     }
   } else {
-    varsSection?.classList.add('pn-hidden');
+    varsSection?.classList.add('hidden');
+    if (varsInputsWrap) {
+      varsInputsWrap.innerHTML = '';
+    }
   }
 
   // Generate initial preview
@@ -404,73 +455,6 @@ export const openPreviewPanel = async (prompt: Prompt): Promise<void> => {
 
   // Load Version History Snapshots list
   await renderVersionHistorySnapshots(prompt.id);
-
-  // Setup detail panel action buttons
-  const useBtn = document.getElementById('pn-detail-btn-use');
-  useBtn?.replaceWith(useBtn.cloneNode(true));
-  document.getElementById('pn-detail-btn-use')?.addEventListener('click', async (e) => {
-    const compiled = VariablesManager.compile(
-      prompt.text,
-      currentPlaygroundValues,
-      prompt.variables || []
-    );
-    const btn = e.currentTarget as HTMLButtonElement;
-    await doInject(compiled, false, btn);
-    await PromptStore.incrementUsageCount(prompt.id);
-  });
-
-  const copyBtn = document.getElementById('pn-detail-btn-copy');
-  copyBtn?.replaceWith(copyBtn.cloneNode(true));
-  document.getElementById('pn-detail-btn-copy')?.addEventListener('click', async () => {
-    await navigator.clipboard.writeText(prompt.text);
-    const DomHelpers = (window as any).DomHelpers;
-    if (DomHelpers?.showToast) DomHelpers.showToast('Copied raw prompt to clipboard');
-  });
-
-  const copyCompiledBtn = document.getElementById('pn-detail-btn-copy-compiled');
-  copyCompiledBtn?.replaceWith(copyCompiledBtn.cloneNode(true));
-  document.getElementById('pn-detail-btn-copy-compiled')?.addEventListener('click', async () => {
-    const compiled = VariablesManager.compile(
-      prompt.text,
-      currentPlaygroundValues,
-      prompt.variables || []
-    );
-    await navigator.clipboard.writeText(compiled);
-    const DomHelpers = (window as any).DomHelpers;
-    if (DomHelpers?.showToast) DomHelpers.showToast('Copied rendered prompt to clipboard');
-  });
-
-  const editBtn = document.getElementById('pn-detail-btn-edit');
-  editBtn?.replaceWith(editBtn.cloneNode(true));
-  document.getElementById('pn-detail-btn-edit')?.addEventListener('click', async () => {
-    const PromptForm = (window as any).PromptForm;
-    if (PromptForm?.openForEdit) {
-      await PromptForm.openForEdit(prompt);
-    }
-  });
-
-  const dupBtn = document.getElementById('pn-detail-btn-duplicate');
-  dupBtn?.replaceWith(dupBtn.cloneNode(true));
-  document.getElementById('pn-detail-btn-duplicate')?.addEventListener('click', async () => {
-    const duplicated = await PromptStore.duplicatePrompt(prompt.id);
-    if (duplicated) {
-      const searchVal = (document.getElementById('prompt-search') as HTMLInputElement)?.value || '';
-      await render(searchVal);
-      await openPreviewPanel(duplicated);
-    }
-  });
-
-  const delBtn = document.getElementById('pn-detail-btn-delete');
-  delBtn?.replaceWith(delBtn.cloneNode(true));
-  document.getElementById('pn-detail-btn-delete')?.addEventListener('click', async () => {
-    const confirmed = window.confirm(`Delete prompt "${prompt.title}"?`);
-    if (confirmed) {
-      await PromptStore.deletePrompt(prompt.id);
-      closePreviewPanel();
-      const searchVal = (document.getElementById('prompt-search') as HTMLInputElement)?.value || '';
-      await render(searchVal);
-    }
-  });
 };
 
 const updateCompiledPreviewBox = (prompt: Prompt, previewBox: HTMLElement | null): void => {
@@ -481,7 +465,6 @@ const updateCompiledPreviewBox = (prompt: Prompt, previewBox: HTMLElement | null
     prompt.variables || []
   );
 
-  // Highlight variables inside compiled preview block if still not resolved
   let html = escapeHtml(compiled);
 
   // Highlight heading structures
@@ -491,88 +474,87 @@ const updateCompiledPreviewBox = (prompt: Prompt, previewBox: HTMLElement | null
     .replace(/^# (.*$)/gim, '<h1>$1</h1>');
 
   // Convert fenced code blocks
-  html = html.replace(
-    /```([\s\S]*?)```/g,
-    '<pre class="pn-preview-code-block"><code>$1</code></pre>'
-  );
+  html = html.replace(/```([\s\S]*?)```/g, '<pre class="preview-code-block"><code>$1</code></pre>');
 
   previewBox.innerHTML = html;
 };
 
 const renderVersionHistorySnapshots = async (promptId: string): Promise<void> => {
-  const container = document.getElementById('pn-detail-versions-list');
+  const container = LibraryDOM.versionList;
   if (!container) return;
 
   const versions = await PromptVersionStore.getVersions(promptId);
   container.innerHTML = '';
 
   if (versions.length === 0) {
-    container.innerHTML = '<p class="pn-card-meta">No save history available.</p>';
+    container.innerHTML =
+      '<p class="empty-version-msg">No saved versions yet. Versions are created automatically as you edit.</p>';
     return;
   }
 
   versions.forEach((version: PromptVersion) => {
-    const div = document.createElement('div');
-    div.className = 'pn-detail-version-item';
+    const div = document.createElement('li');
+    div.className = 'details-version-item';
     div.innerHTML = `
-      <div class="pn-version-info">
-        <span class="pn-version-number">v${version.version}</span>
-        <span class="pn-version-annotation">${escapeHtml(version.annotation || 'Manual snapshot')}</span>
-        <span class="pn-version-date">${formatShortDate(version.updatedAt)}</span>
+      <div class="version-info">
+        <span class="version-number">v${version.version}</span>
+        <span class="version-annotation">${escapeHtml(version.annotation || 'Manual snapshot')}</span>
+        <span class="version-date">${formatShortDate(version.updatedAt)}</span>
       </div>
-      <div class="pn-version-actions">
-        <button class="pn-btn pn-btn--ghost pn-btn--sm pn-version-compare-btn" type="button">Diff</button>
-        <button class="pn-btn pn-btn--ghost pn-btn--sm pn-version-restore-btn" type="button">Restore</button>
+      <div class="version-actions">
+        <button class="button button--ghost button--sm version-compare-btn" type="button">Diff</button>
+        <button class="button button--ghost button--sm version-restore-btn" type="button">Restore</button>
       </div>
-      <div class="pn-version-diff-output pn-hidden"></div>
+      <div class="version-diff-output hidden"></div>
     `;
 
-    const diffOutput = div.querySelector('.pn-version-diff-output') as HTMLElement;
-    const compareBtn = div.querySelector('.pn-version-compare-btn') as HTMLButtonElement;
+    const diffOutput = div.querySelector('.version-diff-output') as HTMLElement;
+    const compareBtn = div.querySelector('.version-compare-btn') as HTMLButtonElement;
 
     compareBtn.addEventListener('click', () => {
-      if (diffOutput.classList.contains('pn-hidden')) {
-        // Compute diff
+      if (diffOutput.classList.contains('hidden')) {
         if (selectedPrompt) {
           diffOutput.innerHTML = renderLineDiff(version.text, selectedPrompt.text);
-          diffOutput.classList.remove('pn-hidden');
+          diffOutput.classList.remove('hidden');
           compareBtn.textContent = 'Hide Diff';
         }
       } else {
-        diffOutput.classList.add('pn-hidden');
+        diffOutput.classList.add('hidden');
         compareBtn.textContent = 'Diff';
       }
     });
 
-    div.querySelector('.pn-version-restore-btn')?.addEventListener('click', async () => {
-      const confirmed = window.confirm(
-        `Restore version v${version.version} of "${version.title}"?`
-      );
-      if (confirmed) {
-        if (selectedPrompt) {
-          const restored = await PromptStore.updatePrompt(
-            selectedPrompt.id,
-            {
-              title: version.title,
-              description: version.description,
-              text: version.text,
-              tags: version.tags,
-              category: version.category,
-              variables: version.variables,
-            },
-            `Restored version v${version.version}`
-          );
-          if (restored) {
-            selectedPrompt = restored;
-            const searchVal =
-              (document.getElementById('prompt-search') as HTMLInputElement)?.value || '';
-            await render(searchVal);
-            await openPreviewPanel(restored);
-            const DomHelpers = (window as any).DomHelpers;
-            if (DomHelpers?.showToast) DomHelpers.showToast(`Restored version v${version.version}`);
+    div.querySelector('.version-restore-btn')?.addEventListener('click', async () => {
+      void PnDialog.confirm(`Restore version v${version.version} of "${version.title}"?`, {
+        title: 'Restore Version',
+        confirmLabel: 'Restore',
+      }).then(async (confirmed) => {
+        if (confirmed) {
+          if (selectedPrompt) {
+            const restored = await PromptStore.updatePrompt(
+              selectedPrompt.id,
+              {
+                title: version.title,
+                description: version.description,
+                text: version.text,
+                tags: version.tags,
+                category: version.category,
+                variables: version.variables,
+              },
+              `Restored version v${version.version}`
+            );
+            if (restored) {
+              selectedPrompt = restored;
+              const searchVal = getSearchValue() || '';
+              await render(searchVal);
+              await openPreviewPanel(restored);
+              const DomHelpers = (window as any).DomHelpers;
+              if (DomHelpers?.showToast)
+                DomHelpers.showToast(`Restored version v${version.version}`);
+            }
           }
         }
-      }
+      });
     });
 
     container.appendChild(div);
@@ -580,20 +562,90 @@ const renderVersionHistorySnapshots = async (promptId: string): Promise<void> =>
 };
 
 export const closePreviewPanel = (): void => {
-  const panel = document.getElementById('pn-prompt-detail-panel');
+  const panel = LibraryDOM.details;
   if (panel) {
-    panel.classList.add('pn-hidden');
+    panel.classList.add('hidden');
   }
-  document
-    .querySelectorAll('.pn-prompt-card')
-    .forEach((c) => c.classList.remove('pn-card--selected'));
+  cardMap.forEach((c) => c.setAttribute('data-selected', 'false'));
   selectedPrompt = null;
 };
 
-// Bind elements
+// Delegated event listener for the details panel root
 if (typeof window !== 'undefined') {
-  document.getElementById('pn-detail-close')?.addEventListener('click', () => {
-    closePreviewPanel();
+  // Bind standard close click via delegation or direct listener (let's keep delegation clean)
+  LibraryDOM.details.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest('[data-action]');
+    if (!btn || !selectedPrompt) return;
+
+    const action = btn.getAttribute('data-action');
+
+    if (action === LibraryActions.CloseDetails) {
+      closePreviewPanel();
+      return;
+    }
+
+    e.stopPropagation();
+
+    if (action === LibraryActions.Use) {
+      const compiled = VariablesManager.compile(
+        selectedPrompt.text,
+        currentPlaygroundValues,
+        selectedPrompt.variables || []
+      );
+      void doInject(compiled, false, btn as HTMLButtonElement);
+      void PromptStore.incrementUsageCount(selectedPrompt.id);
+    } else if (action === LibraryActions.Copy) {
+      const originalText = btn.textContent || 'Copy Raw';
+      void navigator.clipboard.writeText(selectedPrompt.text).then(() => {
+        btn.textContent = 'Copied!';
+        setTimeout(() => {
+          btn.textContent = originalText;
+        }, 1400);
+        const DomHelpers = (window as any).DomHelpers;
+        if (DomHelpers?.showToast) DomHelpers.showToast('Copied raw prompt to clipboard');
+      });
+    } else if (action === LibraryActions.CopyCompiled) {
+      const originalText = btn.textContent || 'Copy Compiled';
+      const compiled = VariablesManager.compile(
+        selectedPrompt.text,
+        currentPlaygroundValues,
+        selectedPrompt.variables || []
+      );
+      void navigator.clipboard.writeText(compiled).then(() => {
+        btn.textContent = 'Copied!';
+        setTimeout(() => {
+          btn.textContent = originalText;
+        }, 1400);
+        const DomHelpers = (window as any).DomHelpers;
+        if (DomHelpers?.showToast) DomHelpers.showToast('Copied rendered prompt to clipboard');
+      });
+    } else if (action === LibraryActions.Edit) {
+      const PromptForm = (window as any).PromptForm;
+      if (PromptForm?.openForEdit) {
+        void PromptForm.openForEdit(selectedPrompt);
+      }
+    } else if (action === LibraryActions.Duplicate) {
+      void PromptStore.duplicatePrompt(selectedPrompt.id).then(async (duplicated) => {
+        if (duplicated) {
+          const searchVal = getSearchValue() || '';
+          await render(searchVal);
+          await openPreviewPanel(duplicated);
+        }
+      });
+    } else if (action === LibraryActions.Delete) {
+      void PnDialog.confirm(`Delete prompt "${selectedPrompt.title}"?`, {
+        title: 'Delete Prompt',
+        confirmLabel: 'Delete',
+        danger: true,
+      }).then(async (confirmed) => {
+        if (confirmed && selectedPrompt) {
+          await PromptStore.deletePrompt(selectedPrompt.id);
+          closePreviewPanel();
+          const searchVal = getSearchValue() || '';
+          await render(searchVal);
+        }
+      });
+    }
   });
 }
 

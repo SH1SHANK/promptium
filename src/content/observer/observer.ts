@@ -40,9 +40,7 @@ export const attachSelectionObserver = async () => {
   exportSelectionState.observerRoot = root as Element;
 
   const observer = new MutationObserver(async (mutations) => {
-    const relevant = mutations.some(
-      (m) => m.addedNodes.length > 0 || m.removedNodes.length > 0
-    );
+    const relevant = mutations.some((m) => m.addedNodes.length > 0 || m.removedNodes.length > 0);
     if (relevant) {
       await scheduleSelectionScan();
     }

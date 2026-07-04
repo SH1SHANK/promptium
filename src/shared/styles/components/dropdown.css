@@ -1,36 +1,9 @@
 /* Select boxes, custom dropdown components */
 
-.pn-sv-select {
+.sv-select {
   background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238c8c93' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 10px center;
   padding-right: 28px;
   cursor: pointer;
-}
-
-.pn-improve-style-select {
-  padding: 5px 10px;
-  font-size: var(--font-size-sm);
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--radius-xs);
-  cursor: pointer;
-  -webkit-appearance: none;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238c8c93' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-  padding-right: 22px;
-}
-
-.pn-improve-style-select:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-
-.pn-add-mode-selector {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
 }

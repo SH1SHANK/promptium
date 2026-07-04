@@ -5,7 +5,11 @@
  * Owns: showUndoToast, showAlreadySavedToast, showInjectionUndoToast.
  */
 import { toast } from '../../shared/utils/toast';
-import { injectionUndoState, INJECTION_CONFIRMATION_DELAY_MS, INJECTION_UNDO_TTL_MS } from '../state';
+import {
+  injectionUndoState,
+  INJECTION_CONFIRMATION_DELAY_MS,
+  INJECTION_UNDO_TTL_MS,
+} from '../state';
 
 export const showAlreadySavedToast = (existingPrompt: any, currentText: string) => {
   document.getElementById('pn-toast-already-saved')?.remove();
@@ -60,7 +64,15 @@ export const showAlreadySavedToast = (existingPrompt: any, currentText: string) 
     toastEl.remove();
   });
 
-  toastEl.append(message, document.createTextNode(' '), updateBtn, document.createTextNode(' '), openBtn, document.createTextNode(' '), cancelBtn);
+  toastEl.append(
+    message,
+    document.createTextNode(' '),
+    updateBtn,
+    document.createTextNode(' '),
+    openBtn,
+    document.createTextNode(' '),
+    cancelBtn
+  );
   document.body.appendChild(toastEl);
   setTimeout(() => toastEl.remove(), 6000);
 };

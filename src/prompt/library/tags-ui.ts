@@ -1,7 +1,7 @@
 import { Prompt } from '../types/types';
 import { PromptStore } from '../storage/storage';
 import { PromptForm } from '../builder/builder';
-import { PnDialog } from '../../shared/utils/pn-dialog';
+import { PnDialog } from '../shared/dialog';
 import { showToast } from '../../shared/utils/toast';
 import { escapeHtml } from '../../shared/utils/dom-helpers';
 
@@ -122,17 +122,17 @@ export const render = async () => {
         }
       });
     }
-    quickFiltersHead?.classList.add('pn-hidden');
-    filterBar?.classList.add('pn-hidden');
-    quickFiltersDivider?.classList.add('pn-hidden');
-    if (emptyState) emptyState.classList.remove('pn-hidden');
+    quickFiltersHead?.classList.add('hidden');
+    filterBar?.classList.add('hidden');
+    quickFiltersDivider?.classList.add('hidden');
+    if (emptyState) emptyState.classList.remove('hidden');
     return;
   }
 
-  if (emptyState) emptyState.classList.add('pn-hidden');
-  quickFiltersHead?.classList.remove('pn-hidden');
-  filterBar?.classList.remove('pn-hidden');
-  quickFiltersDivider?.classList.remove('pn-hidden');
+  if (emptyState) emptyState.classList.add('hidden');
+  quickFiltersHead?.classList.remove('hidden');
+  filterBar?.classList.remove('hidden');
+  quickFiltersDivider?.classList.remove('hidden');
 
   // Render quick filter buttons
   if (filterBar) {

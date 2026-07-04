@@ -1,8 +1,8 @@
-@import '../foundations/colors.css';
-@import '../foundations/typography.css';
-@import '../foundations/spacing.css';
-@import '../foundations/radius.css';
-@import '../foundations/shadows.css';
+@import './colors.css';
+@import './spacing.css';
+@import './radii.css';
+@import './typography.css';
+@import './shadows.css';
 
 :root {
   --motion-fast: 150ms;
@@ -11,9 +11,25 @@
   --motion-ease: cubic-bezier(0.2, 0, 0.2, 1);
   --motion-spring: cubic-bezier(0.22, 1, 0.36, 1);
 
-  --pn-transition-fast: 120ms ease;
-  --pn-transition-base: 180ms ease;
-  --pn-transition-slow: 260ms ease;
-  --pn-focus-ring: 0 0 0 3px rgba(124, 92, 255, 0.28);
-  --pn-surface-border: 1px solid var(--pn-color-border, rgba(255, 255, 255, 0.12));
+  --pn-transition-fast: 120ms var(--motion-ease);
+  --pn-transition-base: 180ms var(--motion-ease);
+  --pn-transition-slow: 260ms var(--motion-ease);
+  --pn-focus-ring: 0 0 0 2px hsla(172, 66%, 50%, 0.35);
+  --pn-surface-border: 1px solid var(--color-border-default);
+
+  /* Control Heights Scale */
+  --control-height-sm: 24px;
+  --control-height-md: 32px;
+  --control-height-lg: 40px;
+
+  /* Z-Index Scale */
+  --z-index-below: -1;
+  --z-index-base: 1;
+  --z-index-nav: 10;
+  --z-index-sticky: 100;
+  --z-index-dropdown: 200;
+  --z-index-overlay: 500;
+  --z-index-dialog: 1000;
+  --z-index-toast: 999999;
+  --z-index-fab: 2147483647;
 }

@@ -35,7 +35,7 @@ export const showToast = (message: string, type: 'success' | 'error' | 'info' = 
   toast.setAttribute('role', 'status');
   toast.setAttribute('aria-live', 'polite');
 
-  document.body.appendChild(toast);
+  (document.querySelector('.runtime-toasts') || document.body).appendChild(toast);
   setTimeout(() => {
     toast.remove();
   }, 2500);

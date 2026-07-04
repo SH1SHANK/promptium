@@ -4,7 +4,7 @@
  *          exclusively through the Gemini API client.
  */
 
-import { PROVIDER_IDS } from '../shared/utils/model-registry';
+import { PROVIDER_IDS } from '../background/model-registry';
 import { floatingWindowService } from '../background/floating-window';
 import { getAdapters } from '../platform';
 
@@ -1685,14 +1685,16 @@ No quotes, no numbering, no extra text.`;
 
         if (message?.action === 'OPEN_PROMPTIUM_WINDOW') {
           const source = message?.source || 'icon';
-          const prefillText = message?.text || '';
+          const prefillText = message?.text || message?.content || '';
           const prefillDesc = message?.description || '';
+          const mode = message?.mode || null;
           void (async () => {
             if (prefillText) {
               await chrome.storage.local.set({
                 pn_prefilled_draft: {
                   text: prefillText,
                   description: prefillDesc,
+                  mode: mode,
                   timestamp: Date.now(),
                 },
               });

@@ -1,6 +1,6 @@
-import { OpenSource } from '../shared/types/window-manager';
-import { WindowStore } from '../shared/storage/window-store';
-import { createLogger } from '../shared/utils/logger';
+import { OpenSource } from './window-manager';
+import { WindowStore } from './window-store';
+import { createLogger } from './logger';
 
 const logger = createLogger('FloatingWindow');
 

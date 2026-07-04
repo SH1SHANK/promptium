@@ -1,0 +1,40 @@
+:root {
+  /* HSL Grays (Linear/Raycast inspired) */
+  --pn-gray-50: hsl(240, 5%, 96%);
+  --pn-gray-100: hsl(240, 5%, 90%);
+  --pn-gray-200: hsl(240, 5%, 80%);
+  --pn-gray-300: hsl(240, 5%, 65%);
+  --pn-gray-400: hsl(240, 5%, 45%);
+  --pn-gray-500: hsl(240, 5%, 30%);
+  --pn-gray-600: hsl(240, 5%, 20%);
+  --pn-gray-700: hsl(240, 6%, 15%);
+  --pn-gray-800: hsl(240, 6%, 9%);
+  --pn-gray-900: hsl(240, 10%, 4%);
+
+  /* Semantic Core Colors */
+  --color-bg-base: var(--pn-gray-900);
+  --color-bg-surface: var(--pn-gray-800);
+  --color-bg-elevated: var(--pn-gray-700);
+  --color-bg-hover: var(--pn-gray-600);
+  --color-border-subtle: hsla(240, 5%, 84%, 0.04);
+  --color-border-default: hsla(240, 5%, 84%, 0.08);
+  --color-border-accent: hsla(172, 66%, 50%, 0.3);
+
+  /* Primary Accent (Sleek Teal) */
+  --color-accent: hsl(172, 66%, 50%);
+  --color-accent-strong: hsl(172, 70%, 42%);
+  --color-accent-glow: hsla(172, 66%, 50%, 0.12);
+  --color-accent-rgb: 20, 184, 166;
+
+  /* Text */
+  --color-text-primary: var(--pn-gray-50);
+  --color-text-secondary: var(--pn-gray-300);
+  --color-text-muted: var(--pn-gray-400);
+
+  /* Status Colors */
+  --color-success: hsl(142, 70%, 45%);
+  --color-success-soft: hsl(142, 68%, 70%);
+  --color-warning: hsl(38, 92%, 50%);
+  --color-danger: hsl(350, 80%, 54%);
+  --color-danger-soft: hsl(350, 78%, 72%);
+}

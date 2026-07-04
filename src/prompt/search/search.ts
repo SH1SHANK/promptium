@@ -35,7 +35,7 @@ export const clearSearch = (): void => {
 export const focusSearch = (): boolean => {
   const searchInput = getSearchInput();
   const searchWrap = getSearchWrap();
-  if (!searchInput || !searchWrap || searchWrap.classList.contains('pn-hidden')) return false;
+  if (!searchInput || !searchWrap || searchWrap.classList.contains('hidden')) return false;
   searchInput.focus();
   searchInput.select();
   return true;

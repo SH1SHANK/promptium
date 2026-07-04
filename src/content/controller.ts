@@ -90,7 +90,9 @@ const transitionTo = (nextState: FabState): boolean => {
   if (_currentFABState === nextState) return true;
   const allowed = ALLOWED_TRANSITIONS[_currentFABState] || [];
   if (!allowed.includes(nextState)) {
-    console.warn(`[Promptium][FSM] Illegal state transition from ${_currentFABState} to ${nextState}`);
+    console.warn(
+      `[Promptium][FSM] Illegal state transition from ${_currentFABState} to ${nextState}`
+    );
     return false;
   }
   const prevState = _currentFABState;
@@ -100,13 +102,18 @@ const transitionTo = (nextState: FabState): boolean => {
 };
 
 const queueAnimation = (renderFn: () => Promise<void>) => {
-  _activeAnimationPromise = _activeAnimationPromise.then(() =>
-    new Promise<void>((resolve) => {
-      requestAnimationFrame(async () => {
-        try { await renderFn(); } catch (err) { console.error('[Promptium][Queue] Animation error:', err); }
-        resolve();
-      });
-    })
+  _activeAnimationPromise = _activeAnimationPromise.then(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(async () => {
+          try {
+            await renderFn();
+          } catch (err) {
+            console.error('[Promptium][Queue] Animation error:', err);
+          }
+          resolve();
+        });
+      })
   );
 };
 
@@ -140,32 +147,44 @@ const ContextEngine = {
       document.getElementById('pn-clipping-note-overlay') !== null ||
       document.getElementById('pn-toast-already-saved') !== null ||
       document.querySelector('.pn-toast') !== null ||
-      document.body.classList.contains('pn-modal-open') ||
-      document.querySelector('.pn-modal:not(.pn-hidden)') !== null;
+      document.body.classList.contains('modal-open') ||
+      document.querySelector('.modal:not(.hidden)') !== null;
 
-    const selText = adapter ? adapter.getSelection().trim() : window.getSelection()?.toString().trim() || '';
+    const selText = adapter
+      ? adapter.getSelection().trim()
+      : window.getSelection()?.toString().trim() || '';
     let selectionRole: 'user' | 'assistant' | 'mixed' = 'mixed';
     let selectionRect: DOMRect | null = null;
 
     if (selText) {
       const selection = window.getSelection();
       if (selection && selection.rangeCount > 0) {
-        try { selectionRect = selection.getRangeAt(0).getBoundingClientRect(); } catch (_) {}
+        try {
+          selectionRect = selection.getRangeAt(0).getBoundingClientRect();
+        } catch (_) {}
         if (selection.anchorNode && adapter) {
           let curr: HTMLElement | null =
             selection.anchorNode instanceof HTMLElement
               ? selection.anchorNode
               : selection.anchorNode.parentElement;
           while (curr) {
-            if (adapter.isUserMessage(curr)) { selectionRole = 'user'; break; }
-            if (adapter.isAssistantMessage(curr)) { selectionRole = 'assistant'; break; }
+            if (adapter.isUserMessage(curr)) {
+              selectionRole = 'user';
+              break;
+            }
+            if (adapter.isAssistantMessage(curr)) {
+              selectionRole = 'assistant';
+              break;
+            }
             curr = curr.parentElement;
           }
         }
       }
     }
 
-    let composerFocused = false, composerText = '', composerRect: DOMRect | null = null;
+    let composerFocused = false,
+      composerText = '',
+      composerRect: DOMRect | null = null;
     if (adapter) {
       composerFocused = adapter.isComposerFocused();
       composerText = adapter.getComposerText();
@@ -173,14 +192,17 @@ const ContextEngine = {
       if (composerEl) composerRect = composerEl.getBoundingClientRect();
     }
 
-    let hasMessages = false, msgCount = 0;
+    let hasMessages = false,
+      msgCount = 0;
     if (adapter) {
       const elements = await adapter.getMessageElements();
       msgCount = elements.length;
       hasMessages = msgCount > 0;
     }
 
-    const width = window.innerWidth, height = window.innerHeight, isSmall = width < 800;
+    const width = window.innerWidth,
+      height = window.innerHeight,
+      isSmall = width < 800;
     let state: FabContext['state'] = 'idle';
     if (selectionModeActive) state = 'selection-mode';
     else if (overlayActive) state = 'overlay';
@@ -189,8 +211,14 @@ const ContextEngine = {
     else if (hasMessages) state = 'conversation';
 
     return {
-      platform, state,
-      composer: { focused: composerFocused, text: composerText, hasText: composerText.trim().length > 0, rect: composerRect },
+      platform,
+      state,
+      composer: {
+        focused: composerFocused,
+        text: composerText,
+        hasText: composerText.trim().length > 0,
+        rect: composerRect,
+      },
       selection: { text: selText, role: selectionRole, rect: selectionRect },
       conversation: { hasMessages, count: msgCount },
       overlay: { active: overlayActive },
@@ -211,11 +239,15 @@ const ActionResolver = {
   async resolve(context: FabContext): Promise<ActionOption[]> {
     if (context.state === 'overlay' || context.state === 'selection-mode') return [];
     let memory: any = {};
-    try { const snap = await chrome.storage.local.get(['pn_fab_memory']); memory = snap.pn_fab_memory || {}; } catch (_) {}
+    try {
+      const snap = await chrome.storage.local.get(['pn_fab_memory']);
+      memory = snap.pn_fab_memory || {};
+    } catch (_) {}
     const platformMem = memory[context.platform] || {};
     const candidates = [
       {
-        id: 'save_prompt', label: 'Save Prompt',
+        id: 'save_prompt',
+        label: 'Save Prompt',
         isVisible: (ctx: FabContext) =>
           (ctx.state === 'typing' && ctx.composer.text.trim().length > 10) ||
           (ctx.state === 'selection' && ctx.selection.role === 'user'),
@@ -226,7 +258,12 @@ const ActionResolver = {
           return p;
         },
       },
-      { id: 'open_library', label: 'Open Library', isVisible: (ctx: FabContext) => ctx.state === 'idle', getPriority: () => 50 },
+      {
+        id: 'open_library',
+        label: 'Open Library',
+        isVisible: (ctx: FabContext) => ctx.state === 'idle',
+        getPriority: () => 50,
+      },
     ];
 
     const actions: ActionOption[] = [];
@@ -234,7 +271,8 @@ const ActionResolver = {
       if (cand.isVisible(context)) {
         let score = cand.getPriority(context);
         if (cand.id === 'save_prompt') {
-          const text = context.state === 'selection' ? context.selection.text : context.composer.text;
+          const text =
+            context.state === 'selection' ? context.selection.text : context.composer.text;
           if (await findExistingPrompt(text)) score -= 30;
         }
         const chosenCount = platformMem[cand.id] || 0;
@@ -254,13 +292,26 @@ const handleSavePromptAction = async () => {
   const adapter = getCurrentAdapter();
   if (!adapter) return;
   const _activeCtx = exportSelectionState.selectionModeActive ? 'selection' : 'idle';
-  const text = _activeCtx === 'selection' ? window.getSelection()?.toString().trim() || '' : adapter.getComposerText();
+  const text =
+    _activeCtx === 'selection'
+      ? window.getSelection()?.toString().trim() || ''
+      : adapter.getComposerText();
   if (!text.trim()) return;
   const existing = await findExistingPrompt(text);
-  if (existing) { showAlreadySavedToast(existing, text); return; }
+  if (existing) {
+    showAlreadySavedToast(existing, text);
+    return;
+  }
   chrome.runtime.sendMessage(
-    { action: 'OPEN_PROMPTIUM_WINDOW', source: 'fab', text, description: `Saved from ${adapter.hosts[0]}` },
-    (response: any) => { if (!response || !response.ok) toast.error('Failed to open Prompt Builder.'); }
+    {
+      action: 'OPEN_PROMPTIUM_WINDOW',
+      source: 'fab',
+      text,
+      description: `Saved from ${adapter.hosts[0]}`,
+    },
+    (response: any) => {
+      if (!response || !response.ok) toast.error('Failed to open Prompt Builder.');
+    }
   );
 };
 
@@ -275,10 +326,14 @@ const ActionRouter = {
       await chrome.storage.local.set({ pn_fab_memory: memory });
     } catch (_) {}
     switch (actionId) {
-      case 'save_prompt': await handleSavePromptAction(); break;
+      case 'save_prompt':
+        await handleSavePromptAction();
+        break;
       case 'open_library':
-        chrome.runtime.sendMessage({ action: 'OPEN_PROMPTIUM_WINDOW', source: 'fab' }); break;
-      default: console.warn('[Promptium][ActionRouter] Unknown action:', actionId);
+        chrome.runtime.sendMessage({ action: 'OPEN_PROMPTIUM_WINDOW', source: 'fab' });
+        break;
+      default:
+        console.warn('[Promptium][ActionRouter] Unknown action:', actionId);
     }
   },
 };
@@ -301,7 +356,7 @@ const ensureSelectionFabFn = async () => {
   shadowRoot.appendChild(style);
   const root = document.createElement('div');
   root.id = 'pn-context-fab';
-  root.className = 'pn-context-fab pn-hidden';
+  root.className = 'pn-context-fab hidden';
   const trigger = document.createElement('button');
   trigger.id = 'pn-fab-trigger-btn';
   trigger.className = 'pn-fab-trigger';
@@ -322,9 +377,17 @@ const FABRenderer = {
     await ensureSelectionFabFn();
     const root = getContextFabNode();
     if (!root) return;
-    if (root.classList.contains('pn-state-success') || root.classList.contains('pn-state-processing') || root.classList.contains('pn-state-error')) return;
-    if (context.state === 'overlay') { root.classList.add('pn-hidden'); return; }
-    root.classList.remove('pn-hidden');
+    if (
+      root.classList.contains('pn-state-success') ||
+      root.classList.contains('pn-state-processing') ||
+      root.classList.contains('pn-state-error')
+    )
+      return;
+    if (context.state === 'overlay') {
+      root.classList.add('hidden');
+      return;
+    }
+    root.classList.remove('hidden');
     root.className = `pn-context-fab pn-state-${context.state}`;
     root.setAttribute('aria-expanded', 'false');
     root.classList.toggle('pn-quiet-mode', _inQuietMode);
@@ -367,7 +430,13 @@ const FABRenderer = {
       allBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         void activateSelectionModeAll(
-          () => ensureSelectionModeActive(handleSelectionKeyDown, ensureSelectionFabFn, attachSelectionObserver, syncFABState),
+          () =>
+            ensureSelectionModeActive(
+              handleSelectionKeyDown,
+              ensureSelectionFabFn,
+              attachSelectionObserver,
+              syncFABState
+            ),
           syncFABState
         );
       });
@@ -396,8 +465,10 @@ const FABRenderer = {
     }
   },
   checkPositionCollisions(root: HTMLElement, context: FabContext) {
-    const defaultRight = 24, defaultBottom = 24;
-    const fabWidth = root.offsetWidth || 56, fabHeight = root.offsetHeight || 56;
+    const defaultRight = 24,
+      defaultBottom = 24;
+    const fabWidth = root.offsetWidth || 56,
+      fabHeight = root.offsetHeight || 56;
     const chatElements = document.querySelectorAll(
       '[data-message-author-role], .human-turn, .assistant-turn, [data-testid="user-message"], [data-turn-role]'
     );
@@ -456,18 +527,24 @@ const deriveFsmState = (context: FabContext, actions: ActionOption[]): FabState 
   if (context.state === 'overlay') return 'hidden';
   if (actions.length === 0 && context.state === 'idle') return 'hidden';
   switch (context.state) {
-    case 'typing': return 'typing';
-    case 'selection': return context.selection.role === 'user' ? 'selection_user' : 'selection_assistant';
-    case 'conversation': return 'conversation';
-    case 'selection-mode': return 'expanded';
-    default: return 'idle';
+    case 'typing':
+      return 'typing';
+    case 'selection':
+      return context.selection.role === 'user' ? 'selection_user' : 'selection_assistant';
+    case 'conversation':
+      return 'conversation';
+    case 'selection-mode':
+      return 'expanded';
+    default:
+      return 'idle';
   }
 };
 
 const syncFABState = async () => {
   const context = await ContextEngine.getContext();
   if (context.state === 'selection-mode' && _inQuietMode) {
-    _ignoreCount = 0; _inQuietMode = false;
+    _ignoreCount = 0;
+    _inQuietMode = false;
     logTelemetry('FAB_QUIET_MODE_RESET', { reason: 'selection_mode_active' });
   }
   const actions = await ActionResolver.resolve(context);
@@ -480,7 +557,8 @@ const syncFABState = async () => {
         _confidenceInterval = setInterval(async () => {
           _confidenceLevel += 25;
           if (_confidenceLevel >= 100) {
-            clearInterval(_confidenceInterval); _confidenceInterval = null;
+            clearInterval(_confidenceInterval);
+            _confidenceInterval = null;
             if (transitionTo('typing')) {
               const freshActions = await ActionResolver.resolve(context);
               queueAnimation(() => FABRenderer.render(context, freshActions));
@@ -491,32 +569,47 @@ const syncFABState = async () => {
       return;
     }
   } else {
-    if (_confidenceInterval) { clearInterval(_confidenceInterval); _confidenceInterval = null; _confidenceLevel = 0; }
+    if (_confidenceInterval) {
+      clearInterval(_confidenceInterval);
+      _confidenceInterval = null;
+      _confidenceLevel = 0;
+    }
   }
 
-  const isSelectionState = _currentFABState === 'selection_user' || _currentFABState === 'selection_assistant';
+  const isSelectionState =
+    _currentFABState === 'selection_user' || _currentFABState === 'selection_assistant';
   if (isSelectionState && context.state !== 'selection') {
     if (!_deselectTimeout) {
       _deselectTimeout = setTimeout(async () => {
         _ignoreCount++;
         logTelemetry('FAB_IGNORED', { count: _ignoreCount });
-        if (_ignoreCount >= 3 && !_inQuietMode) { _inQuietMode = true; logTelemetry('FAB_QUIET_MODE_ENTERED'); }
+        if (_ignoreCount >= 3 && !_inQuietMode) {
+          _inQuietMode = true;
+          logTelemetry('FAB_QUIET_MODE_ENTERED');
+        }
         const freshActions = await ActionResolver.resolve(context);
         const nextTarget = deriveFsmState(context, freshActions);
-        if (transitionTo(nextTarget)) queueAnimation(() => FABRenderer.render(context, freshActions));
+        if (transitionTo(nextTarget))
+          queueAnimation(() => FABRenderer.render(context, freshActions));
         _deselectTimeout = null;
       }, 300);
     }
     return;
   } else {
-    if (_deselectTimeout) { clearTimeout(_deselectTimeout); _deselectTimeout = null; }
+    if (_deselectTimeout) {
+      clearTimeout(_deselectTimeout);
+      _deselectTimeout = null;
+    }
   }
 
   if (_currentFABState !== targetState) {
     if (_currentFABState === 'typing' && context.state !== 'typing') {
       _ignoreCount++;
       logTelemetry('FAB_IGNORED', { count: _ignoreCount });
-      if (_ignoreCount >= 3 && !_inQuietMode) { _inQuietMode = true; logTelemetry('FAB_QUIET_MODE_ENTERED'); }
+      if (_ignoreCount >= 3 && !_inQuietMode) {
+        _inQuietMode = true;
+        logTelemetry('FAB_QUIET_MODE_ENTERED');
+      }
     }
     const freshTarget = _inQuietMode ? 'sleeping' : targetState;
     if (transitionTo(freshTarget)) queueAnimation(() => FABRenderer.render(context, actions));
@@ -532,13 +625,17 @@ const executeActionWithLifecycle = async (actionId: string, context: FabContext)
   try {
     await ActionRouter.dispatch(actionId, context);
     if (transitionTo('success')) {
-      const msg = ['save_prompt', 'save_clipping', 'save_to_vault'].includes(actionId) ? 'Saved successfully' : 'Completed';
+      const msg = ['save_prompt', 'save_clipping', 'save_to_vault'].includes(actionId)
+        ? 'Saved successfully'
+        : 'Completed';
       FABRenderer.showSuccessToast(msg);
     }
   } catch (err) {
     console.error('[Promptium][Lifecycle] Action failed:', err);
     if (transitionTo('error')) {
-      FABRenderer.showErrorState('Failed to process.', async () => { await executeActionWithLifecycle(actionId, context); });
+      FABRenderer.showErrorState('Failed to process.', async () => {
+        await executeActionWithLifecycle(actionId, context);
+      });
     }
   }
 };
@@ -548,9 +645,18 @@ const executeActionWithLifecycle = async (actionId: string, context: FabContext)
 const teardownContextFAB = () => {
   clearTrackedListeners();
   clearTrackedObservers();
-  if (_confidenceInterval) { clearInterval(_confidenceInterval); _confidenceInterval = null; }
-  if (_typingTimeout) { clearTimeout(_typingTimeout); _typingTimeout = null; }
-  if (_deselectTimeout) { clearTimeout(_deselectTimeout); _deselectTimeout = null; }
+  if (_confidenceInterval) {
+    clearInterval(_confidenceInterval);
+    _confidenceInterval = null;
+  }
+  if (_typingTimeout) {
+    clearTimeout(_typingTimeout);
+    _typingTimeout = null;
+  }
+  if (_deselectTimeout) {
+    clearTimeout(_deselectTimeout);
+    _deselectTimeout = null;
+  }
   logTelemetry('FAB_TEARDOWN_COMPLETED');
 };
 
@@ -560,17 +666,20 @@ const initContextFAB = () => {
   addTrackedListener(document, 'focusin', (e) => {
     const adapter = getCurrentAdapter();
     const composer = adapter?.getComposerElement();
-    if (composer && (e.target === composer || composer.contains(e.target as Node))) void syncFABState();
+    if (composer && (e.target === composer || composer.contains(e.target as Node)))
+      void syncFABState();
   });
   addTrackedListener(document, 'focusout', (e) => {
     const adapter = getCurrentAdapter();
     const composer = adapter?.getComposerElement();
-    if (composer && (e.target === composer || composer.contains(e.target as Node))) void syncFABState();
+    if (composer && (e.target === composer || composer.contains(e.target as Node)))
+      void syncFABState();
   });
   addTrackedListener(document, 'input', (e) => {
     const adapter = getCurrentAdapter();
     const composer = adapter?.getComposerElement();
-    if (composer && (e.target === composer || composer.contains(e.target as Node))) void syncFABState();
+    if (composer && (e.target === composer || composer.contains(e.target as Node)))
+      void syncFABState();
   });
   const bodyObserver = new MutationObserver(() => void syncFABState());
   bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['class', 'style'] });
@@ -590,7 +699,9 @@ const hydratePendingBridge = async (platform: any) => {
       const bridgeKey = ((window as any).Bridge as any)?.BRIDGE_KEY || 'pendingBridge';
       await chrome.storage.local.remove(bridgeKey);
     }
-  } catch (err) { console.warn('[Promptium] Bridge hydration failed', err); }
+  } catch (err) {
+    console.warn('[Promptium] Bridge hydration failed', err);
+  }
 };
 
 const hydratePendingContinuation = async (platform: any) => {
@@ -600,10 +711,13 @@ const hydratePendingContinuation = async (platform: any) => {
   try {
     const success = await (window as any).Injector.inject(String(pending.text), platform);
     if (success) {
-      const continuationKey = (window as any).Continuation?.CONTINUATION_KEY || 'pendingContinuation';
+      const continuationKey =
+        (window as any).Continuation?.CONTINUATION_KEY || 'pendingContinuation';
       await chrome.storage.local.remove(continuationKey);
     }
-  } catch (err) { console.warn('[Promptium] Continuation hydration failed', err); }
+  } catch (err) {
+    console.warn('[Promptium] Continuation hydration failed', err);
+  }
 };
 
 // ─── Runtime Message Handler ──────────────────────────────────────────────────
@@ -616,11 +730,22 @@ const undoInjectedPrompt = async () => {
   if (injectionUndoState.consumed || !injectionUndoState.platform) return;
   injectionUndoState.consumed = true;
   const currentText = await readComposerText(injectionUndoState.platform);
-  if (currentText == null) { clearInjectionUndoState(); await notify('Undo unavailable: input not found.'); return; }
+  if (currentText == null) {
+    clearInjectionUndoState();
+    await notify('Undo unavailable: input not found.');
+    return;
+  }
   const currentNormalized = normalizeComposerText(currentText);
   const injectedNormalized = normalizeComposerText(injectionUndoState.injectedText);
-  if (currentNormalized !== injectedNormalized) { clearInjectionUndoState(); await notify('Undo unavailable: input changed.'); return; }
-  const reverted = await (window as any).Injector.inject(injectionUndoState.previousText, injectionUndoState.platform);
+  if (currentNormalized !== injectedNormalized) {
+    clearInjectionUndoState();
+    await notify('Undo unavailable: input changed.');
+    return;
+  }
+  const reverted = await (window as any).Injector.inject(
+    injectionUndoState.previousText,
+    injectionUndoState.platform
+  );
   clearInjectionUndoState();
   await notify(reverted ? 'Injection undone.' : 'Undo failed.');
 };
@@ -631,12 +756,19 @@ const onRuntimeMessage = (msg: any, _sender: any, sendResponse: any) => {
     const respond = (payload: any) => {
       if (responded) return;
       responded = true;
-      try { sendResponse(payload); } catch (_) {}
+      try {
+        sendResponse(payload);
+      } catch (_) {}
     };
     try {
       const platform = getCurrentAdapter()?.id || null;
       if (msg?.action === 'GET_SELECTION' || msg?.type === 'GET_SELECTION') {
-        respond({ text: String(window.getSelection()?.toString() || '').trim(), url: window.location.href, platform, sourceTitle: document.title || '' });
+        respond({
+          text: String(window.getSelection()?.toString() || '').trim(),
+          url: window.location.href,
+          platform,
+          sourceTitle: document.title || '',
+        });
         return;
       }
       if (msg?.action === 'CHECK_ADAPTER_HEALTH' || msg?.type === 'CHECK_ADAPTER_HEALTH') {
@@ -644,14 +776,17 @@ const onRuntimeMessage = (msg: any, _sender: any, sendResponse: any) => {
           const adapter = getCurrentAdapter();
           const validation = adapter ? await adapter.validate() : null;
           respond({ ok: true, healthy: Boolean(validation && validation.healthy) });
-        } catch (_) { respond({ ok: true, healthy: false }); }
+        } catch (_) {
+          respond({ ok: true, healthy: false });
+        }
         return;
       }
       if (msg?.action === 'SHOW_TOAST' || msg?.type === 'SHOW_TOAST') {
         if (msg.type === 'error' || msg.toastType === 'error') toast.error(msg.text);
         else if (msg.type === 'success' || msg.toastType === 'success') toast.success(msg.text);
         else toast.info(msg.text);
-        respond({ ok: true }); return;
+        respond({ ok: true });
+        return;
       }
       if (msg?.action === 'INJECT_PROMPT' || msg?.type === 'INJECT_PROMPT') {
         const nextText = String(msg?.text || '');
@@ -660,37 +795,57 @@ const onRuntimeMessage = (msg: any, _sender: any, sendResponse: any) => {
         if (success && previousText != null) {
           stageInjectionUndo(platform, previousText, nextText, undoInjectedPrompt);
         }
-        respond({ ok: success }); return;
+        respond({ ok: success });
+        return;
       }
       if (msg?.action === 'EXPORT_CHAT' || msg?.type === 'EXPORT_CHAT') {
-        await handleExportChat(msg, platform, respond); return;
+        await handleExportChat(msg, platform, respond);
+        return;
       }
       if (msg?.action === 'GET_PLATFORM' || msg?.type === 'GET_PLATFORM') {
-        await handleGetPlatform(platform, respond); return;
+        await handleGetPlatform(platform, respond);
+        return;
       }
       if (msg?.action === 'OPEN_SIDEPANEL_ALL') {
-        respond(await openSidePanelWithAllMessages()); return;
+        respond(await openSidePanelWithAllMessages());
+        return;
       }
       if (msg?.action === 'SCRAPE_FOR_BRIDGE') {
-        await handleScrapeForBridge(platform, respond); return;
+        await handleScrapeForBridge(platform, respond);
+        return;
       }
       if (msg?.action === 'SCRAPE_FOR_CONTINUATION') {
-        await handleScrapeForContinuation(platform, respond); return;
+        await handleScrapeForContinuation(platform, respond);
+        return;
       }
       if (msg?.action === 'ACTIVATE_SELECTION_MODE') {
-        await ensureSelectionModeActive(handleSelectionKeyDown, ensureSelectionFabFn, attachSelectionObserver, syncFABState);
-        respond({ ok: true }); return;
+        await ensureSelectionModeActive(
+          handleSelectionKeyDown,
+          ensureSelectionFabFn,
+          attachSelectionObserver,
+          syncFABState
+        );
+        respond({ ok: true });
+        return;
       }
       if (msg?.action === 'DEACTIVATE_SELECTION_MODE') {
         await deactivateSelectionMode(handleSelectionKeyDown, syncFABState);
-        respond({ ok: true }); return;
+        respond({ ok: true });
+        return;
       }
       if (msg?.action === 'ACTIVATE_SELECTION_ALL') {
         const ok = await activateSelectionModeAll(
-          () => ensureSelectionModeActive(handleSelectionKeyDown, ensureSelectionFabFn, attachSelectionObserver, syncFABState),
+          () =>
+            ensureSelectionModeActive(
+              handleSelectionKeyDown,
+              ensureSelectionFabFn,
+              attachSelectionObserver,
+              syncFABState
+            ),
           syncFABState
         );
-        respond({ ok }); return;
+        respond({ ok });
+        return;
       }
       respond({ ok: false, error: `Unknown action: ${msg?.action}` });
     } catch (err) {
@@ -705,9 +860,16 @@ const onRuntimeMessage = (msg: any, _sender: any, sendResponse: any) => {
 
 const looksLikeCode = (text: string): boolean => {
   return [
-    /function\s+\w+\s*\(/i, /import\s+[\s\S]+?\s+from\s+['"]/i,
-    /const\s+\w+\s*=/i, /let\s+\w+\s*=/i, /class\s+\w+/i,
-    /def\s+\w+\s*\(/i, /fn\s+\w+\s*\(/i, /\{\s*[\s\S]*?\}/, /;\s*$/m, /\/\//,
+    /function\s+\w+\s*\(/i,
+    /import\s+[\s\S]+?\s+from\s+['"]/i,
+    /const\s+\w+\s*=/i,
+    /let\s+\w+\s*=/i,
+    /class\s+\w+/i,
+    /def\s+\w+\s*\(/i,
+    /fn\s+\w+\s*\(/i,
+    /\{\s*[\s\S]*?\}/,
+    /;\s*$/m,
+    /\/\//,
   ].some((re) => re.test(text));
 };
 
@@ -767,7 +929,13 @@ export const init = async () => {
     openWithAllMessages: openSidePanelWithAllMessages,
     activateSelectionModeAll: () =>
       activateSelectionModeAll(
-        () => ensureSelectionModeActive(handleSelectionKeyDown, ensureSelectionFabFn, attachSelectionObserver, syncFABState),
+        () =>
+          ensureSelectionModeActive(
+            handleSelectionKeyDown,
+            ensureSelectionFabFn,
+            attachSelectionObserver,
+            syncFABState
+          ),
         syncFABState
       ),
     getSelectedMessages: buildSelectedMessages,
@@ -776,7 +944,8 @@ export const init = async () => {
   const syncHighlightSettings = async () => {
     try {
       const snap = (await chrome.storage.local.get('promptiumSettings')) as any;
-      exportSelectionState.chatHighlightStyle = snap?.promptiumSettings?.chatHighlightStyle || 'solid';
+      exportSelectionState.chatHighlightStyle =
+        snap?.promptiumSettings?.chatHighlightStyle || 'solid';
       getSelectionControls().forEach((entry: any) => {
         setControlChecked(entry, entry.host?.getAttribute('data-checked') === 'true');
       });
@@ -787,7 +956,9 @@ export const init = async () => {
     if (changes.promptiumSettings) {
       void syncHighlightSettings();
       const newSettings = (changes.promptiumSettings.newValue || {}) as any;
-      (window as any).PromptSuggestions?.setEnabled(newSettings?.featureFlags?.smartSuggestions !== false);
+      (window as any).PromptSuggestions?.setEnabled(
+        newSettings?.featureFlags?.smartSuggestions !== false
+      );
     }
   });
 
@@ -796,11 +967,13 @@ export const init = async () => {
   document.addEventListener('contextmenu', () => {
     const selection = window.getSelection()?.toString() || '';
     if (selection.trim()) {
-      chrome.runtime.sendMessage({
-        action: 'UPDATE_CONTEXT_MENU_TITLES',
-        isCode: looksLikeCode(selection),
-        selectionLength: selection.length,
-      }).catch(() => {});
+      chrome.runtime
+        .sendMessage({
+          action: 'UPDATE_CONTEXT_MENU_TITLES',
+          isCode: looksLikeCode(selection),
+          selectionLength: selection.length,
+        })
+        .catch(() => {});
     }
   });
 

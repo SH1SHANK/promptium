@@ -1,5 +1,5 @@
-import { PromptiumWindowState, WindowBounds } from '../types/window-manager';
-import { createLogger } from '../utils/logger';
+import { PromptiumWindowState, WindowBounds } from './window-manager';
+import { createLogger } from './logger';
 
 const logger = createLogger('WindowStore');
 
